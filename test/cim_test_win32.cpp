@@ -186,24 +186,42 @@ int main()
 
         UIBeginFrame();
 
+        // NOTE: This run directly into the one frame of lag problem. I don't know. Maybe I just accept it?
         UIBeginContext()
         {
-            UIWindow("MyWindow", "MainWindow", CimWindow_AllowDrag)
-            {
-                // NOTE: The user only wants the interaction state. And no component can be under this.
-                // So with that in mind, the macro should be correct? Unless I am wrong about my assumptions.
-                UIButton("MyButton", "MainButton")
-                {
-                    CimLog_Info("Button Is Clicked");
-                }
+            static ui_component_state CloseButton;
+            static ui_component_state SaveButton;
+            static ui_component_state WindowState;
 
-                UISetFont(MyFont);
-                UIText("Hello.");
+            switch (Pass)
+            {
+
+            case UIPass_Layout:
+            {
+                if (UILayoutWindow("Window", "MainWindow", &WindowState))
+                {
+                    UILayoutButton("Button1", "Buttons", &CloseButton);
+                    UILayoutButton("Button2", "Buttons", &SaveButton );
+                }
+            } break;
+
+            case UIPass_Event:
+            {
+
+                if (CloseButton.Clicked)
+                {
+                    CimLog_Info("Close button clicked.");
+                }
+            } break;
+
+            default: break;
+
             }
 
             UIEndContext()
         }
 
+        // TODO: Remove this.
         Win32_GetClientSize(Win32.Handle, &Win32.Width, &Win32.Height);
         UI_RENDERER.Draw(Win32.Width, Win32.Height);
 

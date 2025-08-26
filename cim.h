@@ -52,17 +52,18 @@ typedef struct cim_rect
 typedef enum UIPass_Type
 {
     UIPass_Layout = 0,
-    UIPass_User   = 1,
-    UIPass_Ended  = 2,
+    UIPass_Event  = 1,
+    UIPass_Draw   = 2,
+    UIPass_Ended  = 3,
 } UIPass_Type;
 
 // Header files
 #include "interface/cim_text.h"     // Depends on nothing type-wise.
 #include "interface/cim_helpers.h"  // Depends on nothing type-wise.
 #include "interface/cim_style.h"    // Depends on nothing type-wise.
-#include "interface/cim_layout.h"   // Depends on [style] type-wise.
 #include "interface/cim_platform.h" // Depends on [helpers] type-wise.
 #include "interface/cim_renderer.h" // Depends on [helpers] type-wise.
+#include "interface/cim_layout.h"   // Depends on [style & renderer] type-wise.
 
 typedef struct cim_context
 {

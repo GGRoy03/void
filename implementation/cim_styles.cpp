@@ -23,8 +23,7 @@ static void                HandleThemeError        (theme_parsing_error *Error, 
 // [Globals]
 
 // TODO: Figure out where we want to store this.
-// I do not think this is the correct data-structure simply
-// because of bad cache behavior?
+// Still trying to figure if this is okay..
 static theme_table ThemeTable;
 
 // [Public API Implementation]
@@ -81,11 +80,9 @@ LoadThemeFiles(char **Files, cim_u32 FileCount)
     FreeBuffer(&Parser.TokenBuffer);
 }
 
-static theme *
-GetTheme(const char *ThemeName, theme_id *ComponentId)
+static ui_theme *
+GetUITheme(const char *ThemeName, theme_id *ComponentId)
 {
-    Cim_Assert(ThemeName && ComponentId);
-
     if (ComponentId->Value >= CimTheme_ThemeNameLength)
     {
         theme_info *ThemeInfo = &ThemeTable.Themes[ComponentId->Value];
@@ -93,6 +90,8 @@ GetTheme(const char *ThemeName, theme_id *ComponentId)
     }
     else
     {
+        Cim_Assert(ThemeName);
+
         cim_u8 *NameToFind = (cim_u8 *)ThemeName;
         cim_u32 NameLength = (cim_u32)strlen(ThemeName);
 
@@ -374,7 +373,7 @@ StoreAttributeInTheme(ThemeAttribute_Flag Attribute, theme_token *Value, theme_p
     theme_parsing_error Error = {};
     Error.Type = ThemeParsingError_None;
 
-    theme *Theme = &Parser->ActiveTheme;
+    ui_theme *Theme = &Parser->ActiveTheme;
 
     switch (Parser->State)
     {
@@ -404,7 +403,7 @@ StoreAttributeInTheme(ThemeAttribute_Flag Attribute, theme_token *Value, theme_p
         {
             Error.Type       = ThemeParsingError_Syntax;
             Error.LineInFile = Parser->AtLine;           // WARN: Incorrect?
-            CimTheme_SetErrorMsg(Error, "Invalid attribute supplied to window theme.");
+            CimTheme_SetErrorMsg(Error, "Invalid attribute supplied to window ui_theme.");
         } break;
 
         }
@@ -424,7 +423,7 @@ StoreAttributeInTheme(ThemeAttribute_Flag Attribute, theme_token *Value, theme_p
         {
             Error.Type       = ThemeParsingError_Syntax;
             Error.LineInFile = Parser->AtLine;           // WARN: Incorrect?
-            CimTheme_SetErrorMsg(Error, "Invalid attribute supplied to button theme.")
+            CimTheme_SetErrorMsg(Error, "Invalid attribute supplied to button ui_theme.")
         } break;
 
         }
@@ -457,7 +456,7 @@ ValidateAndStoreThemes(theme_parser *Parser)
             {
                 Error.Type       = ThemeParsingError_Syntax;
                 Error.LineInFile = Parser->AtLine;
-                CimTheme_SetErrorMsg(Error, "Forgot to close previous theme with } ?");
+                CimTheme_SetErrorMsg(Error, "Forgot to close previous ui_theme with } ?");
 
                 return Error;
             }
@@ -475,7 +474,7 @@ ValidateAndStoreThemes(theme_parser *Parser)
             {
                 Error.Type       = ThemeParsingError_Syntax;
                 Error.LineInFile = Token->LineInFile;
-                CimTheme_SetErrorMsg(Error, "A theme must be set like this: Theme \"NameOfTheme\" for ComponentType");
+                CimTheme_SetErrorMsg(Error, "A ui_theme must be set like this: Theme \"NameOfTheme\" for ComponentType");
 
                 return Error;
             }
@@ -525,7 +524,7 @@ ValidateAndStoreThemes(theme_parser *Parser)
                 char ThemeName[64] = { 0 };
                 memcpy(ThemeName, ThemeNameToken->Identifier.At, ThemeNameToken->Identifier.Size);
 
-                snprintf(Error.Message, sizeof(Error.Message), "Invalid component type for theme: %s", ThemeName);
+                snprintf(Error.Message, sizeof(Error.Message), "Invalid component type for ui_theme: %s", ThemeName);
 
                 return Error;
             }
@@ -545,7 +544,7 @@ ValidateAndStoreThemes(theme_parser *Parser)
                 char IdentifierString[64];
                 memcpy(IdentifierString, Token->Identifier.At, Token->Identifier.Size);
 
-                snprintf(Error.Message, sizeof(Error.Message), "Found identifier: %s | Outside of a theme block.",
+                snprintf(Error.Message, sizeof(Error.Message), "Found identifier: %s | Outside of a ui_theme block.",
                          IdentifierString);
 
                 return Error;
@@ -684,7 +683,7 @@ ValidateAndStoreThemes(theme_parser *Parser)
             {
                 Error.Type       = ThemeParsingError_Syntax;
                 Error.LineInFile = Token->LineInFile;
-                CimTheme_SetErrorMsg(Error, "You must end a theme block '}' before beginning a new one '{'.");
+                CimTheme_SetErrorMsg(Error, "You must end a ui_theme block '}' before beginning a new one '{'.");
 
                 return Error;
             }
@@ -698,7 +697,7 @@ ValidateAndStoreThemes(theme_parser *Parser)
             {
                 Error.Type       = ThemeParsingError_Syntax;
                 Error.LineInFile = Token->LineInFile;
-                CimTheme_SetErrorMsg(Error, "You must begin a theme block '{' before closing it '}'.");
+                CimTheme_SetErrorMsg(Error, "You must begin a ui_theme block '{' before closing it '}'.");
 
                 return Error;
             }
@@ -735,12 +734,12 @@ WriteThemeToTable(theme_parser *Parser)
     cim_u8 *NameToWrite = Parser->ActiveThemeNameToken->Identifier.At;
     cim_u32 NameLength  = Parser->ActiveThemeNameToken->Identifier.Size;
 
-    // NOTE: This is kind of garbage.
+    // NOTE: This is kind of garbage. Is this allocating? What the fuck is this piece of shit code?
     theme_id FakeId       = { 0 };
     char     FakeName[32] = {};
     memcpy(FakeName, NameToWrite, NameLength);
 
-    theme *Theme = GetTheme(FakeName, &FakeId);
+    ui_theme *Theme = GetUITheme(FakeName, &FakeId);
 
     if (Theme == NULL)
     {

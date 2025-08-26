@@ -38,7 +38,7 @@ typedef struct cim_text
     text_layout_info LayoutInfo;
 } cim_text;
 
-typedef struct cim_component
+typedef struct ui_component
 {
     bool IsInitialized;
 
@@ -52,23 +52,35 @@ typedef struct cim_component
         cim_button Button;
         cim_text   Text;
     } For;
-} cim_component;
+} ui_component;
 
-typedef struct cim_component_entry
+typedef struct ui_component_entry
 {
-    cim_component Value;
+    ui_component Value;
     char          Key[64];
-} cim_component_entry;
+} ui_component_entry;
 
-typedef struct cim_component_hashmap
+typedef struct ui_component_hashmap
 {
-    cim_u8              *Metadata;
-    cim_component_entry *Buckets;
-    cim_u32              GroupCount;
-    bool                 IsInitialized;
-} cim_component_hashmap;
+    cim_u8             *Metadata;
+    ui_component_entry *Buckets;
+    cim_u32             GroupCount;
+    bool                IsInitialized;
+} ui_component_hashmap;
 
-typedef struct cim_layout_node
+// NOTE: Trying something new...
+typedef struct ui_component_state
+{
+    // State
+    bool Clicked;
+    bool Hovered;
+
+    // Data retrieval
+    theme_id ThemeId;
+    cim_u32  LayoutNodeId;
+} ui_component_state;
+
+typedef struct ui_layout_node
 {
     // Hierarchy
     cim_u32 Id;
@@ -94,29 +106,32 @@ typedef struct cim_layout_node
     cim_vector4  Padding;
     Layout_Order Order;
 
-    // State
-    bool Clicked;
-    bool Held;
-} cim_layout_node;
+    // We hold the state as a pointer such that we can update it.
+    ui_component_state *State;
+} ui_layout_node;
 
-typedef struct cim_layout_tree
+typedef struct ui_layout_tree
 {
     // Memory pool
-    cim_layout_node *Nodes;
-    cim_u32          NodeCount;
-    cim_u32          NodeSize;
+    ui_layout_node *Nodes;
+    cim_u32         NodeCount;
+    cim_u32         NodeSize;
 
     // Tree-Logic
     cim_u32 ParentStack[CimLayout_MaxNestDepth];
     cim_u32 AtParent;
 
+    // Tree-State
+    ui_draw_list DrawList;
+
+    // Garbage drag code, needs to be removed.
     cim_u32 FirstDragNode;  // Set transforms to 0 when we pop that node.
     cim_i32 DragTransformX;
     cim_i32 DragTransformY;
-} cim_layout_tree;
+} ui_layout_tree;
 
 typedef struct cim_layout
 {
-    cim_layout_tree       Tree; // Forced to 1 tree for now.
-    cim_component_hashmap Components;
+    ui_layout_tree       Tree;       // WARN: Forced to 1 tree for now.
+    ui_component_hashmap Components;
 } cim_layout;

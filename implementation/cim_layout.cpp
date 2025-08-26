@@ -4,7 +4,7 @@ PopParent()
     Cim_Assert(CimCurrent);
 
     cim_layout      *Layout = UIP_LAYOUT;
-    cim_layout_tree *Tree   = &Layout->Tree; // This would access the current tree.
+    ui_layout_tree *Tree   = &Layout->Tree; // This would access the current tree.
 
     if (Tree->AtParent > 0)
     {
@@ -22,7 +22,7 @@ PopParent()
 }
 
 static cim_rect
-MakeRectFromNode(cim_layout_node *Node)
+MakeRectFromNode(ui_layout_node *Node)
 {
     cim_rect Rect;
     Rect.MinX = Node->X;
@@ -33,17 +33,17 @@ MakeRectFromNode(cim_layout_node *Node)
     return Rect;
 }
 
-static cim_layout_node *
-GetNodeFromIndex(cim_u32 Index)
+static ui_layout_node *
+GetUILayoutNode(cim_u32 Index)
 {
     Cim_Assert(CimCurrent);
 
     cim_layout      *Layout = UIP_LAYOUT;
-    cim_layout_tree *Tree   = &Layout->Tree; // This would access the current tree.
+    ui_layout_tree *Tree   = &Layout->Tree; // This would access the current tree.
 
     if (Index < Tree->NodeCount)
     {
-        cim_layout_node *Node = Tree->Nodes + Index;
+        ui_layout_node *Node = Tree->Nodes + Index;
 
         return Node;
     }
@@ -54,13 +54,13 @@ GetNodeFromIndex(cim_u32 Index)
     }
 }
 
-static cim_layout_node *
-PushLayoutNode(bool IsContainer, cim_u32 *OutNodeId) // NOTE: Probably shouldn't take this as an argument.
+static ui_layout_node *
+PushLayoutNode(bool IsContainer, ui_component_state *State)
 {
     Cim_Assert(CimCurrent);
 
-    cim_layout *Layout = UIP_LAYOUT;
-    cim_layout_tree *Tree = &Layout->Tree; // This would access the current tree.
+    cim_layout     *Layout = UIP_LAYOUT;
+    ui_layout_tree *Tree   = &Layout->Tree; // This would access the current tree.
 
     if (Tree->NodeCount == Tree->NodeSize)
     {
@@ -72,41 +72,40 @@ PushLayoutNode(bool IsContainer, cim_u32 *OutNodeId) // NOTE: Probably shouldn't
             return NULL;
         }
 
-        cim_layout_node *Temp = (cim_layout_node *)realloc(Tree->Nodes, NewSize * sizeof(*Temp));
+        ui_layout_node *Temp = (ui_layout_node *)realloc(Tree->Nodes, NewSize * sizeof(*Temp));
         if (!Temp)
         {
             CimLog_Fatal("Failed to heap-allocate.");
             return NULL;
         }
 
-        Tree->Nodes = Temp;
+        Tree->Nodes    = Temp;
         Tree->NodeSize = (cim_u32)NewSize;
     }
 
-    cim_u32          NodeId = Tree->NodeCount;
-    cim_layout_node *Node = Tree->Nodes + NodeId;
-    cim_u32          Parent = Tree->ParentStack[Tree->AtParent];
+    cim_u32         NodeId = Tree->NodeCount;
+    ui_layout_node *Node   = Tree->Nodes + NodeId;
+    cim_u32         Parent = Tree->ParentStack[Tree->AtParent];
 
-    Node->Id = NodeId;
-    Node->FirstChild = CimLayout_InvalidNode;
-    Node->LastChild = CimLayout_InvalidNode;
+    Node->Id          = NodeId;
+    Node->FirstChild  = CimLayout_InvalidNode;
+    Node->LastChild   = CimLayout_InvalidNode;
     Node->NextSibling = CimLayout_InvalidNode;
-    Node->Parent = CimLayout_InvalidNode;
-    Node->Clicked = false;
-    Node->Held = false;
+    Node->Parent      = CimLayout_InvalidNode;
+    Node->State       = State;
 
     if (Parent != CimLayout_InvalidNode)
     {
-        cim_layout_node *ParentNode = Tree->Nodes + Parent;
+        ui_layout_node *ParentNode = Tree->Nodes + Parent;
 
         if (ParentNode->FirstChild == CimLayout_InvalidNode)
         {
             ParentNode->FirstChild = NodeId;
-            ParentNode->LastChild = NodeId;
+            ParentNode->LastChild  = NodeId;
         }
         else
         {
-            cim_layout_node *LastChild = Tree->Nodes + ParentNode->LastChild;
+            ui_layout_node *LastChild = Tree->Nodes + ParentNode->LastChild;
             LastChild->NextSibling = NodeId;
             ParentNode->LastChild = NodeId;
         }
@@ -128,26 +127,24 @@ PushLayoutNode(bool IsContainer, cim_u32 *OutNodeId) // NOTE: Probably shouldn't
 
     ++Tree->NodeCount;
 
-    *OutNodeId = NodeId;
-
     return Node;
 }
 
-static cim_component *
+static ui_component *
 FindComponent(const char *Key)
 {
     Cim_Assert(CimCurrent);
-    cim_component_hashmap *Hashmap = &UI_LAYOUT.Components;
+    ui_component_hashmap *Hashmap = &UI_LAYOUT.Components;
 
     if (!Hashmap->IsInitialized)
     {
         Hashmap->GroupCount = 32;
 
         cim_u32 BucketCount = Hashmap->GroupCount * CimBucketGroupSize;
-        size_t  BucketSize = BucketCount * sizeof(cim_component_entry);
+        size_t  BucketSize = BucketCount * sizeof(ui_component_entry);
         size_t  MetadataSize = BucketCount * sizeof(cim_u8);
 
-        Hashmap->Buckets = (cim_component_entry *)malloc(BucketSize);
+        Hashmap->Buckets = (ui_component_entry *)malloc(BucketSize);
         Hashmap->Metadata = (cim_u8 *)malloc(MetadataSize);
 
         if (!Hashmap->Buckets || !Hashmap->Metadata)
@@ -179,7 +176,7 @@ FindComponent(const char *Key)
             cim_u32 Lane = CimHash_FindFirstBit32(TagMask);
             cim_u32 Idx = (GroupIdx * CimBucketGroupSize) + Lane;
 
-            cim_component_entry *E = Hashmap->Buckets + Idx;
+            ui_component_entry *E = Hashmap->Buckets + Idx;
             if (strcmp(E->Key, Key) == 0)
             {
                 return &E->Value;
@@ -197,7 +194,7 @@ FindComponent(const char *Key)
 
             Meta[Lane] = Tag;
 
-            cim_component_entry *E = Hashmap->Buckets + Idx;
+            ui_component_entry *E = Hashmap->Buckets + Idx;
             strcpy_s(E->Key, sizeof(E->Key), Key);
             E->Key[sizeof(E->Key) - 1] = 0;
 

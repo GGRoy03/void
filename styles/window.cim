@@ -4,11 +4,11 @@ theme "MainWindow" for Window
     BorderWidth := 3;
     BorderColor := [255, 255, 255, 255];
 
-    Padding := [20, 15, 10, 15];
+    Padding := [10, 15, 10, 15];
     Spacing := [20, 10];
 }
 
-theme "MainButton" for Button
+theme "Buttons" for Button
 {
     Color       := [150, 0, 150, 255];
     BorderWidth := 3;

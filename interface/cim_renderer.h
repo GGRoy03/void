@@ -35,7 +35,7 @@ typedef enum CimFeature_Type
 	CimFeature_Count       = 3,
 } CimFeature_Type;
 
-typedef struct cim_draw_command
+typedef struct ui_draw_command
 {
     size_t VertexByteOffset;
     size_t BaseVertexOffset;
@@ -50,7 +50,7 @@ typedef struct cim_draw_command
 
     // EXTREMELY TEMPORARY TETS
     ui_font Font;
-} cim_draw_command;
+} ui_draw_command;
 
 typedef struct cim_cmd_buffer
 {
@@ -60,13 +60,47 @@ typedef struct cim_cmd_buffer
     cim_arena FrameVtx;
     cim_arena FrameIdx;
 
-    cim_draw_command *Commands;
+    ui_draw_command *Commands;
     cim_u32           CommandCount;
     cim_u32           CommandSize;
 
     cim_rect        CurrentClipRect;
     UIPipeline_Type CurrentPipelineType;
 } cim_command_buffer;
+
+// NOTE: Trying something new.
+
+typedef struct ui_vertex
+{
+    cim_f32 PosX, PosY;
+    cim_f32 U, V;
+    cim_f32 R, G, B, A;
+} ui_vertex;
+
+typedef enum UICommand_Type
+{
+    UICommand_None   = 0,
+    UICommand_Window = 1,
+    UICommand_Button = 2,
+} UICommand_Type;
+
+typedef struct ui_draw_info
+{
+    UICommand_Type Type;
+
+    // Data-Retrieval
+    cim_u32  LayoutNodeId;
+    theme_id ThemeId;
+
+    cim_rect        ClippingRect;
+    UIPipeline_Type Pipeline;
+} ui_draw_info;
+
+typedef struct ui_draw_list
+{
+    ui_draw_info Commands[16];
+    cim_u32         CommandCount;
+} ui_draw_list;
 
 // V-Table
 typedef void DrawUI (cim_i32 Width, cim_i32 Height);

@@ -97,16 +97,16 @@ UISetFont(ui_font Font)
 
 // [Agnostic Code]
 
-static cim_draw_command *
+static ui_draw_command *
 GetDrawCommand(cim_cmd_buffer *Buffer, cim_rect ClipRect, UIPipeline_Type PipelineType)
 {
-    cim_draw_command *Command = NULL;
+    ui_draw_command *Command = NULL;
 
     if (Buffer->CommandCount == Buffer->CommandSize)
     {
         Buffer->CommandSize = Buffer->CommandSize ? Buffer->CommandSize * 2 : 32;
 
-        cim_draw_command *New = (cim_draw_command *)malloc(Buffer->CommandSize * sizeof(cim_draw_command));
+        ui_draw_command *New = (ui_draw_command *)malloc(Buffer->CommandSize * sizeof(ui_draw_command));
         if (!New)
         {
             return NULL;
@@ -114,16 +114,16 @@ GetDrawCommand(cim_cmd_buffer *Buffer, cim_rect ClipRect, UIPipeline_Type Pipeli
 
         if (Buffer->Commands)
         {
-            memcpy(New, Buffer->Commands, Buffer->CommandCount * sizeof(cim_draw_command));
+            memcpy(New, Buffer->Commands, Buffer->CommandCount * sizeof(ui_draw_command));
             free(Buffer->Commands);
         }
 
         // NOTE: Why do we memset?
-        memset(New, 0, Buffer->CommandSize * sizeof(cim_draw_command));
+        memset(New, 0, Buffer->CommandSize * sizeof(ui_draw_command));
         Buffer->Commands = New;
     }
 
-    if (!RectAreEqual(Buffer->CurrentClipRect, ClipRect) || Buffer->CurrentPipelineType != PipelineType)
+    if (Buffer->CommandCount == 0 || !RectAreEqual(Buffer->CurrentClipRect, ClipRect) || Buffer->CurrentPipelineType != PipelineType)
     {
         Command = Buffer->Commands + Buffer->CommandCount++;
 
@@ -144,84 +144,6 @@ GetDrawCommand(cim_cmd_buffer *Buffer, cim_rect ClipRect, UIPipeline_Type Pipeli
     }
 
     return Command;
-}
-
-static void
-DrawQuadFromData(cim_f32 x0, cim_f32 y0, cim_f32 x1, cim_f32 y1, cim_vector4 Col)
-{
-    Cim_Assert(CimCurrent);
-
-    typedef struct local_vertex
-    {
-        cim_f32 PosX, PosY;
-        cim_f32 U, V;
-        cim_f32 R, G, B, A;
-    } local_vertex;
-
-    cim_cmd_buffer   *Buffer  = UIP_COMMANDS;
-    cim_draw_command *Command = GetDrawCommand(Buffer, {}, UIPipeline_Default);
-
-    local_vertex Vtx[4];
-    Vtx[0] = (local_vertex){ x0, y0, 0.0f, 1.0f, Col.x, Col.y, Col.z, Col.w };
-    Vtx[1] = (local_vertex){ x0, y1, 0.0f, 0.0f, Col.x, Col.y, Col.z, Col.w };
-    Vtx[2] = (local_vertex){ x1, y0, 1.0f, 1.0f, Col.x, Col.y, Col.z, Col.w };
-    Vtx[3] = (local_vertex){ x1, y1, 1.0f, 0.0f, Col.x, Col.y, Col.z, Col.w };
-
-    cim_u32 Idx[6];
-    Idx[0] = Command->VtxCount + 0;
-    Idx[1] = Command->VtxCount + 2;
-    Idx[2] = Command->VtxCount + 1;
-    Idx[3] = Command->VtxCount + 2;
-    Idx[4] = Command->VtxCount + 3;
-    Idx[5] = Command->VtxCount + 1;
-
-    WriteToArena(Vtx, sizeof(Vtx), &Buffer->FrameVtx);
-    WriteToArena(Idx, sizeof(Idx), &Buffer->FrameIdx);;
-
-    Command->VtxCount += 4;
-    Command->IdxCount += 6;
-}
-
-static void
-DrawQuadFromNode(cim_layout_node *Node, cim_vector4 Col)
-{
-    Cim_Assert(CimCurrent);
-
-    typedef struct local_vertex
-    {
-        cim_f32 PosX, PosY;
-        cim_f32 U, V;
-        cim_f32 R, G, B, A;
-    } local_vertex;
-
-    cim_cmd_buffer   *Buffer  = UIP_COMMANDS;
-    cim_draw_command *Command = GetDrawCommand(Buffer, {}, UIPipeline_Default);
-    Command->PipelineType = UIPipeline_Default;
-
-    cim_f32 x0 = Node->X;
-    cim_f32 y0 = Node->Y;
-    cim_f32 x1 = Node->X + Node->Width;
-    cim_f32 y1 = Node->Y + Node->Height;
-
-    local_vertex Vtx[4];
-    Vtx[0] = (local_vertex){ x0, y0, 0.0f, 1.0f, Col.x, Col.y, Col.z, Col.w };
-    Vtx[1] = (local_vertex){ x0, y1, 0.0f, 0.0f, Col.x, Col.y, Col.z, Col.w };
-    Vtx[2] = (local_vertex){ x1, y0, 1.0f, 1.0f, Col.x, Col.y, Col.z, Col.w };
-    Vtx[3] = (local_vertex){ x1, y1, 1.0f, 0.0f, Col.x, Col.y, Col.z, Col.w };
-
-    cim_u32 Idx[6];
-    Idx[0] = Command->VtxCount + 0;
-    Idx[1] = Command->VtxCount + 2;
-    Idx[2] = Command->VtxCount + 1;
-    Idx[3] = Command->VtxCount + 2;
-    Idx[4] = Command->VtxCount + 3;
-    Idx[5] = Command->VtxCount + 1;
-
-    WriteToArena(Vtx, sizeof(Vtx), &Buffer->FrameVtx);
-    WriteToArena(Idx, sizeof(Idx), &Buffer->FrameIdx);;
-
-    Command->VtxCount += 4;
-    Command->IdxCount += 6;
 }
 
 // [Uber Shaders]
@@ -1138,7 +1060,7 @@ D3DDrawUI(cim_i32 ClientWidth, cim_i32 ClientHeight)
 
     for (cim_u32 CmdIdx = 0; CmdIdx < CmdBuffer->CommandCount; CmdIdx++)
     {
-        cim_draw_command *Command  = CmdBuffer->Commands + CmdIdx;
+        ui_draw_command *Command  = CmdBuffer->Commands + CmdIdx;
         d3d_pipeline     *Pipeline = &Pipelines[Command->PipelineType];
 
         // BUG: When drawing text we never bind the texture, since we don't even know how.

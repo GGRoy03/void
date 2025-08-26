@@ -75,7 +75,7 @@ typedef struct theme_token
     };
 } theme_token;
 
-typedef struct theme
+typedef struct ui_theme
 {
     cim_vector4 Color;
     cim_vector4 BorderColor;
@@ -84,7 +84,7 @@ typedef struct theme
     cim_vector2 Size;
     cim_vector2 Spacing;
     cim_vector4 Padding;
-} theme;
+} ui_theme;
 
 typedef struct theme_parser
 {
@@ -96,7 +96,7 @@ typedef struct theme_parser
     theme_token *ActiveThemeNameToken;
 
     ThemeParsing_State State;
-    theme              ActiveTheme;
+    ui_theme           ActiveTheme;
 
 } theme_parser;
 
@@ -106,7 +106,7 @@ typedef struct theme_info
     cim_u32 NameLength;
     cim_u32 NextWithSameLength;
 
-    theme Theme;
+    ui_theme Theme;
 } theme_info;
 
 typedef struct theme_id
@@ -122,5 +122,5 @@ typedef struct theme_table
 
 // [Public API]
 
-static void    LoadThemeFiles  (char **Files, cim_u32 FileCount);
-static theme * GetTheme        (const char *ThemeName, theme_id *ComponentId);
+static void       LoadThemeFiles  (char **Files, cim_u32 FileCount);
+static ui_theme * GetUITheme      (const char *ThemeName, theme_id *ComponentId);
