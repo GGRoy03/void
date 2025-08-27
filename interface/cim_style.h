@@ -41,6 +41,11 @@ typedef enum ThemeParsingError_Type
     ThemeParsingError_Internal = 3,
 } ThemeParsingError_Type;
 
+typedef struct theme_id
+{
+    cim_u32 Value;
+} theme_id;
+
 typedef struct theme_parsing_error
 {
     ThemeParsingError_Type Type;
@@ -86,6 +91,30 @@ typedef struct ui_theme
     cim_vector4 Padding;
 } ui_theme;
 
+typedef struct ui_window_theme
+{
+    theme_id ThemeId;
+
+    // Attributes
+    cim_vector4 Color;
+    cim_vector4 BorderColor;
+    cim_u32     BorderWidth;
+    cim_vector2 Size;
+    cim_vector2 Spacing;
+    cim_vector4 Padding;
+} ui_window_theme;
+
+typedef struct ui_button_theme
+{
+    theme_id ThemeId;
+
+    // Attributes
+    cim_vector4 Color;
+    cim_vector4 BorderColor;
+    cim_u32     BorderWidth;
+    cim_vector2 Size;
+} ui_button_theme;
+
 typedef struct theme_parser
 {
     buffer TokenBuffer;
@@ -109,18 +138,8 @@ typedef struct theme_info
     ui_theme Theme;
 } theme_info;
 
-typedef struct theme_id
-{
-    cim_u32 Value;
-} theme_id;
-
 typedef struct theme_table
 {
     theme_info Themes[CimTheme_MaxThemeCount];
     cim_u32    NextWriteIndex;
 } theme_table;
-
-// [Public API]
-
-static void       LoadThemeFiles  (char **Files, cim_u32 FileCount);
-static ui_theme * GetUITheme      (const char *ThemeName, theme_id *ComponentId);

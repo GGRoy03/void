@@ -28,6 +28,81 @@ static theme_table ThemeTable;
 
 // [Public API Implementation]
 
+// TODO: Rework this into: GetUIWindowTheme, GetUIButtonTheme, return stack variables which contains IDs.
+static ui_theme *
+GetUITheme(const char *ThemeName, theme_id *ComponentId)
+{
+    if (ComponentId->Value >= CimTheme_ThemeNameLength)
+    {
+        theme_info *ThemeInfo = &ThemeTable.Themes[ComponentId->Value];
+        return &ThemeInfo->Theme;
+    }
+    else
+    {
+        Cim_Assert(ThemeName);
+
+        cim_u8 *NameToFind = (cim_u8 *)ThemeName;
+        cim_u32 NameLength = (cim_u32)strlen(ThemeName);
+
+        theme_info *Sentinel = &ThemeTable.Themes[NameLength];
+        cim_u32     ReadPointer = Sentinel->NextWithSameLength;
+
+        while (ReadPointer)
+        {
+            theme_info *ThemeInfo = &ThemeTable.Themes[ReadPointer];
+
+            if (strcmp((const char *)NameToFind, (const char *)ThemeInfo->Name) == 0)
+            {
+                ComponentId->Value = ReadPointer;
+                return &ThemeInfo->Theme;
+            }
+
+            ReadPointer = ThemeInfo->NextWithSameLength;
+        }
+
+        return NULL;
+    }
+
+}
+
+static ui_window_theme
+GetWindowTheme(const char *ThemeName, theme_id ThemeId)
+{
+    ui_window_theme Result = {};
+    ui_theme *Theme = GetUITheme(ThemeName, &ThemeId);
+
+    if (Theme)
+    {
+        Result.ThemeId     = ThemeId;
+        Result.BorderColor = Theme->BorderColor;
+        Result.BorderWidth = Theme->BorderWidth;
+        Result.Color       = Theme->Color;
+        Result.Padding     = Theme->Padding;
+        Result.Size        = Theme->Size;
+        Result.Spacing     = Theme->Spacing;
+    }
+
+    return Result;
+}
+
+static ui_button_theme
+GetButtonTheme(const char *ThemeName, theme_id ThemeId)
+{
+    ui_button_theme Result = {};
+    ui_theme *Theme = GetUITheme(ThemeName, &ThemeId);
+
+    if (Theme)
+    {
+        Result.ThemeId     = ThemeId;
+        Result.BorderColor = Theme->BorderColor;
+        Result.BorderWidth = Theme->BorderWidth;
+        Result.Color       = Theme->Color;
+        Result.Size        = Theme->Size;
+    }
+
+    return Result;
+}
+
 static void
 LoadThemeFiles(char **Files, cim_u32 FileCount)
 {
@@ -78,42 +153,6 @@ LoadThemeFiles(char **Files, cim_u32 FileCount)
     }
 
     FreeBuffer(&Parser.TokenBuffer);
-}
-
-static ui_theme *
-GetUITheme(const char *ThemeName, theme_id *ComponentId)
-{
-    if (ComponentId->Value >= CimTheme_ThemeNameLength)
-    {
-        theme_info *ThemeInfo = &ThemeTable.Themes[ComponentId->Value];
-        return &ThemeInfo->Theme;
-    }
-    else
-    {
-        Cim_Assert(ThemeName);
-
-        cim_u8 *NameToFind = (cim_u8 *)ThemeName;
-        cim_u32 NameLength = (cim_u32)strlen(ThemeName);
-
-        theme_info *Sentinel    = &ThemeTable.Themes[NameLength];
-        cim_u32     ReadPointer = Sentinel->NextWithSameLength;
-
-        while (ReadPointer)
-        {
-            theme_info *ThemeInfo = &ThemeTable.Themes[ReadPointer];
-
-            if (strcmp((const char *)NameToFind, (const char *)ThemeInfo->Name) == 0)
-            {
-                ComponentId->Value = ReadPointer;
-                return &ThemeInfo->Theme;
-            }
-
-            ReadPointer = ThemeInfo->NextWithSameLength;
-        }
-
-        return NULL;
-    }
-
 }
 
 // [Internal Implementation]

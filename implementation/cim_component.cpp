@@ -9,40 +9,53 @@ typedef enum CimWindow_Flags
 static bool
 UILayoutWindow(const char *Id, const char *ThemeId, ui_component_state *State)
 {
+    // TODO: Think about early exits.
     Cim_Assert(CimCurrent && Id && ThemeId && State);
 
-    ui_layout_node  *LayoutNode = PushLayoutNode(true, State);
-    ui_component    *Component  = FindComponent(Id);
-    ui_theme        *Theme      = GetUITheme(ThemeId, &Component->ThemeId);
-    ui_layout_tree  *Tree       = UIP_LAYOUT.Tree; // NOTE: This should be local instead of global.
+    ui_layout_node *LayoutNode = PushLayoutNode(true, State);
+    Cim_Assert(LayoutNode);
 
-    LayoutNode->PrefWidth  = Theme->Size.x;
-    LayoutNode->PrefHeight = Theme->Size.x;
-    LayoutNode->Padding    = Theme->Padding;
-    LayoutNode->Spacing    = Theme->Spacing;
+    ui_component *Component = FindComponent(Id);
+    Cim_Assert(Component);
 
-    // WARN: Hardcoded values for now.
+    ui_window_theme Theme = GetWindowTheme(ThemeId, Component->ThemeId);
+    Cim_Assert(Theme.ThemeId.Value);
+
+    LayoutNode->PrefWidth  = Theme.Size.x;
+    LayoutNode->PrefHeight = Theme.Size.y;
+    LayoutNode->Padding    = Theme.Padding;
+    LayoutNode->Spacing    = Theme.Spacing;
+
+    // TODO: Get the X,Y from somewhere else and do a better job for the layout.
     LayoutNode->X     = 500.0f;
     LayoutNode->Y     = 400.0f;
     LayoutNode->Order = Layout_Horizontal;
 
-    // We probably have to do this. (TODO: Create a helper)
-    State->Clicked = false;
-    State->Hovered = false;
-    State->ThemeId = Component->ThemeId;
-
-    // Then this get processed after the draw phase.
-    ui_draw_info DrawInfo;
+    // TODO: Helper?
+    ui_draw_info DrawInfo = {};
     DrawInfo.Type         = UICommand_Window;
     DrawInfo.Pipeline     = UIPipeline_Default;
     DrawInfo.ClippingRect = {};
-    DrawInfo.LayoutNodeId = State->LayoutNodeId; // BUG: Wrong, since it will get removed.
-    DrawInfo.ThemeId      = Component->ThemeId;
+    DrawInfo.LayoutNodeId = LayoutNode->Id;
 
-    Tree->DrawList.Commands[Tree->DrawList.CommandCount++] = DrawInfo;
+    Component->ThemeId = Theme.ThemeId;
+    DrawInfo.ThemeId   = Theme.ThemeId;
 
-    return true; // Still not clear what to do.
+    // TODO: Helper?
+    ui_layout_tree *Tree = UIP_LAYOUT.Tree;
+    if (Tree->DrawList.CommandCount < Cim_ArrayCount(Tree->DrawList.Commands)) 
+    {
+        Tree->DrawList.Commands[Tree->DrawList.CommandCount++] = DrawInfo;
+    }
+    else 
+    {
+        CimLog_Warn("DrawList overflow while laying out window '%s'", Id);
+        return false;
+    }
+
+    return true;
 }
+
 
 static void
 UILayoutButton(const char *Id, const char *ThemeId, ui_component_state *State)
@@ -50,27 +63,35 @@ UILayoutButton(const char *Id, const char *ThemeId, ui_component_state *State)
     Cim_Assert(CimCurrent && Id && ThemeId && State);
 
     ui_layout_node *LayoutNode = PushLayoutNode(false, State);
-    ui_component   *Component  = FindComponent(Id);
-    ui_theme       *Theme      = GetUITheme(ThemeId, &Component->ThemeId);
-    ui_layout_tree *Tree       = UIP_LAYOUT.Tree; // NOTE: This should be local instead of global.
+    Cim_Assert(LayoutNode);
 
-    LayoutNode->ContentWidth  = Theme->Size.x;
-    LayoutNode->ContentHeight = Theme->Size.y;
+    ui_component *Component = FindComponent(Id);
+    Cim_Assert(Component);
 
-    // We probably have to do this. (TODO: Create a helper)
-    State->Clicked = false;
-    State->Hovered = false;
-    State->ThemeId = Component->ThemeId;
+    ui_button_theme Theme = GetButtonTheme(ThemeId, Component->ThemeId);
+    Cim_Assert(Theme.ThemeId.Value);
 
-    // Then this get processed after the draw phase.
+    LayoutNode->ContentWidth  = Theme.Size.x;
+    LayoutNode->ContentHeight = Theme.Size.y;
+
+    // TODO: Helper?
     ui_draw_info DrawInfo;
     DrawInfo.Type         = UICommand_Button;
     DrawInfo.Pipeline     = UIPipeline_Default;
     DrawInfo.ClippingRect = {};
-    DrawInfo.LayoutNodeId = State->LayoutNodeId; // BUG: Wrong, since it will get removed.
-    DrawInfo.ThemeId      = Component->ThemeId;
+    DrawInfo.LayoutNodeId = LayoutNode->Id;
+    DrawInfo.ThemeId      = Component->ThemeId = Theme.ThemeId;
 
-    Tree->DrawList.Commands[Tree->DrawList.CommandCount++] = DrawInfo;
+    // TODO: Helper?
+    ui_layout_tree *Tree = UIP_LAYOUT.Tree;
+    if (Tree->DrawList.CommandCount < Cim_ArrayCount(Tree->DrawList.Commands))
+    {
+        Tree->DrawList.Commands[Tree->DrawList.CommandCount++] = DrawInfo;
+    }
+    else
+    {
+        CimLog_Warn("DrawList overflow while laying out window '%s'", Id);
+    }
 }
 
 static void
@@ -172,8 +193,6 @@ UIEndLayout()
                 }
             }
 
-            // For data retrieval when drawing.
-            Node->State->LayoutNodeId = Node->Id;
         }
     }
 
@@ -263,32 +282,33 @@ UIEndLayout()
 static void
 UIEndDraw(ui_draw_list *DrawList)
 {
+    // WARN: Obviously a lot of duplicate code. Keep this for now.
+
     for (cim_u32 CommandIdx = 0; CommandIdx < DrawList->CommandCount; CommandIdx++)
     {
         ui_draw_info    *DrawInfo   = DrawList->Commands + CommandIdx;
         ui_layout_node  *LayoutNode = GetUILayoutNode(DrawInfo->LayoutNodeId);
-        ui_theme        *Theme      = GetUITheme(NULL, &DrawInfo->ThemeId);
         ui_draw_command *Command    = GetDrawCommand(UIP_COMMANDS, DrawInfo->ClippingRect, DrawInfo->Pipeline);
 
         switch (DrawInfo->Type)
         {
 
-        // WARN: Obviously a lot of duplicate code. Keep this for now.
         case UICommand_Window:
-        case UICommand_Button:
         {
-            if (Theme->BorderWidth > 0)
+            ui_window_theme Theme = GetWindowTheme(NULL, DrawInfo->ThemeId);
+
+            if (Theme.BorderWidth > 0)
             {
-                cim_f32 X0 = LayoutNode->X - Theme->BorderWidth;
-                cim_f32 Y0 = LayoutNode->Y - Theme->BorderWidth;
-                cim_f32 X1 = LayoutNode->X + LayoutNode->Width  + Theme->BorderWidth;
-                cim_f32 Y1 = LayoutNode->Y + LayoutNode->Height + Theme->BorderWidth;
+                cim_f32 X0 = LayoutNode->X - Theme.BorderWidth;
+                cim_f32 Y0 = LayoutNode->Y - Theme.BorderWidth;
+                cim_f32 X1 = LayoutNode->X + LayoutNode->Width  + Theme.BorderWidth;
+                cim_f32 Y1 = LayoutNode->Y + LayoutNode->Height + Theme.BorderWidth;
 
                 ui_vertex Borders[4];
-                Borders[0] = {X0, Y0, 0.0f, 1.0f, Theme->BorderColor.x, Theme->BorderColor.y, Theme->BorderColor.z, Theme->BorderColor.w};
-                Borders[1] = {X0, Y1, 0.0f, 0.0f, Theme->BorderColor.x, Theme->BorderColor.y, Theme->BorderColor.z, Theme->BorderColor.w};
-                Borders[2] = {X1, Y0, 1.0f, 1.0f, Theme->BorderColor.x, Theme->BorderColor.y, Theme->BorderColor.z, Theme->BorderColor.w};
-                Borders[3] = {X1, Y1, 1.0f, 0.0f, Theme->BorderColor.x, Theme->BorderColor.y, Theme->BorderColor.z, Theme->BorderColor.w};
+                Borders[0] = {X0, Y0, 0.0f, 1.0f, Theme.BorderColor.x, Theme.BorderColor.y, Theme.BorderColor.z, Theme.BorderColor.w};
+                Borders[1] = {X0, Y1, 0.0f, 0.0f, Theme.BorderColor.x, Theme.BorderColor.y, Theme.BorderColor.z, Theme.BorderColor.w};
+                Borders[2] = {X1, Y0, 1.0f, 1.0f, Theme.BorderColor.x, Theme.BorderColor.y, Theme.BorderColor.z, Theme.BorderColor.w};
+                Borders[3] = {X1, Y1, 1.0f, 0.0f, Theme.BorderColor.x, Theme.BorderColor.y, Theme.BorderColor.z, Theme.BorderColor.w};
 
                 cim_u32 Indices[6];
                 Indices[0] = Command->VtxCount + 0;
@@ -311,10 +331,70 @@ UIEndDraw(ui_draw_list *DrawList)
             cim_f32 Y1 = LayoutNode->Y + LayoutNode->Height;
 
             ui_vertex Body[4];
-            Body[0] = {X0, Y0, 0.0f, 1.0f,  Theme->Color.x, Theme->Color.y, Theme->Color.z, Theme->Color.w};
-            Body[1] = {X0, Y1, 0.0f, 0.0f,  Theme->Color.x, Theme->Color.y, Theme->Color.z, Theme->Color.w};
-            Body[2] = {X1, Y0, 1.0f, 1.0f,  Theme->Color.x, Theme->Color.y, Theme->Color.z, Theme->Color.w};
-            Body[3] = {X1, Y1, 1.0f, 0.0f,  Theme->Color.x, Theme->Color.y, Theme->Color.z, Theme->Color.w};
+            Body[0] = {X0, Y0, 0.0f, 1.0f,  Theme.Color.x, Theme.Color.y, Theme.Color.z, Theme.Color.w};
+            Body[1] = {X0, Y1, 0.0f, 0.0f,  Theme.Color.x, Theme.Color.y, Theme.Color.z, Theme.Color.w};
+            Body[2] = {X1, Y0, 1.0f, 1.0f,  Theme.Color.x, Theme.Color.y, Theme.Color.z, Theme.Color.w};
+            Body[3] = {X1, Y1, 1.0f, 0.0f,  Theme.Color.x, Theme.Color.y, Theme.Color.z, Theme.Color.w};
+
+            cim_u32 Indices[6];
+            Indices[0] = Command->VtxCount + 0;
+            Indices[1] = Command->VtxCount + 2;
+            Indices[2] = Command->VtxCount + 1;
+            Indices[3] = Command->VtxCount + 2;
+            Indices[4] = Command->VtxCount + 3;
+            Indices[5] = Command->VtxCount + 1;
+
+            WriteToArena(Body   , sizeof(Body)   , UIP_COMMANDS.FrameVtx);
+            WriteToArena(Indices, sizeof(Indices), UIP_COMMANDS.FrameIdx);;
+
+            Command->VtxCount += 4;
+            Command->IdxCount += 6;
+
+
+        } break;
+
+        case UICommand_Button:
+        {
+            ui_button_theme Theme = GetButtonTheme(NULL, DrawInfo->ThemeId);
+
+            if (Theme.BorderWidth > 0)
+            {
+                cim_f32 X0 = LayoutNode->X - Theme.BorderWidth;
+                cim_f32 Y0 = LayoutNode->Y - Theme.BorderWidth;
+                cim_f32 X1 = LayoutNode->X + LayoutNode->Width  + Theme.BorderWidth;
+                cim_f32 Y1 = LayoutNode->Y + LayoutNode->Height + Theme.BorderWidth;
+
+                ui_vertex Borders[4];
+                Borders[0] = {X0, Y0, 0.0f, 1.0f, Theme.BorderColor.x, Theme.BorderColor.y, Theme.BorderColor.z, Theme.BorderColor.w};
+                Borders[1] = {X0, Y1, 0.0f, 0.0f, Theme.BorderColor.x, Theme.BorderColor.y, Theme.BorderColor.z, Theme.BorderColor.w};
+                Borders[2] = {X1, Y0, 1.0f, 1.0f, Theme.BorderColor.x, Theme.BorderColor.y, Theme.BorderColor.z, Theme.BorderColor.w};
+                Borders[3] = {X1, Y1, 1.0f, 0.0f, Theme.BorderColor.x, Theme.BorderColor.y, Theme.BorderColor.z, Theme.BorderColor.w};
+
+                cim_u32 Indices[6];
+                Indices[0] = Command->VtxCount + 0;
+                Indices[1] = Command->VtxCount + 2;
+                Indices[2] = Command->VtxCount + 1;
+                Indices[3] = Command->VtxCount + 2;
+                Indices[4] = Command->VtxCount + 3;
+                Indices[5] = Command->VtxCount + 1;
+
+                WriteToArena(Borders, sizeof(Borders), UIP_COMMANDS.FrameVtx);
+                WriteToArena(Indices, sizeof(Indices), UIP_COMMANDS.FrameIdx);;
+
+                Command->VtxCount += 4;
+                Command->IdxCount += 6;
+            }
+
+            cim_f32 X0 = LayoutNode->X;
+            cim_f32 Y0 = LayoutNode->Y;
+            cim_f32 X1 = LayoutNode->X + LayoutNode->Width;
+            cim_f32 Y1 = LayoutNode->Y + LayoutNode->Height;
+
+            ui_vertex Body[4];
+            Body[0] = {X0, Y0, 0.0f, 1.0f,  Theme.Color.x, Theme.Color.y, Theme.Color.z, Theme.Color.w};
+            Body[1] = {X0, Y1, 0.0f, 0.0f,  Theme.Color.x, Theme.Color.y, Theme.Color.z, Theme.Color.w};
+            Body[2] = {X1, Y0, 1.0f, 1.0f,  Theme.Color.x, Theme.Color.y, Theme.Color.z, Theme.Color.w};
+            Body[3] = {X1, Y1, 1.0f, 0.0f,  Theme.Color.x, Theme.Color.y, Theme.Color.z, Theme.Color.w};
 
             cim_u32 Indices[6];
             Indices[0] = Command->VtxCount + 0;

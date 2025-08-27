@@ -187,6 +187,7 @@ int main()
         UIBeginFrame();
 
         // NOTE: This run directly into the one frame of lag problem. I don't know. Maybe I just accept it?
+        // Still need to figure out conditional UI layouts.
         UIBeginContext()
         {
             static ui_component_state CloseButton;
@@ -207,10 +208,11 @@ int main()
 
             case UIPass_Event:
             {
-
                 if (CloseButton.Clicked)
                 {
                     CimLog_Info("Close button clicked.");
+                    CloseButton.Clicked = false;
+                    CloseButton.Hovered = false;
                 }
             } break;
 

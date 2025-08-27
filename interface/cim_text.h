@@ -81,9 +81,3 @@ typedef struct glyph_hash
 {
     cim_u32 Value;
 } glyph_hash;
-
-static glyph_table * PlaceGlyphTableInMemory  (glyph_table_params Params, void *Memory);
-static size_t        GetGlyphTableFootprint   (glyph_table_params Params);
-static glyph_hash    ComputeGlyphHash         (cim_u32 CodePoint);
-static glyph_entry * GetGlyphEntry            (glyph_table *Table, cim_u32 Index);
-static void          UpdateGlyphCacheEntry    (glyph_table *Table, cim_u32 Id, bool NewIsInAtlas, cim_f32 U0, cim_f32 V0, cim_f32 U1, cim_f32 V1, glyph_size NewSize);

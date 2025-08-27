@@ -74,10 +74,6 @@ typedef struct ui_component_state
     // State
     bool Clicked;
     bool Hovered;
-
-    // Data retrieval
-    theme_id ThemeId;
-    cim_u32  LayoutNodeId;
 } ui_component_state;
 
 typedef struct ui_layout_node
@@ -106,7 +102,6 @@ typedef struct ui_layout_node
     cim_vector4  Padding;
     Layout_Order Order;
 
-    // We hold the state as a pointer such that we can update it.
     ui_component_state *State;
 } ui_layout_node;
 
