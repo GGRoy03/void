@@ -71,30 +71,21 @@ OSAcquireFontBackend(const char *FontName, cim_f32 FontSize, void *TransferSurfa
 
     if (Result)
     {
-        Result = false;
-
         DWriteFactory->CreateTextFormat(WideFontName, NULL,
                                         FontWeight, FontStyle, FontStretch,
                                         FontSize, L"en-us",
                                         &Font->OSBackend->Format);
-
         if (Font->OSBackend->Format)
         {
             Font->OSBackend->Format->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_NEAR);
             Font->OSBackend->Format->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
-
-            DWRITE_LINE_SPACING_METHOD Unused1;
-            FLOAT                      Unused2;
-            Font->OSBackend->Format->GetLineSpacing(&Unused1, &Font->LineHeight, &Unused2);
-
-            Result = true;
         }
+
+        Result = (Font->OSBackend->Format != NULL);
     }
 
     if (Result)
     {
-        Result = false;
-
         ID2D1Factory        *D2DFactory = NULL;
         D2D1_FACTORY_OPTIONS Options    = { D2D1_DEBUG_LEVEL_ERROR };
         D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, __uuidof(ID2D1Factory), &Options, (void **)&D2DFactory);
@@ -115,12 +106,12 @@ OSAcquireFontBackend(const char *FontName, cim_f32 FontSize, void *TransferSurfa
 
             D2DFactory->Release();
         }
+
+        Result = (Font->OSBackend->RenderTarget != NULL) && (Font->OSBackend->FillBrush != NULL);
     }
 
     if (Result)
     {
-        Result = false;
-
         IDWriteFontCollection *Collection = NULL;
         DWriteFactory->GetSystemFontCollection(&Collection);
 
@@ -142,7 +133,15 @@ OSAcquireFontBackend(const char *FontName, cim_f32 FontSize, void *TransferSurfa
                     if (DWriteFont)
                     {
                         DWriteFont->CreateFontFace(&Font->OSBackend->FontFace);
-                        Result = (Font->OSBackend->FontFace != 0);
+                        if (Font->OSBackend->FontFace)
+                        {
+                            DWRITE_FONT_METRICS FontMetrics = {};
+                            Font->OSBackend->FontFace->GetMetrics(&FontMetrics);
+
+                            cim_f32 Scale = Font->Size / (cim_f32)FontMetrics.designUnitsPerEm;
+                            Font->LineHeight = (cim_f32)(FontMetrics.ascent + FontMetrics.descent + FontMetrics.lineGap) * Scale;
+                        }
+
                         DWriteFont->Release();
                     }
 
@@ -152,6 +151,8 @@ OSAcquireFontBackend(const char *FontName, cim_f32 FontSize, void *TransferSurfa
 
             Collection->Release();
         }
+
+        Result = (Font->OSBackend->FontFace != NULL);
     }
 
     return Result;

@@ -40,7 +40,8 @@ typedef struct file_browser_ui
     browsing_history_stack Backward;
     bool                   IsInitialized;
 
-    // UI_STATES
+    // CIM_UI_STATES
+    ui_font           *Font;
     ui_component_state BackwardButton;
     ui_component_state ForwardButton;
     ui_component_state HistoryButton;
@@ -192,13 +193,7 @@ PopHistory(browsing_history_stack *Stack)
 static uint32_t
 GetHistoryDepth(browsing_history_stack *Stack)
 {
-    uint32_t Result = 0;
-
-    if (Stack->Top > 0)
-    {
-        Result = Stack->Top - 1;
-    }
-    
+    uint32_t Result = Result = Stack->Top;; 
     return Result;
 }
 
@@ -220,14 +215,19 @@ GetDirectoryEntry(uint32_t Index, file_browser_ui *FileBrowser)
 // [UI]
 
 static void
-FileBrowser(ui_font *Font)
+FileBrowser()
 {
     static file_browser_ui FileBrowser;
 
     if (!FileBrowser.IsInitialized)
     {
+        FileBrowser.Font = UILoadFont("Consolas", 20, UIFont_ExtendedASCIIDirectMapping);
+
         BuildFileTree("D:/Work/CIM/test/root_dir", &FileBrowser);
-        FileBrowser.ActiveFolderIndex = 1; // Let's try something.
+        FileBrowser.ActiveFolderIndex = 0; // Let's try something.
+
+        PushHistory(1, &FileBrowser.Backward);
+        PushHistory(2, &FileBrowser.Backward);
 
         FileBrowser.IsInitialized = true;
     }
@@ -239,11 +239,12 @@ FileBrowser(ui_font *Font)
 
         case UIPass_Layout:
         {
-            UISetFont(Font);
+            UISetFont(FileBrowser.Font);
 
             if (UIWindow("FileBrowser_Window", "FileBrowser_Window", NULL))
             {
-                // NOTE: These markers are quite annoying.
+                // NOTE: These markers are quite annoying. Loop macro would help, but let's think more about
+                // layouts. Maybe it's fine for now, until I hit limitations.
                 UIRow();
                 UIButton("FileBrowser_Backward", "FileBrowser_HeaderButtons", "<--", &FileBrowser.BackwardButton);
                 UIButton("FileBrowser_Forward" , "FileBrowser_HeaderButtons", "-->", &FileBrowser.ForwardButton);
@@ -251,28 +252,25 @@ FileBrowser(ui_font *Font)
 
                 if (!IsHistoryEmpty(&FileBrowser.Backward))
                 {
-                    // NOTE: These markers are quite annoying. Like no one wants to do layouts like this.
-                    // Then how??
-                    UIRow();
-
-                    uint32_t Count = GetHistoryDepth(&FileBrowser.Backward);
-                    for (uint32_t Idx = 0; Idx < Count; Idx++)
+                    UIRowBlock()
                     {
-                        uint32_t         FolderIndex = FileBrowser.Backward.FolderIndices[Idx];
-                        directory_entry *Entry       = GetDirectoryEntry(FolderIndex, &FileBrowser);
-                        assert(Entry);
-
-                        UIIndexedButton("FileBrowser_HistoryButtons", Entry->Name, &FileBrowser.HistoryButton, FolderIndex);
-
-                        // Draw a '>' if it is not the last entry in the stack.
-                        if (Idx != Count - 1)
+                        uint32_t Count = GetHistoryDepth(&FileBrowser.Backward);
+                        for (uint32_t Idx = 0; Idx < Count; Idx++)
                         {
+                            uint32_t         FolderIndex = FileBrowser.Backward.FolderIndices[Idx];
+                            directory_entry *Entry = GetDirectoryEntry(FolderIndex, &FileBrowser);
+                            assert(Entry);
+
+                            UIIndexedButton("FileBrowser_HistoryButtons", Entry->Name, &FileBrowser.HistoryButton, FolderIndex);
+
+                            // Draw a '>' if it is not the last entry in the stack.
+                            if (Idx != Count - 1)
+                            {
+                                UIText(">");
+                            }
 
                         }
-                        
                     }
-
-                    UIEndRow();
                 }
                 else
                 {
@@ -281,11 +279,14 @@ FileBrowser(ui_font *Font)
                     assert(Entry);
                     
                     // NOTE: Here's another pain point, how come we can't infer the layout at all?
-                    // If there's no layout can we just assume? How does that work? Also we
-                    UIRow();
+                    // If there's no layout can we just assume? How does that work? I mean.. Like since 
+                    // it's already a column how come it is incorrectly placed?
+
+                    // BUG: It is not aligned with the above buttons.
                     UIIndexedButton("FileBrowser_HistoryButtons", Entry->Name, &FileBrowser.HistoryButton, FolderIndex);
-                    UIEndRow();
                 }
+
+                // TODO: Add separators.
             }
 
         } break;

@@ -176,9 +176,6 @@ int main()
     PlatformInit("D:/Work/CIM/styles"); // WARN : Weird... Should also be renamed.
     InitializeRenderer(UIRenderer_D3D, Dx11.Device, Dx11.DeviceContext);
 
-    ui_font *DefaultFont = UILoadFont("Consolas", 20, UIFont_ExtendedASCIIDirectMapping);
-    Cim_Assert(DefaultFont->IsValid);
-
     // TODO: Fix the window closing bug.
     while(Win32_ProcessMessages())
     {
@@ -198,7 +195,7 @@ int main()
         // so if we detect that none of the other actions were performed in the frame we can skip hit-testing
         // on that component. So a behavior mask.
 
-        FileBrowser(DefaultFont);
+        FileBrowser();
 
         // TODO: Remove this.
         Win32_GetClientSize(Win32.Handle, &Win32.Width, &Win32.Height);
@@ -210,7 +207,4 @@ int main()
 
         Dx11.SwapChain->Present(1, 0);
     }
-
-    // NOTE: This is not necessary.
-    UIUnloadFont(DefaultFont);
 }

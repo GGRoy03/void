@@ -1,11 +1,3 @@
-typedef enum CimWindow_Flags
-{
-    CimWindow_AllowDrag = 1 << 0,
-} CimWindow_Flags;
-
-#define UIBeginContext() for (UIPass_Type Pass = UIPass_Layout; Pass !=  UIPass_Ended; Pass = (UIPass_Type)((cim_u32)Pass + 1))
-#define UIEndContext()   if (Pass == UIPass_Layout) {UIEndLayout();} else if (Pass == UIPass_Draw) {UIEndDraw(UIP_LAYOUT.Tree.DrawList);}
-
 static ui_component *
 FindComponent(const char *Key)
 {
@@ -150,9 +142,93 @@ UIWindow(const char *Id, const char *ThemeId, ui_component_state *State)
     return true;
 }
 
-// TODO: Make use of the index.
 static void
-ButtonComponent(const char *Id, const char *ThemeId, const char *Text, ui_component_state *State, cim_u32 Index)
+TextComponent(const char *Text, ui_layout_node *LayoutNode, ui_font *Font)
+{
+    Cim_Assert(Text);
+
+    cim_u32 TextLength       = (cim_u32)strlen(Text);
+    cim_f32 TextContentWidth = 0.0f;
+
+    if (Font->Mode == UIFont_ExtendedASCIIDirectMapping)
+    {
+        for (cim_u32 Idx = 0; Idx < TextLength; Idx++)
+        {
+            glyph_atlas AtlasInfo = FindGlyphAtlasByDirectMapping(Font->Table.Direct, Text[Idx]);
+
+            if (!AtlasInfo.IsInAtlas)
+            {
+                glyph_layout Layout = OSGetGlyphLayout(Text[Idx], Font);
+
+                stbrp_rect Rect = {};
+                Rect.w = Layout.Size.Width + 4;
+                Rect.h = Layout.Size.Height + 4;
+                stbrp_pack_rects(&Font->AtlasContext, &Rect, 1);
+
+                if (Rect.was_packed)
+                {
+                    ui_texture_coord Tex;
+                    Tex.u0 = (cim_f32) Rect.x / Font->AtlasWidth;
+                    Tex.v0 = (cim_f32) Rect.y / Font->AtlasHeight;
+                    Tex.u1 = (cim_f32)(Rect.x + Rect.w) / Font->AtlasWidth;
+                    Tex.v1 = (cim_f32)(Rect.y + Rect.h) / Font->AtlasHeight;
+
+                    OSRasterizeGlyph(Text[Idx], Rect, Font);
+                    UpdateDirectGlyphTable(Font->Table.Direct, AtlasInfo.TableId,
+                                           true, Tex, Layout.Offsets, Layout.Size,
+                                           Layout.AdvanceX);
+                }
+            }
+            else
+            {
+                glyph_layout Layout = FindGlyphLayoutByDirectMapping(Font->Table.Direct, Text[Idx]);
+                TextContentWidth += Layout.AdvanceX;
+            }
+        }
+    }
+    else
+    {
+        // TODO: Other modes.
+    }
+
+    cim_u32 LayoutNodeId = 0;
+    if (LayoutNode)
+    {
+        LayoutNodeId = LayoutNode->Id;
+
+        // TODO: Idk about this? Probably depends on what the user wants.
+        if (LayoutNode->Width < TextContentWidth)
+        {
+            LayoutNode->Width = TextContentWidth + 10;
+        }
+    }
+    else
+    {
+        ui_layout_node *Layout = PushLayoutNode(false, NULL); // WARN: Then we are forced to no states on text for now.
+        Layout->Width  = TextContentWidth;
+        Layout->Height = Font->LineHeight;
+
+        LayoutNodeId = Layout->Id;
+    }
+
+    ui_draw_command *Command = AllocateDrawCommand(UIP_LAYOUT.Tree.DrawList);
+    if (Command)
+    {
+        Command->Type         = UICommand_Text;
+        Command->ClippingRect = {};
+        Command->Pipeline     = UIPipeline_Text;
+        Command->LayoutNodeId = LayoutNodeId;
+
+        Command->ExtraData.Text.Font         = Font;
+        Command->ExtraData.Text.StringLength = TextLength;
+        Command->ExtraData.Text.String       = (char *)Text;     // WARN: Danger!
+        Command->ExtraData.Text.Width        = TextContentWidth;
+    }
+}
+
+static void
+ButtonComponent(const char *Id, const char *ThemeId, const char *Text,
+                ui_component_state *State, cim_u32 Index)
 {
     Cim_Assert(CimCurrent && ThemeId);
 
@@ -173,6 +249,7 @@ ButtonComponent(const char *Id, const char *ThemeId, const char *Text, ui_compon
         Theme = GetButtonTheme(ThemeId, {0});
     }
 
+    // NOTE: We could overwrite if the text is bigger and the user wants it.
     LayoutNode = PushLayoutNode(false, State);
     LayoutNode->Width  = Theme.Size.x;
     LayoutNode->Height = Theme.Size.y;
@@ -195,8 +272,8 @@ ButtonComponent(const char *Id, const char *ThemeId, const char *Text, ui_compon
         ui_draw_command *Command = AllocateDrawCommand(UIP_LAYOUT.Tree.DrawList);
         if (Command)
         {
-            Command->Type = UICommand_Quad;
-            Command->Pipeline = UIPipeline_Default;
+            Command->Type         = UICommand_Quad;
+            Command->Pipeline     = UIPipeline_Default;
             Command->ClippingRect = {};
             Command->LayoutNodeId = LayoutNode->Id;
 
@@ -208,201 +285,6 @@ ButtonComponent(const char *Id, const char *ThemeId, const char *Text, ui_compon
     // Draw Text
     if (Text)
     {
-        // NOTE: Could be provided by the user?
-        cim_u32 TextLength       = (cim_u32)strlen(Text);
-        cim_f32 TextContentWidth = 0.0f;
-
-        ui_font *Font = CimCurrent->CurrentFont;
-        Cim_Assert(Font->IsValid);
-
-        if (Font->Mode == UIFont_ExtendedASCIIDirectMapping)
-        {
-            for (cim_u32 Idx = 0; Idx < TextLength; Idx++)
-            {
-                glyph_atlas AtlasInfo = FindGlyphAtlasByDirectMapping(Font->Table.Direct, Text[Idx]);
-
-                if (!AtlasInfo.IsInAtlas)
-                {
-                    glyph_layout Layout = OSGetGlyphLayout(Text[Idx], Font);
-
-                    stbrp_rect Rect = {};
-                    Rect.w = Layout.Size.Width + 4;
-                    Rect.h = Layout.Size.Height + 4;
-                    stbrp_pack_rects(&Font->AtlasContext, &Rect, 1);
-
-                    if (Rect.was_packed)
-                    {
-                        ui_texture_coord Tex;
-                        Tex.u0 = (cim_f32)Rect.x / Font->AtlasWidth;
-                        Tex.v0 = (cim_f32)Rect.y / Font->AtlasHeight;
-                        Tex.u1 = (cim_f32)(Rect.x + Rect.w) / Font->AtlasWidth;
-                        Tex.v1 = (cim_f32)(Rect.y + Rect.h) / Font->AtlasHeight;
-
-                        OSRasterizeGlyph(Text[Idx], Rect, Font);
-                        UpdateDirectGlyphTable(Font->Table.Direct, AtlasInfo.TableId, true, Tex, Layout.Offsets, Layout.Size, Layout.AdvanceX);
-                    }
-                }
-                else
-                {
-                    glyph_layout Layout = FindGlyphLayoutByDirectMapping(Font->Table.Direct, Text[Idx]);
-                    TextContentWidth += Layout.AdvanceX;
-                }
-            }
-        }
-        else
-        {
-            // TODO: Other modes?
-        }
-
-
-        ui_draw_command *Command = AllocateDrawCommand(UIP_LAYOUT.Tree.DrawList);
-        if (Command)
-        {
-            Command->Type         = UICommand_Text;
-            Command->ClippingRect = {};
-            Command->Pipeline     = UIPipeline_Text;
-            Command->LayoutNodeId = LayoutNode->Id;
-
-            Command->ExtraData.Text.Font         = Font;
-            Command->ExtraData.Text.StringLength = TextLength;
-            Command->ExtraData.Text.String       = (char*)Text;
-            Command->ExtraData.Text.Width        = TextContentWidth;
-        }
+        TextComponent(Text, LayoutNode, CimCurrent->CurrentFont);
     }
 }
-
-
-//static void
-//UITextInternal(const char *TextToRender, UIPass_Type Pass)
-//{
-//    Cim_Assert(CimCurrent && CimCurrent->CurrentFont.IsValid && TextToRender);
-//
-//    ui_font Font = CimCurrent->CurrentFont;
-//
-//    // TODO: Figure this out, because this limits us to one component.
-//    static ui_component Component;
-//
-//    if (Pass == UIPass_Layout)
-//    {
-//        cim_text *Text = &Component.For.Text;
-//
-//        // BUG: This is still wrong. Can't we wait on the layout? But the layout on the dimensions.
-//        // Weird circular dependency.
-//
-//        ui_layout_node *Node = PushLayoutNode(false, &Component.LayoutNodeIndex);
-//        Node->ContentWidth  = 100;
-//        Node->ContentHeight = 50;
-//
-//        // WARN: I don't know about this.
-//        if (!Text->LayoutInfo.BackendLayout)
-//        {
-//            Text->LayoutInfo = CreateTextLayout((char*)TextToRender, Node->ContentWidth, Node->ContentHeight, Font);
-//        }
-//
-//        // NOTE: Let's do the most naive thing and iterate the string without checking dirty states.
-//        for (cim_u32 Idx = 0; Idx < Text->LayoutInfo.GlyphCount; Idx++)
-//        {
-//            glyph_hash Hash  = ComputeGlyphHash(Text->LayoutInfo.GlyphLayoutInfo[Idx].GlyphId);
-//            glyph_info Glyph = FindGlyphEntryByHash(Font.Table, Hash);
-//
-//            if (!Glyph.IsInAtlas)
-//            {
-//                glyph_size GlyphSize = GetGlyphExtent((char*) & TextToRender[Idx], 1, Font);
-//
-//                stbrp_rect Rect;
-//                Rect.id = 0;
-//                Rect.w  = GlyphSize.Width;
-//                Rect.h  = GlyphSize.Height;
-//                stbrp_pack_rects(&Font.AtlasContext, &Rect, 1);
-//                if (Rect.was_packed)
-//                {
-//                    cim_f32 U0 = (cim_f32) Rect.x           / Font.AtlasWidth;
-//                    cim_f32 V0 = (cim_f32) Rect.y           / Font.AtlasHeight;
-//                    cim_f32 U1 = (cim_f32)(Rect.x + Rect.w) / Font.AtlasWidth;
-//                    cim_f32 V1 = (cim_f32)(Rect.y + Rect.h) / Font.AtlasHeight;
-//
-//                    RasterizeGlyph(TextToRender[Idx], Rect, Font);
-//                    UpdateGlyphCacheEntry(Font.Table, Glyph.MapId, true, U0, V0, U1, V1, GlyphSize);
-//                }
-//                else
-//                {
-//                    // TODO: This either means there is a bug or there is no more
-//                    // place in the atlas. Note that we don't have a way to free
-//                    // things from the atlas at the moment. I think as things get
-//                    // evicted from the cache, we should also free their rects in
-//                    // the allocator.
-//                }
-//            }
-//
-//            Text->LayoutInfo.GlyphLayoutInfo[Idx].MapId = Glyph.MapId;
-//        }
-//
-//    }
-//    else if (Pass == UIPass_User)
-//    {
-//        // WARN: Then most of this code, has nothing to do on this pass. Which means we now
-//        // need 3 pass. Sounds fine to me.
-//
-//        typedef struct local_vertex
-//        {
-//            cim_f32 PosX, PosY;
-//            cim_f32 U, V;
-//        } local_vertex;
-//
-//        cim_text        *Text = &Component.For.Text;
-//        ui_layout_node *Node = GetNodeFromIndex(Component.LayoutNodeIndex); // Can't we just call get next node since it's the same order? Same for hashmap?
-//
-//        // WARN: Shouldn't be done here.
-//        cim_cmd_buffer   *Buffer  = UIP_COMMANDS;
-//        cim_draw_command *Command = GetDrawCommand(Buffer, {}, UIPipeline_Text);
-//        Command->Font = Font;
-//
-//        cim_f32 PenX = Node->X;
-//        cim_f32 PenY = Node->Y;
-//
-//        // NOTE: There are two problems currently with this loop:
-//        // 1) It's trying to do too much. Move the hashing/checking for atlas to the other phase?
-//        // 2) We currently have no way to compute the hash.
-//
-//        // TODO: Make a draw text routine?
-//        for (cim_u32 Idx = 0; Idx < Text->LayoutInfo.GlyphCount; Idx++)
-//        {
-//            glyph_layout_info *Layout = &Text->LayoutInfo.GlyphLayoutInfo[Idx];
-//            glyph_entry       *Glyph  = GetGlyphEntry(Font.Table, Layout->MapId);
-//
-//            if (PenX + Layout->AdvanceX >= Node->X + Node->Width)
-//            {
-//                PenX  = Node->X;
-//                PenY += Font.LineHeight;
-//            }
-//
-//            cim_f32 MinX = PenX + Layout->OffsetX;
-//            cim_f32 MinY = PenY + Layout->OffsetY;
-//            cim_f32 MaxX = PenX + Layout->OffsetX + Glyph->Size.Width;
-//            cim_f32 MaxY = PenY + Layout->OffsetY + Glyph->Size.Height;
-//
-//            local_vertex Vtx[4];
-//            Vtx[0] = (local_vertex){MinX, MinY, Glyph->U0, Glyph->V0}; // Top-left
-//            Vtx[1] = (local_vertex){MinX, MaxY, Glyph->U0, Glyph->V1}; // Bottom-left
-//            Vtx[2] = (local_vertex){MaxX, MinY, Glyph->U1, Glyph->V0}; // Top-right
-//            Vtx[3] = (local_vertex){MaxX, MaxY, Glyph->U1, Glyph->V1}; // Bottom-right
-//
-//            cim_u32 Indices[6];
-//            Indices[0] = Command->VtxCount + 0;
-//            Indices[1] = Command->VtxCount + 2;
-//            Indices[2] = Command->VtxCount + 1;
-//            Indices[3] = Command->VtxCount + 2;
-//            Indices[4] = Command->VtxCount + 3;
-//            Indices[5] = Command->VtxCount + 1;
-//
-//            WriteToArena(Vtx    , sizeof(Vtx)    , &Buffer->FrameVtx);
-//            WriteToArena(Indices, sizeof(Indices), &Buffer->FrameIdx);;
-//
-//            Command->VtxCount += 4;
-//            Command->IdxCount += 6;
-//
-//            PenX += Layout->AdvanceX;
-//        }
-//
-//    }
-//}

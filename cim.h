@@ -101,30 +101,39 @@ static cim_context *CimCurrent;
 #include "implementation/cim_renderer.cpp"
 #include "implementation/cim_component.cpp"
 
-// [PUBLIC CIM API]
+// [COMPONENTS]
 
-// Components
-static void UIRow     (void);
-static bool UIWindow  (const char *Id, const char *ThemeId, ui_component_state *State);
+// [Layout]
 
-// NOTE: Still not sold on macros.
+#define UIRowBlock() for (int UNIQUE_UI_ONCE = (UIRow(), 1); UNIQUE_UI_ONCE; UIEndRow(), UNIQUE_UI_ONCE = 0)
+
+// [Window]
+static bool 
+UIWindow (const char *Id, const char *ThemeId, ui_component_state *State);
+
+// [Buttons]
 #define UIButton(Id, ThemeId, Text, State)           ButtonComponent(Id, ThemeId, Text, State, 0)
 #define UIIndexedButton(ThemeId, Text, State, Index) ButtonComponent(NULL, ThemeId, Text, State, Index)
 
-// Text
-static ui_font * UILoadFont    (const char *FileName, cim_f32 FontSize, UIFont_Mode Mode);
-static void      UIUnloadFont  (ui_font *Font);
-static void      UISetFont     (ui_font *Font);
+static void 
+ButtonComponent(const char *Id, const char *ThemeId, const char *Text, ui_component_state *State, cim_u32 Index);
 
-// TODO: Figure out what to do with these 3.
+// [Text]
+static void 
+#define UIText(Text) TextComponent(Text, NULL, CimCurrent->CurrentFont)
+TextComponent(const char *Text, ui_layout_node *LayoutNode, ui_font *Font);
+
+// [CONTEXT MANAGEMENT]
+#define UIBeginContext() for (UIPass_Type Pass = UIPass_Layout; Pass !=  UIPass_Ended; Pass = (UIPass_Type)((cim_u32)Pass + 1))
+#define UIEndContext()   if (Pass == UIPass_Layout) {UIEndLayout();} else if (Pass == UIPass_Draw) {UIEndDraw(UIP_LAYOUT.Tree.DrawList);}
 
 static void
 UIBeginFrame()
 {
     // Obviously wouldn't really do this but prototyping.
     cim_layout *Layout = UIP_LAYOUT;
-    Layout->Tree.NodeCount      = 0;
-    Layout->Tree.AtParent       = 0;
+    Layout->Tree.NodeCount = 0;
+    Layout->Tree.AtParent = 0;
     Layout->Tree.ParentStack[0] = CimLayout_InvalidNode; // Temp.
 }
 
@@ -161,3 +170,9 @@ UIInitializeContext(cim_context *UserContext)
 
     return true;
 }
+
+// [TEXT]
+
+static ui_font * UILoadFont    (const char *FileName, cim_f32 FontSize, UIFont_Mode Mode);
+static void      UIUnloadFont  (ui_font *Font);
+static void      UISetFont     (ui_font *Font);
