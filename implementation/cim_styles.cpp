@@ -1,14 +1,29 @@
 // 1) This is long-term, but some of the errors are probably not clear enough.
 
 // [Internal]
-static theme_token        *CreateThemeToken        (ThemeToken_Type Type, cim_u32 Line, buffer *TokenBuffer);
-static void                IgnoreWhiteSpaces       (buffer *Content);
-static cim_u8              ToLowerChar             (cim_u8 Char);
-static theme_parsing_error GetNextTokenBuffer      (buffer *FileContent, theme_parser *Parser);
-static theme_parsing_error StoreAttributeInTheme   (ThemeAttribute_Flag Attribute, theme_token *Value, theme_parser *Parser);
+static theme_parsing_error StoreAttributeInTheme   (UIThemeAttribute_Flag Attribute, theme_token *Value, theme_parser *Parser);
 static theme_parsing_error ValidateAndStoreThemes  (theme_parser *Parser);
-static void                WriteThemeToTable       (theme_parser *Parser);
-static void                HandleThemeError        (theme_parsing_error *Error, char *FileName, const char *PublicAPIFunctionName);
+
+// Tokenizer Helpers
+static theme_token        * CreateThemeToken    (UIStyleToken_Type Type, cim_u32 Line, buffer *TokenBuffer);
+static theme_parsing_error  GetNextTokenBuffer  (buffer *FileContent, theme_parser *Parser);
+
+// Parser Helpers
+static ui_theme   * AllocateUITheme  (cim_u8 *ThemeName, cim_u32 ThemeNameLength, UITheme_Type Type);
+static theme_info * GetNextUITheme   ();
+
+// General Parsing Helpers
+static bool   IsAlpha            (cim_u8 Char);
+static bool   IsNumber           (cim_u8 Char);
+static bool   IsWhiteSpace       (cim_u8 Char);
+static cim_u8 ToLowerChar        (cim_u8 Char);
+static bool   StringMatches      (cim_u8 *Ptr, cim_u8 *String, cim_u32 StringSize);
+static void   IgnoreWhiteSpaces  (buffer *Content);
+
+// Error Handling
+static void        WriteErrorMessage         (theme_parsing_error *Erro, const char *Format, ...);
+static void        HandleThemeError          (theme_parsing_error *Error, char *FileName, const char *PublicAPIFunctionName);
+static const char *UIThemeAttributeToString  (UIThemeAttribute_Flag Flag);
 
 // [Macros]
 
@@ -18,23 +33,19 @@ static void                HandleThemeError        (theme_parsing_error *Error, 
 #define CimTheme_ArrayToVec2(Array)  {Array[0], Array[1]}
 #define CimTheme_ArrayToVec4(Array)  {Array[0], Array[1], Array[2], Array[3]}
 #define CimTheme_ArrayToColor(Array) {Array[0] * 1/255, Array[1] * 1/255, Array[2] * 1/255, Array[3] * 1/255}
-#define CimTheme_SetErrorMsg(Error, Msg) memcpy(Error.Message, Msg, sizeof(Msg));
 
 // [Globals]
 
-// TODO: Figure out where we want to store this.
-// Still trying to figure if this is okay..
-static theme_table ThemeTable;
+static theme_table UITheme_Table;
 
 // [Public API Implementation]
 
-// TODO: Rework this into: GetUIWindowTheme, GetUIButtonTheme, return stack variables which contains IDs.
 static ui_theme *
 GetUITheme(const char *ThemeName, theme_id *ComponentId)
 {
-    if (ComponentId->Value >= CimTheme_ThemeNameLength)
+    if (ComponentId && ComponentId->Value >= UITheme_NameLength)
     {
-        theme_info *ThemeInfo = &ThemeTable.Themes[ComponentId->Value];
+        theme_info *ThemeInfo = &UITheme_Table.Themes[ComponentId->Value];
         return &ThemeInfo->Theme;
     }
     else
@@ -44,16 +55,20 @@ GetUITheme(const char *ThemeName, theme_id *ComponentId)
         cim_u8 *NameToFind = (cim_u8 *)ThemeName;
         cim_u32 NameLength = (cim_u32)strlen(ThemeName);
 
-        theme_info *Sentinel = &ThemeTable.Themes[NameLength];
-        cim_u32     ReadPointer = Sentinel->NextWithSameLength;
+        theme_info *Sentinel = &UITheme_Table.Themes[NameLength];
+        theme_id    ReadPointer = Sentinel->NextWithSameLength;
 
-        while (ReadPointer)
+        while (ReadPointer.Value)
         {
-            theme_info *ThemeInfo = &ThemeTable.Themes[ReadPointer];
+            theme_info *ThemeInfo = &UITheme_Table.Themes[ReadPointer.Value];
 
             if (strcmp((const char *)NameToFind, (const char *)ThemeInfo->Name) == 0)
             {
-                ComponentId->Value = ReadPointer;
+                if (ComponentId)
+                {
+                    ComponentId->Value = ReadPointer.Value;
+                }
+
                 return &ThemeInfo->Theme;
             }
 
@@ -69,17 +84,18 @@ static ui_window_theme
 GetWindowTheme(const char *ThemeName, theme_id ThemeId)
 {
     ui_window_theme Result = {};
-    ui_theme *Theme = GetUITheme(ThemeName, &ThemeId);
+    ui_theme       *Theme  = GetUITheme(ThemeName, &ThemeId);
+    Cim_Assert(Theme && Theme->Type == UITheme_Window);
 
     if (Theme)
     {
         Result.ThemeId     = ThemeId;
-        Result.BorderColor = Theme->BorderColor;
-        Result.BorderWidth = Theme->BorderWidth;
-        Result.Color       = Theme->Color;
-        Result.Padding     = Theme->Padding;
-        Result.Size        = Theme->Size;
-        Result.Spacing     = Theme->Spacing;
+        Result.BorderColor = Theme->Window.BorderColor;
+        Result.BorderWidth = Theme->Window.BorderWidth;
+        Result.Color       = Theme->Window.Color;
+        Result.Padding     = Theme->Window.Padding;
+        Result.Size        = Theme->Window.Size;
+        Result.Spacing     = Theme->Window.Spacing;
     }
 
     return Result;
@@ -89,20 +105,22 @@ static ui_button_theme
 GetButtonTheme(const char *ThemeName, theme_id ThemeId)
 {
     ui_button_theme Result = {};
-    ui_theme *Theme = GetUITheme(ThemeName, &ThemeId);
+    ui_theme       *Theme  = GetUITheme(ThemeName, &ThemeId);
+    Cim_Assert(Theme->Type == UITheme_Button);
 
     if (Theme)
     {
         Result.ThemeId     = ThemeId;
-        Result.BorderColor = Theme->BorderColor;
-        Result.BorderWidth = Theme->BorderWidth;
-        Result.Color       = Theme->Color;
-        Result.Size        = Theme->Size;
+        Result.BorderColor = Theme->Button.BorderColor;
+        Result.BorderWidth = Theme->Button.BorderWidth;
+        Result.Color       = Theme->Button.Color;
+        Result.Size        = Theme->Button.Size;
     }
 
     return Result;
 }
 
+// BUG: This leaks data on error.
 static void
 LoadThemeFiles(char **Files, cim_u32 FileCount)
 {
@@ -111,7 +129,7 @@ LoadThemeFiles(char **Files, cim_u32 FileCount)
         theme_parsing_error Error;
         Error.Type          = ThemeParsingError_Argument;
         Error.ArgumentIndex = 0;
-        CimTheme_SetErrorMsg(Error, "Must be a valid pointer of type char**.");
+        WriteErrorMessage(&Error, "Must be a valid pointer of type char**.");
 
         HandleThemeError(&Error, NULL, "InitializeUIThemes");
 
@@ -119,8 +137,6 @@ LoadThemeFiles(char **Files, cim_u32 FileCount)
     }
 
     theme_parser Parser = {};
-    Parser.State  = ThemeParsing_None;
-    Parser.AtLine = 0;
 
     for (cim_u32 FileIdx = 0; FileIdx < FileCount; FileIdx++)
     {
@@ -158,7 +174,7 @@ LoadThemeFiles(char **Files, cim_u32 FileCount)
 // [Internal Implementation]
 
 static theme_token *
-CreateThemeToken(ThemeToken_Type Type, cim_u32 Line, buffer *TokenBuffer)
+CreateThemeToken(UIStyleToken_Type Type, cim_u32 Line, buffer *TokenBuffer)
 {
     if (!IsValidBuffer(TokenBuffer))
     {
@@ -169,6 +185,7 @@ CreateThemeToken(ThemeToken_Type Type, cim_u32 Line, buffer *TokenBuffer)
         if (!Temp.Data)
         {
             // TODO: Report error.
+            return NULL;
         }
 
         memcpy(Temp.Data, TokenBuffer->Data, TokenBuffer->Size);
@@ -192,25 +209,69 @@ CreateThemeToken(ThemeToken_Type Type, cim_u32 Line, buffer *TokenBuffer)
 static void
 IgnoreWhiteSpaces(buffer *Content)
 {
-    while(IsValidBuffer(Content) && Content->Data[Content->At] == ' ')
+    while(IsValidBuffer(Content) && IsWhiteSpace(Content->Data[Content->At]))
     {
         Content->At++;
     }
 }
 
-static cim_u8
-ToLowerChar(cim_u8 Char)
+static bool
+StringMatches(cim_u8 *Ptr, cim_u8 *String, cim_u32 StringSize)
 {
-    if (Char >= 'A' && Char <= 'Z') Char += ('a' - 'A');
+    cim_u32 Matches = 0;
+    while(Matches < StringSize && *Ptr++ == *String++)
+    {
+        Matches++;
+    }
 
-    return Char;
+    bool Result = Matches == StringSize;
+    return Result;
 }
 
+static bool
+IsAlpha(cim_u8 Char)
+{
+    bool Result = (Char >= 'A' && Char <= 'Z') || (Char >= 'a' && Char <= 'z');
+    return Result;
+}
+
+static bool
+IsNumber(cim_u8 Char)
+{
+    bool Result = (Char >= '0' && Char <= '9');
+    return Result;
+}
+
+static bool
+IsWhiteSpace(cim_u8 Char)
+{
+    bool Result = (Char == ' ') || (Char == '\t');
+    return Result;
+}
+
+static cim_u8 
+ToLowerChar(cim_u8 Char)
+{
+    Cim_Assert(IsAlpha(Char));
+
+    cim_u8 Result = '\0';
+    if (Char < 'a')
+    {
+        Result = Char + ('a' - 'A');
+    }
+    else
+    {
+        Result = Char;
+    }
+
+    return Result;
+}
+
+// NOTE: Why do I use a goto here? Unless I cleanup some resources?
 static theme_parsing_error
 GetNextTokenBuffer(buffer *FileContent, theme_parser *Parser)
 {
     theme_parsing_error Error = {};
-    Error.Type = ThemeParsingError_None;
 
     Parser->TokenBuffer = AllocateBuffer(128 * sizeof(theme_token));
     Parser->AtLine      = 1;
@@ -226,50 +287,56 @@ GetNextTokenBuffer(buffer *FileContent, theme_parser *Parser)
         switch(Char)
         {
 
+        // WARN: Compiler extension.
         case 'A' ... 'Z':
         case 'a' ... 'z':
         {
             At++;
 
             Char = FileContent->Data[At];
-            while (IsValidBuffer(FileContent) && (IsAlphaCharacter(Char) || IsNumberCharacter(Char)))
+            while (IsValidBuffer(FileContent) && (IsAlpha(Char) || IsNumber(Char)))
             {
                 Char = FileContent->Data[++At];
+            }
+
+            if(!IsValidBuffer(FileContent))
+            {
+                Error.Type       = ThemeParsingError_Syntax;
+                Error.LineInFile = Parser->AtLine;
+                WriteErrorMessage(&Error, "Stray Identifier at end of file.");
             }
 
             cim_u32 IdLength = At - StartAt;
             cim_u8 *IdPtr    = FileContent->Data + StartAt;
 
-            if (IdLength == 5                &&
-                ToLowerChar(IdPtr[0]) == 't' &&
-                ToLowerChar(IdPtr[1]) == 'h' &&
-                ToLowerChar(IdPtr[2]) == 'e' &&
-                ToLowerChar(IdPtr[3]) == 'm' &&
-                ToLowerChar(IdPtr[4]) == 'e')
+            const cim_u32 ThemeLength = sizeof("theme") - 1;
+            const cim_u32 ForLength   = sizeof("for")   - 1;
+
+            if (IdLength == ThemeLength && StringMatches(IdPtr, (cim_u8 *)"theme", ThemeLength))
             {
-                CreateThemeToken(ThemeToken_Theme, Parser->AtLine, &Parser->TokenBuffer);
+                CreateThemeToken(UIStyleToken_Theme, Parser->AtLine, &Parser->TokenBuffer);
             }
-            else if (IdLength == 3                &&
-                     ToLowerChar(IdPtr[0]) == 'f' &&
-                     ToLowerChar(IdPtr[1]) == 'o' &&
-                     ToLowerChar(IdPtr[2]) == 'r')
+            else if (IdLength == ForLength && StringMatches(IdPtr, (cim_u8 *)"for", ForLength))
             {
-                CreateThemeToken(ThemeToken_For, Parser->AtLine, &Parser->TokenBuffer);
+                CreateThemeToken(UIStyleToken_For, Parser->AtLine, &Parser->TokenBuffer);
             }
             else
             {
-                theme_token *Token = CreateThemeToken(ThemeToken_Identifier, Parser->AtLine, &Parser->TokenBuffer);
+                theme_token *Token = CreateThemeToken(UIStyleToken_Identifier,
+                                                      Parser->AtLine,
+                                                      &Parser->TokenBuffer);
                 Token->Identifier.At   = IdPtr;
                 Token->Identifier.Size = IdLength;
             }
         } break;
 
+        // WARN: Compiler extension.
         case '0' ... '9':
         {
-            theme_token *Token = CreateThemeToken(ThemeToken_Number, Parser->AtLine, &Parser->TokenBuffer);
+            theme_token *Token = CreateThemeToken(UIStyleToken_Number, Parser->AtLine, &Parser->TokenBuffer);
 
             Char = FileContent->Data[At];
-            while (IsValidBuffer(FileContent) && IsNumberCharacter(Char))
+            while (IsValidBuffer(FileContent) && IsNumber(Char))
             {
                 Token->UInt32 = (Token->UInt32 * 10) + (Char - '0');
                 Char          = FileContent->Data[++At];
@@ -294,14 +361,14 @@ GetNextTokenBuffer(buffer *FileContent, theme_parser *Parser)
 
             if (IsValidBuffer(FileContent) && FileContent->Data[At] == '=')
             {
-                CreateThemeToken(ThemeToken_Assignment, Parser->AtLine, &Parser->TokenBuffer);
+                CreateThemeToken(UIStyleToken_Assignment, Parser->AtLine, &Parser->TokenBuffer);
                 At++;
             }
             else
             {
                 Error.Type       = ThemeParsingError_Syntax;
                 Error.LineInFile = Parser->AtLine;
-                CimTheme_SetErrorMsg(Error, "Stray ':'. Did you mean := ?");
+                WriteErrorMessage(&Error, "Stray ':'. Did you mean := ?");
 
                 goto End;
             }
@@ -311,7 +378,7 @@ GetNextTokenBuffer(buffer *FileContent, theme_parser *Parser)
         {
             At++;
 
-            theme_token *Token = CreateThemeToken(ThemeToken_Vector, Parser->AtLine, &Parser->TokenBuffer);
+            theme_token *Token = CreateThemeToken(UIStyleToken_Vector, Parser->AtLine, &Parser->TokenBuffer);
 
             while (Token->Vector.Size < CimTheme_MaxVectorSize && IsValidBuffer(FileContent))
             {
@@ -319,7 +386,7 @@ GetNextTokenBuffer(buffer *FileContent, theme_parser *Parser)
 
                 Char        = FileContent->Data[At++];
                 cim_u32 Idx = Token->Vector.Size;
-                while (IsValidBuffer(FileContent) && IsNumberCharacter(Char))
+                while (IsValidBuffer(FileContent) && IsNumber(Char))
                 {
                     Token->Vector.DataF32[Idx] = (Token->Vector.DataF32[Idx] * 10) + (Char - '0');
                     Char                       = FileContent->Data[At++];     
@@ -340,7 +407,7 @@ GetNextTokenBuffer(buffer *FileContent, theme_parser *Parser)
                 {
                     Error.Type       = ThemeParsingError_Syntax;
                     Error.LineInFile = Parser->AtLine;
-                    snprintf(Error.Message, sizeof(Error.Message), "Found invalid character in vector: %c.", Char);
+                    WriteErrorMessage(&Error, "Found invalid character in vector: %c.", Char);
 
                     goto End;
                 }
@@ -350,7 +417,7 @@ GetNextTokenBuffer(buffer *FileContent, theme_parser *Parser)
             {
                 Error.Type       = ThemeParsingError_Syntax;
                 Error.LineInFile = Parser->AtLine;
-                CimTheme_SetErrorMsg(Error, "Vector exceeds maximum size (4).");
+                WriteErrorMessage(&Error, "Vector exceeds maximum size (4).");
 
                 goto End;
             }
@@ -360,7 +427,7 @@ GetNextTokenBuffer(buffer *FileContent, theme_parser *Parser)
         {
             At++;
 
-            theme_token *Token = CreateThemeToken(ThemeToken_String, Parser->AtLine, &Parser->TokenBuffer);
+            theme_token *Token = CreateThemeToken(UIStyleToken_String, Parser->AtLine, &Parser->TokenBuffer);
             Token->Identifier.At = FileContent->Data + At;
 
             Char = FileContent->Data[At];
@@ -373,16 +440,7 @@ GetNextTokenBuffer(buffer *FileContent, theme_parser *Parser)
             {
                 Error.Type       = ThemeParsingError_Syntax;
                 Error.LineInFile = Parser->AtLine;
-                CimTheme_SetErrorMsg(Error, "End of file reached without closing string.");
-
-                goto End;
-            }
-
-            if (Char != '"')
-            {
-                Error.Type       = ThemeParsingError_Syntax;
-                Error.LineInFile = Parser->AtLine;
-                CimTheme_SetErrorMsg(Error, "Unexpected character found in string.");
+                WriteErrorMessage(&Error, "End of file reached without closing string.");
 
                 goto End;
             }
@@ -391,9 +449,33 @@ GetNextTokenBuffer(buffer *FileContent, theme_parser *Parser)
             At++;
         } break;
 
+        case '@':
+        {
+            At++;
+
+            if (StringMatches(FileContent->Data + At, (cim_u8*)"hover", sizeof("hover") - 1))
+            {
+                CreateThemeToken(UIStyleToken_HoverEffect, Parser->AtLine, &Parser->TokenBuffer);
+                At += sizeof("effects") - 1;
+            }
+            else if (StringMatches(FileContent->Data + At, (cim_u8 *)"click", sizeof("click") - 1))
+            {
+                CreateThemeToken(UIStyleToken_ClickEffect, Parser->AtLine, &Parser->TokenBuffer);
+                At += sizeof("click") - 1;
+            }
+            else
+            {
+                Error.Type       = ThemeParsingError_Syntax;
+                Error.LineInFile = Parser->AtLine;
+                WriteErrorMessage(&Error, "'@' Special Marker must only be used when specifying effects for a theme. Example: @Effects");
+
+                goto End;
+            }
+        } break;
+
         default:
         {
-            CreateThemeToken((ThemeToken_Type)Char, Parser->AtLine, &Parser->TokenBuffer);
+            CreateThemeToken((UIStyleToken_Type)Char, Parser->AtLine, &Parser->TokenBuffer);
             At++;
         } break;
 
@@ -402,67 +484,70 @@ GetNextTokenBuffer(buffer *FileContent, theme_parser *Parser)
         FileContent->At = At;
     }
 
+// BUG: We leak on errors.
 End:
     return Error;
 }
 
 static theme_parsing_error
-StoreAttributeInTheme(ThemeAttribute_Flag Attribute, theme_token *Value, theme_parser *Parser)
+StoreAttributeInTheme(UIThemeAttribute_Flag Attribute, theme_token *Value, theme_parser *Parser)
 {
     theme_parsing_error Error = {};
     Error.Type = ThemeParsingError_None;
 
-    ui_theme *Theme = &Parser->ActiveTheme;
-
-    switch (Parser->State)
+    switch (Parser->ActiveTheme->Type)
     {
 
-    case ThemeParsing_None:
+    case UITheme_None:
     {
         theme_parsing_error Error = {};
-        Error.Type = ThemeParsingError_Internal;
-        CimTheme_SetErrorMsg(Error, "Invalid parser state when trying to set an attribute. Should have been found earlier.");
+        Error.Type                = ThemeParsingError_Internal;
+        WriteErrorMessage(&Error, "Invalid parser state when trying to set an attribute. Should have been found earlier.");
 
         return Error;
     }
 
-    case ThemeParsing_Window:
+    case UITheme_Window:
     {
+        ui_window_theme *Theme = &Parser->ActiveTheme->Window;
+
         switch (Attribute)
         {
 
-        case ThemeAttribute_Size:        Theme->Size        = CimTheme_ArrayToVec2(Value->Vector.DataF32);  break;
-        case ThemeAttribute_Color:       Theme->Color       = CimTheme_ArrayToColor(Value->Vector.DataF32); break;
-        case ThemeAttribute_Padding:     Theme->Padding     = CimTheme_ArrayToVec4(Value->Vector.DataF32);  break;
-        case ThemeAttribute_Spacing:     Theme->Spacing     = CimTheme_ArrayToVec2(Value->Vector.DataF32);  break;
-        case ThemeAttribute_BorderColor: Theme->BorderColor = CimTheme_ArrayToColor(Value->Vector.DataF32); break;
-        case ThemeAttribute_BorderWidth: Theme->BorderWidth = Value->UInt32;                                break;
+        case UIThemeAttribute_Size:        Theme->Size        = CimTheme_ArrayToVec2(Value->Vector.DataF32);  break;
+        case UIThemeAttribute_Color:       Theme->Color       = CimTheme_ArrayToColor(Value->Vector.DataF32); break;
+        case UIThemeAttribute_Padding:     Theme->Padding     = CimTheme_ArrayToVec4(Value->Vector.DataF32);  break;
+        case UIThemeAttribute_Spacing:     Theme->Spacing     = CimTheme_ArrayToVec2(Value->Vector.DataF32);  break;
+        case UIThemeAttribute_BorderColor: Theme->BorderColor = CimTheme_ArrayToColor(Value->Vector.DataF32); break;
+        case UIThemeAttribute_BorderWidth: Theme->BorderWidth = Value->UInt32;                                break;
 
         default:
         {
             Error.Type       = ThemeParsingError_Syntax;
             Error.LineInFile = Parser->AtLine;           // WARN: Incorrect?
-            CimTheme_SetErrorMsg(Error, "Invalid attribute supplied to window ui_theme.");
+            WriteErrorMessage(&Error, "Invalid attribute supplied to a Window Theme. Invalid: %s", UIThemeAttributeToString(Attribute));
         } break;
 
         }
     } break;
 
-    case ThemeParsing_Button:
+    case UITheme_Button:
     {
+        ui_button_theme *Theme = &Parser->ActiveTheme->Button;
+
         switch (Attribute)
         {
 
-        case ThemeAttribute_Size:        Theme->Size        = CimTheme_ArrayToVec2(Value->Vector.DataF32);  break;
-        case ThemeAttribute_Color:       Theme->Color       = CimTheme_ArrayToColor(Value->Vector.DataF32); break;
-        case ThemeAttribute_BorderColor: Theme->BorderColor = CimTheme_ArrayToColor(Value->Vector.DataF32); break;
-        case ThemeAttribute_BorderWidth: Theme->BorderWidth = Value->UInt32;                                break;
+        case UIThemeAttribute_Size:        Theme->Size        = CimTheme_ArrayToVec2(Value->Vector.DataF32);  break;
+        case UIThemeAttribute_Color:       Theme->Color       = CimTheme_ArrayToColor(Value->Vector.DataF32); break;
+        case UIThemeAttribute_BorderColor: Theme->BorderColor = CimTheme_ArrayToColor(Value->Vector.DataF32); break;
+        case UIThemeAttribute_BorderWidth: Theme->BorderWidth = Value->UInt32;                                break;
 
         default:
         {
             Error.Type       = ThemeParsingError_Syntax;
             Error.LineInFile = Parser->AtLine;           // WARN: Incorrect?
-            CimTheme_SetErrorMsg(Error, "Invalid attribute supplied to button ui_theme.")
+            WriteErrorMessage(&Error, "Invalid attribute supplied to Button Theme. Invalid: %s", UIThemeAttributeToString(Attribute));
         } break;
 
         }
@@ -477,7 +562,6 @@ static theme_parsing_error
 ValidateAndStoreThemes(theme_parser *Parser)
 {
     theme_parsing_error Error = {};
-    Error.Type = ThemeParsingError_None;
 
     theme_token *Tokens     = (theme_token *)Parser->TokenBuffer.Data;;
     cim_u32      TokenCount = Parser->TokenBuffer.At / sizeof(theme_token);
@@ -489,13 +573,13 @@ ValidateAndStoreThemes(theme_parser *Parser)
         switch (Token->Type)
         {
 
-        case ThemeToken_Theme:
+        case UIStyleToken_Theme:
         {
-            if (Parser->State != ThemeParsing_None)
+            if (Parser->ActiveTheme && Parser->ActiveTheme->Type != UITheme_None)
             {
                 Error.Type       = ThemeParsingError_Syntax;
                 Error.LineInFile = Parser->AtLine;
-                CimTheme_SetErrorMsg(Error, "Forgot to close previous ui_theme with } ?");
+                WriteErrorMessage(&Error, "Forgot to close previous ui_theme with } ?");
 
                 return Error;
             }
@@ -504,16 +588,16 @@ ValidateAndStoreThemes(theme_parser *Parser)
             {
                 Error.Type       = ThemeParsingError_Syntax;
                 Error.LineInFile = Parser->AtLine;
-                CimTheme_SetErrorMsg(Error, "Unexpected end of file.");
+                WriteErrorMessage(&Error, "Unexpected end of file.");
 
                 return Error;
             }
 
-            if (Token[1].Type != ThemeToken_String || Token[2].Type != ThemeToken_For || Token[3].Type != ThemeToken_Identifier)
+            if (Token[1].Type != UIStyleToken_String || Token[2].Type != UIStyleToken_For || Token[3].Type != UIStyleToken_Identifier)
             {
                 Error.Type       = ThemeParsingError_Syntax;
                 Error.LineInFile = Token->LineInFile;
-                CimTheme_SetErrorMsg(Error, "A ui_theme must be set like this: Theme \"NameOfTheme\" for ComponentType");
+                WriteErrorMessage(&Error, "A theme must be set like this: Theme \"NameOfTheme\" for ComponentType");
 
                 return Error;
             }
@@ -521,11 +605,11 @@ ValidateAndStoreThemes(theme_parser *Parser)
             theme_token *ThemeNameToken     = Token + 1;
             theme_token *ComponentTypeToken = Token + 3;
 
-            typedef struct known_type { const char *Name; size_t Length; ThemeParsing_State State; } known_type;
+            typedef struct known_type { const char *Name; size_t Length; UITheme_Type Type; } known_type;
             known_type KnownTypes[] =
             {
-                {"window", sizeof("window") - 1, ThemeParsing_Window},
-                {"button", sizeof("button") - 1, ThemeParsing_Button},
+                {"window", sizeof("window") - 1, UITheme_Window},
+                {"button", sizeof("button") - 1, UITheme_Button},
             };
 
             for (cim_u32 KnownIdx = 0; KnownIdx < Cim_ArrayCount(KnownTypes); ++KnownIdx)
@@ -549,21 +633,21 @@ ValidateAndStoreThemes(theme_parser *Parser)
 
                 if (CharIdx == Known.Length)
                 {
-                    Parser->State = Known.State;
+                    Parser->ActiveTheme = AllocateUITheme(ThemeNameToken->Identifier.At, ThemeNameToken->Identifier.Size, Known.Type);
                     break;
                 }
             }
 
-            if (Parser->State == ThemeParsing_None)
+            if (!Parser->ActiveTheme || Parser->ActiveTheme->Type == UITheme_None)
             {
                 Error.Type       = ThemeParsingError_Syntax;
                 Error.LineInFile = ComponentTypeToken->LineInFile;
 
                 // BUG: Can easily overflow.
+                Cim_Assert(ThemeNameToken->Identifier.Size < 64);
                 char ThemeName[64] = { 0 };
                 memcpy(ThemeName, ThemeNameToken->Identifier.At, ThemeNameToken->Identifier.Size);
-
-                snprintf(Error.Message, sizeof(Error.Message), "Invalid component type for ui_theme: %s", ThemeName);
+                WriteErrorMessage(&Error, "Invalid component type for : %s", ThemeName);
 
                 return Error;
             }
@@ -572,9 +656,9 @@ ValidateAndStoreThemes(theme_parser *Parser)
             Parser->AtToken             += 4;
         } break;
 
-        case ThemeToken_Identifier:
+        case UIStyleToken_Identifier:
         {
-            if (Parser->State == ThemeParsing_None)
+            if (Parser->ActiveTheme->Type == UITheme_None)
             {
                 Error.Type       = ThemeParsingError_Syntax;
                 Error.LineInFile = Token->LineInFile;
@@ -582,9 +666,7 @@ ValidateAndStoreThemes(theme_parser *Parser)
                 // BUG: Can easily overflow.
                 char IdentifierString[64];
                 memcpy(IdentifierString, Token->Identifier.At, Token->Identifier.Size);
-
-                snprintf(Error.Message, sizeof(Error.Message), "Found identifier: %s | Outside of a ui_theme block.",
-                         IdentifierString);
+                WriteErrorMessage(&Error, "Found identifier: %s | Outside of a ui_theme block.", IdentifierString);
 
                 return Error;
             }
@@ -593,17 +675,17 @@ ValidateAndStoreThemes(theme_parser *Parser)
             {
                 Error.Type       = ThemeParsingError_Syntax;
                 Error.LineInFile = Token->LineInFile;
+                WriteErrorMessage(&Error, "End of file reached earlier than expected.");
 
-                CimTheme_SetErrorMsg(Error, "End of file reached earlier than expected.");
                 return Error;
             }
 
-            if (Token[1].Type != ThemeToken_Assignment)
+            if (Token[1].Type != UIStyleToken_Assignment)
             {
                 Error.Type       = ThemeParsingError_Syntax;
                 Error.LineInFile = Token[1].LineInFile;
+                WriteErrorMessage(&Error, "Invalid formatting. Should be -> Attribute := Value.");
 
-                CimTheme_SetErrorMsg(Error, "Invalid formatting. Should be -> Attribute := Value.");
                 return Error;
             }
 
@@ -619,8 +701,8 @@ ValidateAndStoreThemes(theme_parser *Parser)
                 {
                     Error.Type       = ThemeParsingError_Syntax;
                     Error.LineInFile = Token[2].LineInFile;
+                    WriteErrorMessage(&Error, "End of file reached with invalid formatting.");
 
-                    CimTheme_SetErrorMsg(Error, "End of file reached with invalid formatting.");
                     return Error;
                 }
 
@@ -628,8 +710,8 @@ ValidateAndStoreThemes(theme_parser *Parser)
                 {
                     Error.Type       = ThemeParsingError_Syntax;
                     Error.LineInFile = Token[4].LineInFile;
+                    WriteErrorMessage(&Error, "Missing ; after setting the attribute value.");
 
-                    CimTheme_SetErrorMsg(Error, "Missing ; after setting the attribute value.");
                     return Error;
                 }
             }
@@ -637,24 +719,24 @@ ValidateAndStoreThemes(theme_parser *Parser)
             {
                 Error.Type       = ThemeParsingError_Syntax;
                 Error.LineInFile = Token[3].LineInFile;
-                CimTheme_SetErrorMsg(Error, "Missing ; after setting the attribute value.");
+                WriteErrorMessage(&Error, "Missing ; after setting the attribute value.");
 
                 return Error;
             }
 
-            /* NOTE: Could use binary search if number of attributes becomes large. */
-            typedef struct known_type { const char *Name; size_t Length; ThemeAttribute_Flag TypeFlag; cim_bit_field ValidValueTokenMask; } known_type;
+            // NOTE: Could use binary search if number of attributes becomes large.
+            typedef struct known_type { const char *Name; size_t Length; UIThemeAttribute_Flag TypeFlag; cim_bit_field ValidValueTokenMask; } known_type;
             known_type KnownTypes[] =
             {
-                {"size"       , sizeof("size")        - 1, ThemeAttribute_Size       , ThemeToken_Vector},
-                {"color"      , sizeof("color")       - 1, ThemeAttribute_Color      , ThemeToken_Vector},
-                {"padding"    , sizeof("padding")     - 1, ThemeAttribute_Padding    , ThemeToken_Vector},
-                {"spacing"    , sizeof("spacing")     - 1, ThemeAttribute_Spacing    , ThemeToken_Vector},
-                {"borderwidth", sizeof("borderwidth") - 1, ThemeAttribute_BorderWidth, ThemeToken_Number},
-                {"bordercolor", sizeof("bordercolor") - 1, ThemeAttribute_BorderColor, ThemeToken_Vector},
+                {"size"       , sizeof("size")        - 1, UIThemeAttribute_Size       , UIStyleToken_Vector},
+                {"color"      , sizeof("color")       - 1, UIThemeAttribute_Color      , UIStyleToken_Vector},
+                {"padding"    , sizeof("padding")     - 1, UIThemeAttribute_Padding    , UIStyleToken_Vector},
+                {"spacing"    , sizeof("spacing")     - 1, UIThemeAttribute_Spacing    , UIStyleToken_Vector},
+                {"borderwidth", sizeof("borderwidth") - 1, UIThemeAttribute_BorderWidth, UIStyleToken_Number},
+                {"bordercolor", sizeof("bordercolor") - 1, UIThemeAttribute_BorderColor, UIStyleToken_Vector},
             };
 
-            ThemeAttribute_Flag Attribute = ThemeAttribute_None;
+            UIThemeAttribute_Flag Attribute = UIThemeAttribute_None;
             for (cim_u32 KnownIdx = 0; KnownIdx < Cim_ArrayCount(KnownTypes); ++KnownIdx)
             {
                 known_type Known = KnownTypes[KnownIdx];
@@ -680,8 +762,7 @@ ValidateAndStoreThemes(theme_parser *Parser)
                     {
                         Error.Type       = ThemeParsingError_Syntax;
                         Error.LineInFile = ValueToken->LineInFile;
-
-                        snprintf(Error.Message, sizeof(Error.Message), "Attribute of type: %s does not accept this format for values.", Known.Name);
+                        WriteErrorMessage(&Error, "Attribute of type: %s does not accept this format for values.", Known.Name);
 
                         return Error;
                     }
@@ -691,7 +772,7 @@ ValidateAndStoreThemes(theme_parser *Parser)
                 }
             }
 
-            if (Attribute == ThemeAttribute_None)
+            if (Attribute == UIThemeAttribute_None)
             {
                 Error.Type = ThemeParsingError_Syntax;
                 Error.LineInFile = Parser->AtLine;
@@ -699,8 +780,7 @@ ValidateAndStoreThemes(theme_parser *Parser)
                 // BUG: Can easily overflow.
                 char AttributeName[64] = { 0 };
                 memcpy(AttributeName, AttributeToken->Identifier.At, AttributeToken->Identifier.Size);
-
-                snprintf(Error.Message, sizeof(Error.Message), "Invalid attribute name: %s", AttributeName);
+                WriteErrorMessage(&Error, "Invalid attribute name: %s", AttributeName);
 
                 return Error;
             }
@@ -718,11 +798,11 @@ ValidateAndStoreThemes(theme_parser *Parser)
         {
             Parser->AtToken++;
 
-            if (Parser->State == ThemeParsing_None)
+            if (Parser->ActiveTheme->Type == UITheme_None)
             {
                 Error.Type       = ThemeParsingError_Syntax;
                 Error.LineInFile = Token->LineInFile;
-                CimTheme_SetErrorMsg(Error, "You must end a ui_theme block '}' before beginning a new one '{'.");
+                WriteErrorMessage(&Error, "You must end a block with '}' before beginning a new one with '{'.");
 
                 return Error;
             }
@@ -732,19 +812,16 @@ ValidateAndStoreThemes(theme_parser *Parser)
         {
             Parser->AtToken++;
 
-            if (Parser->State == ThemeParsing_None && Parser->ActiveThemeNameToken)
+            if (Parser->ActiveTheme->Type == UITheme_None)
             {
                 Error.Type       = ThemeParsingError_Syntax;
                 Error.LineInFile = Token->LineInFile;
-                CimTheme_SetErrorMsg(Error, "You must begin a ui_theme block '{' before closing it '}'.");
+                WriteErrorMessage(&Error, "You must end a block with '}' before beginning a new one with '{'.");
 
                 return Error;
             }
 
-            WriteThemeToTable(Parser);
-
             memset(&Parser->ActiveTheme, 0, sizeof(Parser->ActiveTheme));
-            Parser->State                = ThemeParsing_None;
             Parser->ActiveThemeNameToken = NULL;
 
         } break;
@@ -756,7 +833,7 @@ ValidateAndStoreThemes(theme_parser *Parser)
 
             Error.Type       = ThemeParsingError_Syntax;
             Error.LineInFile = Token->LineInFile;
-            snprintf(Error.Message, sizeof(Error.Message), "Found invalid token in file: %c", (char)Token->Type);
+            WriteErrorMessage(&Error, "Found invalid token in file: %c", (char)Token->Type);
 
             return Error;
         } break;
@@ -767,56 +844,84 @@ ValidateAndStoreThemes(theme_parser *Parser)
     return Error;
 }
 
-static void
-WriteThemeToTable(theme_parser *Parser)
+// [Parser Helpers]
+
+static theme_info *
+GetNextUITheme()
 {
-    cim_u8 *NameToWrite = Parser->ActiveThemeNameToken->Identifier.At;
-    cim_u32 NameLength  = Parser->ActiveThemeNameToken->Identifier.Size;
+    theme_info *Result = NULL;
+    cim_u32    Index   = UITheme_Table.NextWriteIndex + UITheme_NameLength;  // WARN: Kind of a hack.
 
-    // NOTE: This is kind of garbage. Is this allocating? What the fuck is this piece of shit code?
-    theme_id FakeId       = { 0 };
-    char     FakeName[32] = {};
-    memcpy(FakeName, NameToWrite, NameLength);
-
-    ui_theme *Theme = GetUITheme(FakeName, &FakeId);
-
-    if (Theme == NULL)
+    if (Index < UITheme_ThemeCount)
     {
-        theme_info *Sentinel = &ThemeTable.Themes[NameLength];
+        Result     = &UITheme_Table.Themes[Index];
+        Result->Id = { Index };
+        Cim_Assert(Result->NameLength == 0);
 
-        if (Sentinel->NextWithSameLength == 0)
-        {
-            cim_u32 WriteIndex = ThemeTable.NextWriteIndex + CimTheme_ThemeNameLength; // Kind of a hack.
-            ThemeTable.NextWriteIndex += 1;
-
-            theme_info *New = &ThemeTable.Themes[WriteIndex];
-            New->NameLength         = NameLength;
-            New->Theme              = Parser->ActiveTheme;
-            New->NextWithSameLength = 0;
-            memcpy(New->Name, NameToWrite, NameLength);
-
-            Sentinel->NextWithSameLength = WriteIndex;
-        }
-        else
-        {
-            cim_u32 WriteIndex = ThemeTable.NextWriteIndex;
-            ThemeTable.NextWriteIndex += 1;
-
-            theme_info *New = &ThemeTable.Themes[WriteIndex];
-            New->NameLength         = NameLength;
-            New->Theme              = Parser->ActiveTheme;
-            New->NextWithSameLength = Sentinel->NextWithSameLength;
-            memcpy(New->Name, NameToWrite, NameLength);
-
-            Sentinel->NextWithSameLength = WriteIndex;
-        }
-    }
-    else
-    {
-        // BUG: NOT THREAD SAFE.
-        *Theme = Parser->ActiveTheme;
+        UITheme_Table.NextWriteIndex += 1;
     }
 
+    return Result;
+}
+
+static ui_theme *
+AllocateUITheme(cim_u8 *ThemeName, cim_u32 ThemeNameLength, UITheme_Type Type)
+{
+    ui_theme *Result = GetUITheme((char *)ThemeName, NULL); // NOTE: Pass NULL, because we don't store the ID.
+
+    if (!Result)
+    {
+        theme_info *Sentinel = &UITheme_Table.Themes[ThemeNameLength];
+        Cim_Assert(ThemeNameLength < 64);
+
+        theme_info *New = GetNextUITheme();
+        New->Theme.Type         = Type;
+        New->NameLength         = ThemeNameLength;
+        New->NextWithSameLength = Sentinel->NextWithSameLength;
+        memcpy(New->Name, ThemeName, ThemeNameLength);
+
+        Sentinel->NextWithSameLength = New->Id;
+
+        Result = &New->Theme;
+        UITheme_Table.NextWriteIndex += 1;
+
+        Result = &New->Theme;
+    }
+
+    return Result;
+}
+
+// [Error Handling]
+
+static const char *
+UIThemeAttributeToString(UIThemeAttribute_Flag Flag)
+{
+    switch (Flag)
+    {
+
+    case UIThemeAttribute_None:        return "None";
+    case UIThemeAttribute_Size:        return "Size";
+    case UIThemeAttribute_Color:       return "Color";
+    case UIThemeAttribute_Padding:     return "Padding";
+    case UIThemeAttribute_Spacing:     return "Spacing";
+    case UIThemeAttribute_LayoutOrder: return "LayoutOrder";
+    case UIThemeAttribute_BorderColor: return "BorderColor";
+    case UIThemeAttribute_BorderWidth: return "BorderWidth";
+    default:                           return "Unknown";
+
+    }
+}
+
+static void
+WriteErrorMessage(theme_parsing_error *Error, const char *Format, ...)
+{
+    va_list Args;
+    __crt_va_start(Args, Format);
+    __va_start(&Args, Format);
+
+    vsnprintf(Error->Message, UITheme_ErrorMessageLength, Format, Args);
+
+    __crt_va_end(Args);
 }
 
 static void
@@ -845,7 +950,7 @@ HandleThemeError(theme_parsing_error *Error, char *FileName, const char *PublicA
 
     default:
     {
-        CimLog_Error("Internal Error: Invalid error type.");
+        CimLog_Error("UNKNOWN ERROR TYPE");
         break;
     }
 

@@ -245,10 +245,11 @@ FileBrowser()
             {
                 // NOTE: These markers are quite annoying. Loop macro would help, but let's think more about
                 // layouts. Maybe it's fine for now, until I hit limitations.
-                UIRow();
-                UIButton("FileBrowser_Backward", "FileBrowser_HeaderButtons", "<--", &FileBrowser.BackwardButton);
-                UIButton("FileBrowser_Forward" , "FileBrowser_HeaderButtons", "-->", &FileBrowser.ForwardButton);
-                UIEndRow();
+                UIRowBlock()
+                {
+                    UIButton("FileBrowser_Backward", "FileBrowser_HeaderButtons", "<--", &FileBrowser.BackwardButton);
+                    UIButton("FileBrowser_Forward" , "FileBrowser_HeaderButtons", "-->", &FileBrowser.ForwardButton);
+                }
 
                 if (!IsHistoryEmpty(&FileBrowser.Backward))
                 {
@@ -259,7 +260,7 @@ FileBrowser()
                         {
                             uint32_t         FolderIndex = FileBrowser.Backward.FolderIndices[Idx];
                             directory_entry *Entry = GetDirectoryEntry(FolderIndex, &FileBrowser);
-                            assert(Entry);
+                            FileBrowser_Assert(Entry);
 
                             UIIndexedButton("FileBrowser_HistoryButtons", Entry->Name, &FileBrowser.HistoryButton, FolderIndex);
 
@@ -268,7 +269,6 @@ FileBrowser()
                             {
                                 UIText(">");
                             }
-
                         }
                     }
                 }
@@ -276,7 +276,7 @@ FileBrowser()
                 {
                     uint32_t         FolderIndex = FileBrowser.ActiveFolderIndex;
                     directory_entry *Entry       = GetDirectoryEntry(FolderIndex, &FileBrowser);
-                    assert(Entry);
+                    FileBrowser_Assert(Entry);
                     
                     // NOTE: Here's another pain point, how come we can't infer the layout at all?
                     // If there's no layout can we just assume? How does that work? I mean.. Like since 

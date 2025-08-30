@@ -13,6 +13,3 @@ typedef struct buffer
     cim_u64 At;
     cim_u64 Size;
 } buffer;
-
-#define IsAlphaCharacter(C)  ((C >= 'A' && C <= 'Z') || (C >= 'a' && C <= 'z'))
-#define IsNumberCharacter(C) (C >= '0' && C <= '9')
