@@ -38,12 +38,13 @@ typedef enum UIStyleToken_Type
     UIStyleToken_ClickEffect = 1 << 16,
 } UIStyleToken_Type;
 
-// NOTE: This is weird. Kind of.
 typedef enum UITheme_Type
 {
-    UITheme_None   = 0,
-    UITheme_Window = 1,
-    UITheme_Button = 2,
+    UITheme_None        = 0,
+    UITheme_Window      = 1,
+    UITheme_Button      = 2,
+    UITheme_EffectHover = 3,
+    UITheme_EffectClick = 4,
 } UITheme_Type;
 
 typedef enum UIThemeParsingError_Type
@@ -69,7 +70,7 @@ typedef struct theme_parsing_error
         cim_u32 LineInFile;
         cim_u32 ArgumentIndex;
     };
-    
+
     char Message[UITheme_ErrorMessageLength];
 } theme_parsing_error;
 
@@ -127,6 +128,10 @@ typedef struct ui_theme
         ui_window_theme Window;
         ui_button_theme Button;
     };
+
+    theme_id Id;
+    theme_id HoverTheme;
+    theme_id ClickTheme;
 } ui_theme;
 
 typedef struct theme_parser
@@ -138,6 +143,7 @@ typedef struct theme_parser
 
     theme_token *ActiveThemeNameToken;
     ui_theme    *ActiveTheme;
+    ui_theme    *ActiveEffectTheme;
 } theme_parser;
 
 typedef struct theme_info
@@ -146,10 +152,6 @@ typedef struct theme_info
     cim_u32 NameLength;
 
     theme_id NextWithSameLength;
-    theme_id Id;
-    theme_id HoverTheme;
-    theme_id ClickTheme;
-
     ui_theme Theme;
 } theme_info;
 

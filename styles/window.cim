@@ -14,6 +14,13 @@ theme "FileBrowser_HeaderButtons" for Button
     BorderWidth := 0;
     BorderColor := [83, 52, 235, 255];
     Size        := [50, 20];
+
+    @Hover
+    Size  := [70,40];
+    Color := [142, 101, 255, 255];
+
+    @Click
+    BorderColor := [255, 0, 0, 255];
 }
 
 theme "FileBrowser_HistoryButtons" for Button

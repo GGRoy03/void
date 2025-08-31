@@ -1,18 +1,19 @@
 // 1) This is long-term, but some of the errors are probably not clear enough.
 
-// [Internal]
+// Parser
 static theme_parsing_error StoreAttributeInTheme   (UIThemeAttribute_Flag Attribute, theme_token *Value, theme_parser *Parser);
 static theme_parsing_error ValidateAndStoreThemes  (theme_parser *Parser);
 
-// Tokenizer Helpers
+// Tokenizer
 static theme_token        * CreateThemeToken    (UIStyleToken_Type Type, cim_u32 Line, buffer *TokenBuffer);
 static theme_parsing_error  GetNextTokenBuffer  (buffer *FileContent, theme_parser *Parser);
 
-// Parser Helpers
-static ui_theme   * AllocateUITheme  (cim_u8 *ThemeName, cim_u32 ThemeNameLength, UITheme_Type Type);
-static theme_info * GetNextUITheme   ();
+// Parser
+static ui_theme   * AllocateUITheme        (cim_u8 *ThemeName, cim_u32 ThemeNameLength, UITheme_Type Type);
+static ui_theme   * AllocateUIEffectTheme  (UITheme_Type EffectType, ui_theme *MainTheme);
+static theme_info * GetNextUITheme         ();
 
-// General Parsing Helpers
+// General Parsing
 static bool   IsAlpha            (cim_u8 Char);
 static bool   IsNumber           (cim_u8 Char);
 static bool   IsWhiteSpace       (cim_u8 Char);
@@ -219,7 +220,7 @@ static bool
 StringMatches(cim_u8 *Ptr, cim_u8 *String, cim_u32 StringSize)
 {
     cim_u32 Matches = 0;
-    while(Matches < StringSize && *Ptr++ == *String++)
+    while(Matches < StringSize && ToLowerChar(*Ptr++) == ToLowerChar(*String++))
     {
         Matches++;
     }
@@ -495,7 +496,9 @@ StoreAttributeInTheme(UIThemeAttribute_Flag Attribute, theme_token *Value, theme
     theme_parsing_error Error = {};
     Error.Type = ThemeParsingError_None;
 
-    switch (Parser->ActiveTheme->Type)
+    ui_theme *ThemeToFill = Parser->ActiveEffectTheme ? Parser->ActiveEffectTheme : Parser->ActiveTheme;
+
+    switch (ThemeToFill->Type)
     {
 
     case UITheme_None:
@@ -509,7 +512,7 @@ StoreAttributeInTheme(UIThemeAttribute_Flag Attribute, theme_token *Value, theme
 
     case UITheme_Window:
     {
-        ui_window_theme *Theme = &Parser->ActiveTheme->Window;
+        ui_window_theme *Theme = &ThemeToFill->Window;
 
         switch (Attribute)
         {
@@ -533,7 +536,7 @@ StoreAttributeInTheme(UIThemeAttribute_Flag Attribute, theme_token *Value, theme
 
     case UITheme_Button:
     {
-        ui_button_theme *Theme = &Parser->ActiveTheme->Button;
+        ui_button_theme *Theme = &ThemeToFill->Button;
 
         switch (Attribute)
         {
@@ -794,6 +797,18 @@ ValidateAndStoreThemes(theme_parser *Parser)
             Parser->AtToken += HasNegativeValue ? 5 : 4;
         } break;
 
+        case UIStyleToken_HoverEffect:
+        {
+            Parser->ActiveEffectTheme = AllocateUIEffectTheme(UITheme_EffectHover, Parser->ActiveTheme);
+            Parser->AtToken          += 1;
+        } break;
+
+        case UIStyleToken_ClickEffect:
+        {
+            Parser->ActiveEffectTheme = AllocateUIEffectTheme(UITheme_EffectClick, Parser->ActiveTheme);
+            Parser->AtToken          += 1;
+        } break;
+
         case '{':
         {
             Parser->AtToken++;
@@ -823,6 +838,8 @@ ValidateAndStoreThemes(theme_parser *Parser)
 
             memset(&Parser->ActiveTheme, 0, sizeof(Parser->ActiveTheme));
             Parser->ActiveThemeNameToken = NULL;
+            Parser->ActiveTheme          = NULL;
+            Parser->ActiveEffectTheme    = NULL;
 
         } break;
 
@@ -854,8 +871,8 @@ GetNextUITheme()
 
     if (Index < UITheme_ThemeCount)
     {
-        Result     = &UITheme_Table.Themes[Index];
-        Result->Id = { Index };
+        Result           = &UITheme_Table.Themes[Index];
+        Result->Theme.Id = { Index };
         Cim_Assert(Result->NameLength == 0);
 
         UITheme_Table.NextWriteIndex += 1;
@@ -880,12 +897,60 @@ AllocateUITheme(cim_u8 *ThemeName, cim_u32 ThemeNameLength, UITheme_Type Type)
         New->NextWithSameLength = Sentinel->NextWithSameLength;
         memcpy(New->Name, ThemeName, ThemeNameLength);
 
-        Sentinel->NextWithSameLength = New->Id;
+        Sentinel->NextWithSameLength = New->Theme.Id;
 
         Result = &New->Theme;
         UITheme_Table.NextWriteIndex += 1;
 
         Result = &New->Theme;
+    }
+
+    return Result;
+}
+
+static ui_theme *
+AllocateUIEffectTheme(UITheme_Type EffectType, ui_theme *MainTheme)
+{
+    ui_theme *Result = NULL;
+
+    if(EffectType >= UITheme_EffectHover && EffectType <= UITheme_EffectClick)
+    {
+        theme_info *Effect = GetNextUITheme();
+        Effect->Theme.Type = EffectType;
+
+        switch (EffectType)
+        {
+        case UITheme_EffectClick:
+        {
+            MainTheme->ClickTheme = Effect->Theme.Id;
+        } break;
+
+        case UITheme_EffectHover:
+        {
+            MainTheme->HoverTheme = Effect->Theme.Id;
+        } break;
+
+        default: break;
+        }
+
+        switch(MainTheme->Type)
+        {
+
+        case UITheme_Window:
+        {
+            memcpy(&Effect->Theme.Window, &MainTheme->Window, sizeof(Result->Window));
+        } break;
+
+        case UITheme_Button:
+        {
+            memcpy(&Effect->Theme.Button, &MainTheme->Button, sizeof(Result->Button));
+        } break;
+
+
+        default: break;
+        }
+
+        Result = &Effect->Theme;
     }
 
     return Result;

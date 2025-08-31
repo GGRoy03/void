@@ -6,8 +6,7 @@ x) Re-Implement dragging (Should be easier)
 x) Default themes
 x) Figure out unicode rendering (Is it font related?)
 x) Rounded Corners
-x) FIX: A lot of bugs related to text/performance issues (Potentially)
-x) Change how we setup text. I think we provide multiple ways to create fonts (ASCII only...)
+x) Complete data-flow overhaul. Implement 23 algorithm.
 
 BUGS:
 

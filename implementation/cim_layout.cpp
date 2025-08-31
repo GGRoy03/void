@@ -310,6 +310,9 @@ HitTestLayoutTree(ui_layout_tree *Tree, ui_tree_sizing_result *SizingResult)
 
                 if (IsInsideRect(HitBox))
                 {
+                    // NOTE: I need to rethink everything. Because the current way
+                    // is quite limiting.
+
                     if (Node->State)
                     {
                         Node->State->Clicked = MouseClicked;

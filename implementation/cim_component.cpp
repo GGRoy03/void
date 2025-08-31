@@ -8,8 +8,8 @@ FindComponent(const char *Key)
     {
         Hashmap->GroupCount = 32;
 
-        cim_u32 BucketCount = Hashmap->GroupCount * CimBucketGroupSize;
-        size_t  BucketSize = BucketCount * sizeof(ui_component_entry);
+        cim_u32 BucketCount  = Hashmap->GroupCount * CimBucketGroupSize;
+        size_t  BucketSize   = BucketCount * sizeof(ui_component_entry);
         size_t  MetadataSize = BucketCount * sizeof(cim_u8);
 
         Hashmap->Buckets = (ui_component_entry *)malloc(BucketSize);
@@ -27,8 +27,8 @@ FindComponent(const char *Key)
     }
 
     cim_u32 ProbeCount = 0;
-    cim_u32 Hashed = CimHash_String32(Key);
-    cim_u32 GroupIdx = Hashed & (Hashmap->GroupCount - 1);
+    cim_u32 Hashed     = CimHash_String32(Key);
+    cim_u32 GroupIdx   = Hashed & (Hashmap->GroupCount - 1);
 
     while (true)
     {
@@ -42,7 +42,7 @@ FindComponent(const char *Key)
         while (TagMask)
         {
             cim_u32 Lane = CimHash_FindFirstBit32(TagMask);
-            cim_u32 Idx = (GroupIdx * CimBucketGroupSize) + Lane;
+            cim_u32 Idx  = (GroupIdx * CimBucketGroupSize) + Lane;
 
             ui_component_entry *E = Hashmap->Buckets + Idx;
             if (strcmp(E->Key, Key) == 0)
@@ -53,7 +53,7 @@ FindComponent(const char *Key)
             TagMask &= TagMask - 1;
         }
 
-        __m128i Ev = _mm_set1_epi8(CimEmptyBucketTag);
+        __m128i Ev        = _mm_set1_epi8(CimEmptyBucketTag);
         cim_i32 EmptyMask = _mm_movemask_epi8(_mm_cmpeq_epi8(Mv, Ev));
         if (EmptyMask)
         {
@@ -76,7 +76,6 @@ FindComponent(const char *Key)
     return NULL;
 }
 
-// NOTE: Then do we simply want a helper macro that does this stuff for us user side?
 static void
 UIRow(void)
 {
