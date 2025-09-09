@@ -33,3 +33,8 @@ internal memory_arena *AllocateArena  (memory_arena_params Params);
 internal void         *PushArena      (memory_arena *Arena, u64 Size, u64 Align);
 internal void          ClearArena     (memory_arena *Arena);
 internal void          PopArenaTo     (memory_arena *Arena, u64 Position);
+
+#define PushArrayNoZeroAligned(a, T, c, align) (T *)PushArena((a), sizeof(T)*(c), (align))
+#define PushArrayAligned(a, T, c, align) (T *)MemoryZero(PushArrayNoZeroAligned(a, T, c, align), sizeof(T)*(c))
+#define PushArrayNoZero(a, T, c) PushArrayNoZeroAligned(a, T, c, Max(8, AlignOf(T)))
+#define PushArray(a, T, c) PushArrayAligned(a, T, c, Max(8, AlignOf(T)))

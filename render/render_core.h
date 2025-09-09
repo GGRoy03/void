@@ -1,13 +1,33 @@
 // [Constants]
 
+typedef enum Renderer_Backend
+{
+    Renderer_None  = 0,
+    Renderer_D3D11 = 1,
+} Renderer_Backend;
+
 typedef enum RenderPass_Type
 {
-    RenderPass_UI    = 0,
-    RenderPass_Count = 1,
+    RenderPass_UI = 0,
+
+    RenderPass_Type_Count = 1,
 } RenderPass_Type;
 
 // [Core Types]
 
+typedef struct render_handle
+{
+    u64 u64[1];
+} render_handle;
+
+typedef struct shader_source
+{
+    read_only u8 *Data;
+              u64 Size;
+} shader_source;
+
+// Batch types
+// A batch is a linked list of data.
 typedef struct render_batch
 {
     u8 *Memory;
@@ -19,7 +39,7 @@ typedef struct render_batch_node render_batch_node;
 struct render_batch_node
 {
     render_batch_node *Next;
-    render_batch       Batch;
+    render_batch       Value;
 };
 
 typedef struct render_batch_list
@@ -32,11 +52,15 @@ typedef struct render_batch_list
     u64 BytesPerInstance;
 } render_batch_list;
 
+// Group Types
+// Group are logical grouping of batches as well as specific
+// parameters that must be set by the rendering backend before
+// drawing those batches.
 typedef struct render_rect_group_node render_rect_group_node;
 struct render_rect_group_node
 {
     render_rect_group_node *Next;
-    render_batch_list       Batch;
+    render_batch_list       BatchList;
 
     mat3x3_f32 Transform;
 };
@@ -51,9 +75,9 @@ typedef struct render_pass_params_ui
 } render_pass_params_ui;
 
 // Stats Types
-// Used to inferer the size of the allocated arena at the beginning of every frame.
+// Used to infer the size of the allocated arena at the beginning of every frame.
 // This structure must be filled correctly throughout the frame to achieve better
-// allocations.
+// allocations. Also useful for the user.
 
 typedef struct render_pass_ui_stats
 {
@@ -103,4 +127,11 @@ global u32 UIPassPaddingSize             = Kilobyte(25);
 
 // [CORE API]
 
-internal b32 BeginRendererFrame(render_context *Context);
+internal void BeginRenderingContext  (render_context *Context);
+internal b32  IsValidRenderHandle    (render_handle Handle);
+
+// [PER-RENDERER API]
+
+internal render_handle InitializeRenderer    (memory_arena *Arena);
+internal void          EndRendererFrame      (void);
+internal void          SubmitRenderCommands  (render_context *RenderContext, render_handle BackendHandle);

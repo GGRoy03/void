@@ -3,20 +3,30 @@ GameEntryPoint()
 {
     game_state State = {0};
 
-    while(1)
+    // Game Memory
     {
-        OSWindow_Status WindowStatus = OSUpdateWindow();
+        memory_arena_params StaticArenaParams = { 0 };
+        StaticArenaParams.CommitSize        = ArenaDefaultCommitSize;
+        StaticArenaParams.ReserveSize       = ArenaDefaultReserveSize;
+        StaticArenaParams.AllocatedFromFile = __FILE__;
+        StaticArenaParams.AllocatedFromLine = __LINE__;
 
-        if(WindowStatus == OSWindow_Exit)
-        {
-            break;
-        }
-        else if(WindowStatus == OSWindow_Resize)
-        {
-            // TODO: Resizing.
-        }
+        State.StaticArena = AllocateArena(StaticArenaParams);
+    }
 
-        BeginRendererFrame(&State.RenderContext);
+    // Renderer Initialization (BUILD DEFINED)
+    render_handle RendererHandle = InitializeRenderer(State.StaticArena);
+    if (!IsValidRenderHandle(RendererHandle))
+    {
+        return;
+    }
+    State.RendererHandle = RendererHandle;
+
+    while(OSUpdateWindow())
+    {
+        BeginRendereringContext(&State.RenderContext);
+
+        SubmitRenderCommands(&State.RenderContext, State.RendererHandle);
 
         OSSleep(5);
     }

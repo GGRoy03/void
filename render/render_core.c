@@ -1,3 +1,5 @@
+// [Internal API]
+
 internal size_t 
 EstimateUIPassFootprint(render_pass_ui_stats Stats)
 {
@@ -21,20 +23,24 @@ EstimateUIPassFootprint(render_pass_ui_stats Stats)
     return Result;
 }
 
-internal b32
-BeginRendererFrame(render_context *Context)
-{
-    b32 Result = 0;
+// [Core API]
 
+internal void
+BeginRendereringContext(render_context *Context)
+{
     if(Context)
     {
         // Prev is only ever set if we chained, meaning we didn't reserve enough
-        // memory and we add to allocate another arena. In those cases we want to 
+        // memory and we had to allocate another arena. In those cases we want to 
         // clear the overflowing arenas and re-allocate inside a bigger one. We
         // can estimate a decent size for the next frame using this frame's stat.
-        if(Context->UIPassArena->Current->Prev)
+
+        if(!Context->UIPassArena || Context->UIPassArena->Current->Prev)
         {
-            ClearArena(Context->UIPassArena);
+            if (Context->UIPassArena)
+            {
+                ClearArena(Context->UIPassArena);
+            }
 
             memory_arena_params Params = {0};
             Params.ReserveSize       = EstimateUIPassFootprint(Context->UIStats);
@@ -50,9 +56,12 @@ BeginRendererFrame(render_context *Context)
         Context->UIStats.GroupCount       = 0;
         Context->UIStats.PassCount        = 0;
         Context->UIStats.RenderedDataSize = 0;
-
-        Result = 1;
     }
+}
 
+internal b32 
+IsValidRenderHandle(render_handle Handle)
+{
+    b32 Result = (Handle.u64[0] != 0);
     return Result;
 }

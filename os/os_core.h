@@ -5,14 +5,6 @@
 #define OS_KeyboardButtonCount 256
 #define OS_MouseButtonCount 5
 
-typedef enum OSWindow_Status
-{
-    OSWindow_None     = 0,
-    OSWindow_Continue = 1,
-    OSWindow_Exit     = 2,
-    OSWindow_Resize   = 3,
-} OSWindow_Status;
-
 typedef enum OSMouseButton_Type
 {
     OSMouseButton_None  = 0,
@@ -42,6 +34,11 @@ typedef struct os_inputs
     os_button_state MouseButtons[OS_MouseButtonCount];
 } os_inputs;
 
+typedef struct os_handle
+{
+    u64 u64[1];
+} os_handle;
+
 // [Core API]
 
 // OS-Agnostic Functions.
@@ -51,12 +48,13 @@ internal void ProccessInputMessage(os_button_state *NewState, b32 IsDown);
 // Per-OS Functions.
 
 internal os_system_info *OSGetSystemInfo  (void);
+internal vec2_i32        OSGetClientSize  (os_handle Window);
 
 internal void *OSReserveMemory  (u64 Size);
 internal b32   OSCommitMemory   (void *Memory, u64 Size);
 internal void  OSRelease        (void *Memory);
 
-internal OSWindow_Status OSUpdateWindow  (void);
-internal void            OSSleep         (u32 Milliseconds);
+internal b32   OSUpdateWindow  (void);
+internal void  OSSleep         (u32 Milliseconds);
 
-internal void OSAbort (i32 ExitCode);
+internal void OSAbort  (i32 ExitCode);
