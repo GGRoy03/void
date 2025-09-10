@@ -33,8 +33,8 @@ GameEntryPoint()
             render_batch      *Batch     = BeginRenderBatch(10 * sizeof(render_rect), BatchList, State.RenderContext.PassArena[RenderPass_UI]);
 
             render_rect *Rect = AllocateRect(Batch);
-            Rect->Color      = ToVec4F32(0.f, 1.f, 0.f, 1.f);
-            Rect->RectBounds = ToVec4F32(400.f, 400.f, 550.f, 750.f);
+            Rect->Color      = Vec4F32(0.f, 1.f, 0.f, 1.f);
+            Rect->RectBounds = Vec4F32(400.f, 400.f, 550.f, 750.f);
 
             BatchList->ByteCount += sizeof(render_rect); // WARN: Do not do this! Make smarter functions.
         }
