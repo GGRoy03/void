@@ -312,10 +312,10 @@ SubmitRenderCommands(render_context *RenderContext, render_handle BackendHandle)
                 ID3D11Buffer *UniformBuffer = Backend->UBuffers[RenderPass_UI];
                 {
                     d3d11_rect_uniform_buffer Uniform = { 0 };
-                    Uniform.Transform[0] = ToVec4F32(1, 0, 0, 0);
-                    Uniform.Transform[1] = ToVec4F32(0, 1, 0, 0);
-                    Uniform.Transform[2] = ToVec4F32(0, 0, 1, 0);
-                    Uniform.ViewportSize = ToVec2F32((f32)Resolution.X, (f32)Resolution.Y);
+                    Uniform.Transform[0] = Vec4F32(1, 0, 0, 0);
+                    Uniform.Transform[1] = Vec4F32(0, 1, 0, 0);
+                    Uniform.Transform[2] = Vec4F32(0, 0, 1, 0);
+                    Uniform.ViewportSize = Vec2F32((f32)Resolution.X, (f32)Resolution.Y);
 
                     D3D11_MAPPED_SUBRESOURCE Resource = { 0 };
                     DeviceContext->lpVtbl->Map(DeviceContext, (ID3D11Resource *)UniformBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
