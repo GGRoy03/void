@@ -186,14 +186,12 @@ GetNextTokenBuffer(os_file *File, style_parser *Parser)
 
         if (IsAlpha(Char))
         {
-            Char = OSGetNextFileChar(File);
             while (OSIsValidFile(File) && (IsAlpha(Char) || IsNumber(Char)))
             {
-                File->At += 1;;
-                Char      = OSGetNextFileChar(File);
+                Char = OSGetNextFileChar(File);
             }
 
-            if(OSIsValidFile(File))
+            if(!OSIsValidFile(File))
             {
                 Error.Type       = ThemeParsingError_Syntax;
                 Error.LineInFile = Parser->AtLine;
@@ -205,15 +203,15 @@ GetNextTokenBuffer(os_file *File, style_parser *Parser)
             byte_string StyleString = byte_string_literal("style");
             byte_string ForString   = byte_string_literal("for");
 
-            u8 *IdentifierStart  = File->Content.String + StartAt;
-            u64 IdentifierLength = File->At - StartAt;
-            byte_string IdString = ByteString(IdentifierStart, IdentifierLength);
+            u8         *IdentifierStart  = File->Content.String + StartAt;
+            u64         IdentifierLength = File->At - StartAt;
+            byte_string IdString         = ByteString(IdentifierStart, IdentifierLength);
 
-            if (IdString.Size == StyleString.Size && ByteStringMatches(IdString, StyleString))
+            if (ByteStringMatches(IdString, StyleString))
             {
                 CreateStyleToken(UIStyleToken_Style, Parser);
             }
-            else if (IdString.Size == ForString.Size && ByteStringMatches(IdString, ForString))
+            else if (ByteStringMatches(IdString, ForString))
             {
                 CreateStyleToken(UIStyleToken_For, Parser);
             }

@@ -12,6 +12,15 @@ typedef enum OSMouseButton_Type
     OSMouseButton_Right = 2,
 } OSMouseButton_Type;
 
+typedef enum OSMessage_Severity
+{
+    OSMessage_None  = 0,
+    OSMessage_Info  = 1,
+    OSMessage_Warn  = 2,
+    OSMessage_Error = 3,
+    OSMessage_Fatal = 4,
+} OSMessage_Severity;
+
 // [Core Types]
 
 typedef struct os_handle
@@ -71,5 +80,7 @@ internal void  OSRelease        (void *Memory);
 
 internal b32   OSUpdateWindow  (void);
 internal void  OSSleep         (u32 Milliseconds);
+
+internal void OSWriteToConsole  (byte_string ANSISequence, OSMessage_Severity Severity);
 
 internal void OSAbort  (i32 ExitCode);

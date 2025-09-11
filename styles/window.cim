@@ -1,4 +1,4 @@
-theme "FileBrowser_Window" for Window
+style "FileBrowser_Window" for Window
 {
     Color       := [33, 33, 33, 255];
     BorderWidth := 2;
@@ -9,7 +9,7 @@ theme "FileBrowser_Window" for Window
     Size    := [200, 550];
 }
 
-theme "FileBrowser_HeaderButtons" for Button
+style "FileBrowser_HeaderButtons" for Button
 {
     Color       := [124, 77, 255, 255];
     BorderWidth := 0;
@@ -24,7 +24,7 @@ theme "FileBrowser_HeaderButtons" for Button
     BorderColor := [255, 0, 0, 255];
 }
 
-theme "FileBrowser_HistoryButtons" for Button
+style "FileBrowser_HistoryButtons" for Button
 {
     Color       := [124, 77, 255, 255];
     BorderWidth := 0;

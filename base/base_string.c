@@ -61,10 +61,17 @@ internal b32
 ByteStringMatches(byte_string Str1, byte_string Str2)
 {
     b32 Result = 0;
-    u64 Size   = Str1.Size;
 
-    while(Size-- && ToLowerChar(*Str1.String++) == ToLowerChar(*Str2.String++));
-    Result = (Size == 0);
+    if (Str1.Size == Str2.Size)
+    {
+        u8 *Pointer1 = Str1.String;
+        u8 *Pointer2 = Str2.String;
+        u8 *End      = Str1.String + Str1.Size;
+
+        while (Pointer1 < End && ToLowerChar(*Pointer1++) == ToLowerChar(*Pointer2++)) {};
+
+        Result = (Pointer1 == End);
+    }
 
     return Result;
 }

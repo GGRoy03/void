@@ -14,6 +14,16 @@ GameEntryPoint()
         State.StaticArena = AllocateArena(StaticArenaParams);
     }
 
+    // Styles Initialization
+    {
+        byte_string StyleFiles[1] =
+        {
+            byte_string_literal("D:/Work/CIM/styles/window.cim"),
+        };
+
+        LoadThemeFiles(StyleFiles, ArrayCount(StyleFiles));
+    }
+
     // Renderer Initialization (BUILD DEFINED)
     render_handle RendererHandle = InitializeRenderer(State.StaticArena);
     if (!IsValidRenderHandle(RendererHandle))
@@ -21,6 +31,11 @@ GameEntryPoint()
         return;
     }
     State.RendererHandle = RendererHandle;
+
+    OSLogMessage(byte_string_literal("Logging Info")   , OSMessage_Info);
+    OSLogMessage(byte_string_literal("Logging Warning"), OSMessage_Warn);
+    OSLogMessage(byte_string_literal("Logging Error")  , OSMessage_Error);
+    OSLogMessage(byte_string_literal("Logging Fatal")  , OSMessage_Fatal);
 
     while(OSUpdateWindow())
     {

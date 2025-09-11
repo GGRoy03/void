@@ -22,7 +22,7 @@ typedef struct unicode_decode
 
 // [API]
 
-#define byte_string_literal(String) ByteString((u8 *)String, sizeof(String))
+#define byte_string_literal(String) ByteString((u8 *)String, sizeof(String) - 1)
 
 internal byte_string ByteString  (u8  *String, u64 Size);
 internal wide_string WideString  (u16 *String, u64 Size);

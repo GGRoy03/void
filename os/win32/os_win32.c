@@ -1,5 +1,38 @@
 // [Internal Implementation]
 
+internal void
+OSWin32SetConsoleColor(byte_string ANSISequence, WORD WinAttributes)
+{
+    b32  SupportsVT    = OSWin32State.ConsoleSupportsVT;
+    HWND ConsoleHandle = OSWin32State.ConsoleHandle;
+
+    if (SupportsVT)
+    {
+        OSWin32WriteToConsole(ANSISequence);
+    }
+    else if(ConsoleHandle != INVALID_HANDLE_VALUE)
+    {
+        SetConsoleTextAttribute(ConsoleHandle, WinAttributes);
+    }
+}
+
+internal void
+OSWin32WriteToConsole(byte_string ANSISequence)
+{
+    HWND          ConsoleHandle = OSWin32State.ConsoleHandle;
+    memory_arena *Arena         = OSWin32State.Arena;
+
+    if (ConsoleHandle != INVALID_HANDLE_VALUE)
+    {
+        wide_string WideString = ByteStringToWideString(Arena, ANSISequence);
+
+        DWORD Written;
+        WriteConsoleW(ConsoleHandle, WideString.String, (DWORD)WideString.Size, &Written, 0);
+
+        PopArena(Arena, WideString.Size * sizeof(u16));
+    }
+}
+
 internal LRESULT CALLBACK
 OSWin32WindowProc(HWND Handle, UINT Message, WPARAM WParam, LPARAM LParam)
 {
@@ -30,6 +63,7 @@ wWinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPWSTR CmdLine, i32 ShowCmd
     UNUSED(CmdLine);
     UNUSED(Instance);
 
+    // System Info
     {
         SYSTEM_INFO SystemInfo = {0};
         GetSystemInfo(&SystemInfo);
@@ -37,6 +71,18 @@ wWinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPWSTR CmdLine, i32 ShowCmd
         OSWin32State.SystemInfo.PageSize = (u64)SystemInfo.dwPageSize;
     }
 
+        // Memory
+    {
+        memory_arena_params Params = { 0 };
+        Params.AllocatedFromFile = __FILE__;
+        Params.AllocatedFromLine = __LINE__;
+        Params.CommitSize        = OSWin32State.SystemInfo.PageSize;
+        Params.ReserveSize       = Kilobyte(10);
+
+        OSWin32State.Arena = AllocateArena(Params);
+    }
+
+    // Window
     {
         WNDCLASSEX WindowClass = { 0 };
         WindowClass.cbSize        = sizeof(WNDCLASSEX);
@@ -63,9 +109,77 @@ wWinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPWSTR CmdLine, i32 ShowCmd
         ShowWindow(OSWin32State.WindowHandle, ShowCmd);
     }
 
+    // Console (missing some safe code)
+    {
+        HWND ConsoleHandle = GetStdHandle(STD_OUTPUT_HANDLE);
+        if (!ConsoleHandle || ConsoleHandle == INVALID_HANDLE_VALUE)
+        {
+            if (!AllocConsole())
+            {
+                // TODO: What can we do?
+            }
+
+            ConsoleHandle = GetStdHandle(STD_OUTPUT_HANDLE);
+
+            FILE *F;
+            freopen_s(&F, "CONOUT$", "w", stdout);
+            freopen_s(&F, "CONOUT$", "w", stderr);
+            setvbuf(stdout, NULL, _IONBF, 0);
+
+            DWORD ConsoleMode;
+            if (GetConsoleMode(ConsoleHandle, &ConsoleMode))
+            {
+                DWORD NewMode = ConsoleMode | ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+                if (SetConsoleMode(ConsoleHandle, NewMode))
+                {
+                    OSWin32State.ConsoleSupportsVT = 1;
+                }
+
+                OSWin32State.ConsoleHandle = ConsoleHandle;
+            }
+        }
+    }
+
     GameEntryPoint();
 
     return 0;
+}
+
+// [Per-OS Logging Implementation]
+
+internal void
+OSLogMessage(byte_string ANSISequence, OSMessage_Severity Severity)
+{
+    switch (Severity)
+    {
+
+    case OSMessage_Info:
+    {
+        OSWin32SetConsoleColor(byte_string_literal("\x1b[32m"), FOREGROUND_GREEN | FOREGROUND_INTENSITY);
+        OSWin32WriteToConsole(ANSISequence);
+    } break;
+
+    case OSMessage_Warn:
+    {
+        OSWin32SetConsoleColor(byte_string_literal("\x1b[33m"), FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_INTENSITY);
+        OSWin32WriteToConsole(ANSISequence);
+    } break;
+
+    case OSMessage_Error:
+    {
+        OSWin32SetConsoleColor(byte_string_literal("\x1b[31m"), FOREGROUND_RED | FOREGROUND_INTENSITY);
+        OSWin32WriteToConsole(ANSISequence);
+    } break;
+
+    case OSMessage_Fatal:
+    {
+        OSWin32SetConsoleColor(byte_string_literal("\x1b[97;41m"), FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_INTENSITY | BACKGROUND_RED);
+        OSWin32WriteToConsole(ANSISequence);
+    } break;
+
+    }
+
+    OSWin32WriteToConsole(byte_string_literal("\n"));
 }
 
 // [Per-OS API Memory Implementation]

@@ -1,20 +1,4 @@
 TASK:
-x) Replace STD functions.
-x) Add more styling/components.
-x) Animation API.
-x) Re-Implement dragging (Should be easier)
-x) Default themes
-x) Figure out unicode rendering (Is it font related?)
-x) Rounded Corners
-x) Complete data-flow overhaul. Implement 23 algorithm.
-
-BUGS:
-
--VSync causes a lot of problems with the inputs. For example, when dragging the
-|graphics can run {-NumOfBackBuffers} frames behind the mouse causing a weird thing
-|where the object being dragged doesn't feel good. Disabling V-Sync fixes all of this,
-|but it's not a good solution to force on the user.
-
--The text is sometime renderered a bit blurry? Could it be the sampling? Or is there another
-|bug? For example, in the demo file-browser, if we set the font to size 16 and use Consolas,
-| the text in the "forward" and "backward" buttons becomes blurry. Not sure why.
+- Fix the parsing bug(s)
+- Start Implementing the UI
+- Figure out the API for drawing
