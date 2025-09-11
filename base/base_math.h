@@ -7,7 +7,7 @@ typedef struct vec2_f32
 {
 	union
 	{
-		f32 X, Y;
+		struct {f32 X; f32 Y;};
 		f32 Values[2];
 	};
 } vec2_f32;
@@ -17,7 +17,7 @@ typedef struct vec4_f32
 {
 	union
 	{
-		f32 X, Y, Z, W;
+		struct {f32 X; f32 Y; f32 Z; f32 W;};
 		f32 Values[4];
 	};
 } vec4_f32;

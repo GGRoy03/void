@@ -378,8 +378,6 @@ TokenizeStyleFile(os_file *File, style_parser *Parser)
     return Success;
 }
 
-// TODO: This code needs a rework.
-
 internal void
 WriteStyleAttribute(UIStyleAttribute_Flag Attribute, style_token ValueToken, style_parser *Parser)
 {
@@ -461,7 +459,7 @@ ParseStyleTokens(style_parser *Parser)
         {
             if (Parser->CurrentType != UIStyle_None)
             {
-                // TODO: Write the correct error message.
+                WriteStyleErrorMessage(Token->LineInFile, OSMessage_Error, byte_string_literal("Unexpected style token. You must close a styling block before commencing a new one"));
                 return Success;
             }
 
