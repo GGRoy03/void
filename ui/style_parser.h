@@ -99,15 +99,16 @@ read_only global bit_field StyleTypeValidAttributesTable[] =
 
 // [API]
 
-internal void LoadThemeFiles  (byte_string *Files, u32 FileCount);
+internal void LoadThemeFiles  (byte_string *Files, u32 FileCount, ui_style_registery *Registery);
 
 // [Parsing]
 
 internal style_token          *CreateStyleToken                     (UIStyleToken_Type Type, style_parser *Parser);
 internal b32                   TokenizeStyleFile                    (os_file *File, style_parser *Parser);
 internal void                  WriteStyleAttribute                  (UIStyleAttribute_Flag Attribute, style_token ValueToken, style_parser *Parser);
-internal b32                   ParseStyleTokens                     (style_parser *Parser);
+internal b32                   ParseStyleTokens                     (style_parser *Parser, ui_style_registery *Registery);
 internal UIStyleAttribute_Flag GetStyleAttributeFlagFromIdentifier  (byte_string Identifier);
+internal void                  CacheStyle                           (ui_style Style, byte_string Name, ui_style_registery *Registery);
 
 // [Error Handling]
 

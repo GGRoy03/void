@@ -56,9 +56,20 @@ typedef struct ui_style_registery
     memory_arena    *Arena;        // Holds cached style / Interned Strings
 } ui_style_registery;
 
+typedef struct ui_state
+{
+    ui_style_registery StyleRegistery;
+} ui_state;
+
 // [API]
 
 // [Components]
 
-internal void UIWindow(ui_style_name StyleName);
-internal void UIButton(ui_style_name StyleName);
+internal void UIWindow(ui_style_name StyleName, ui_state *UIState);
+internal void UIButton(ui_style_name StyleName, ui_state *UIState);
+
+// [Style]
+
+internal ui_cached_style * UIGetStyleSentinel            (byte_string Name, ui_style_registery *Registery);
+internal ui_style_name   * UIGetCachedNameFromStyleName  (byte_string Name, ui_style_registery *Registery);
+internal ui_style          UIGetStyleFromCachedName      (ui_style_name Name, ui_style_registery *Registery);

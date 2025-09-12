@@ -3,7 +3,7 @@
 // [Public API Implementation]
 
 internal void
-LoadThemeFiles(byte_string *Files, u32 FileCount)
+LoadThemeFiles(byte_string *Files, u32 FileCount, ui_style_registery *Registery)
 {
     if (!Files)
     {
@@ -42,6 +42,26 @@ LoadThemeFiles(byte_string *Files, u32 FileCount)
         Parser.Arena = AllocateArena(Params);
     }
 
+    // NOTE: Basically an initialization routine... Probably move this?
+    if (!Registery->Arena)
+    {
+        memory_arena_params Params = { 0 };
+        Params.AllocatedFromFile = __FILE__;
+        Params.AllocatedFromLine = __LINE__;
+        Params.CommitSize = ArenaDefaultCommitSize;
+        Params.ReserveSize = ArenaDefaultReserveSize;
+
+        u32 SentinelCount = ThemeNameLength;
+        u32 CachedStyleCount = ThemeMaxCount - ThemeNameLength;
+
+        Registery->Arena        = AllocateArena(Params);
+        Registery->Sentinels    = PushArena(Registery->Arena, SentinelCount * sizeof(ui_cached_style)   , AlignOf(ui_cached_style));
+        Registery->CachedStyles = PushArena(Registery->Arena, CachedStyleCount * sizeof(ui_cached_style), AlignOf(ui_cached_style));
+        Registery->CachedName   = PushArena(Registery->Arena, CachedStyleCount * sizeof(ui_style_name)  , AlignOf(ui_style_name));
+        Registery->Capacity     = CachedStyleCount;
+        Registery->Count        = 0;
+    }
+
     for (u32 FileIdx = 0; FileIdx < FileCount; FileIdx++)
     {
         Parser.AtLine = 1;
@@ -63,7 +83,7 @@ LoadThemeFiles(byte_string *Files, u32 FileCount)
             continue;
         }
 
-        b32 ParseSuccess = ParseStyleTokens(&Parser);
+        b32 ParseSuccess = ParseStyleTokens(&Parser, Registery);
         if (!ParseSuccess)
         {
             WriteStyleErrorMessage(0, OSMessage_Warn, byte_string_literal("Failed to parse file. See error(s) above."));
@@ -359,112 +379,29 @@ GetStyleAttributeFlagFromIdentifier(byte_string Identifier)
     return AttributeFlag;
 }
 
-internal ui_cached_style *
-UIGetStyleSentinel(byte_string Name, ui_style_registery *Registery)
-{
-    ui_cached_style *Result = 0;
-
-    if (Registery)
-    {
-        Result = Registery->Sentinels + (Name.Size - 1);
-    }
-
-    return Result;
-}
-
-internal ui_style_name *
-UIGetCachedNameFromStyleName(byte_string Name, ui_style_registery *Registery)
-{
-    ui_style_name *Result = 0;
-
-    if (Registery)
-    {
-        ui_cached_style *CachedStyle = 0;
-        ui_cached_style *Sentinel    = UIGetStyleSentinel(Name, Registery);
-
-        for (CachedStyle = Sentinel->Next; CachedStyle != 0; CachedStyle = CachedStyle->Next)
-        {
-            byte_string CachedString = Registery->CachedName[CachedStyle->Index].Value;
-            if (ByteStringMatches(Name, CachedString))
-            {
-                Result = &Registery->CachedName[CachedStyle->Index];
-                break;
-            }
-        }
-    }
-
-    return Result;
-}
-
-internal ui_style
-UIGetStyleFromCachedName(ui_style_name Name, ui_style_registery *Registery)
-{
-    ui_style Result = { 0 };
-
-    if (Registery)
-    {
-        u64              SentinelIndex = Name.Value.Size - 1;
-        ui_cached_style *Sentinel      = Registery->Sentinels + SentinelIndex;
-
-        for (ui_cached_style *CachedStyle = Sentinel->Next; CachedStyle != 0; CachedStyle = CachedStyle->Next)
-        {
-            byte_string CachedString = Registery->CachedName[CachedStyle->Index].Value;
-            if (Name.Value.String == CachedString.String)
-            {
-                Result = CachedStyle->Style;
-                break;
-            }
-        }
-    }
-
-    return Result;
-}
-
 internal void
-CacheStyle(ui_style Style, byte_string Name)
+CacheStyle(ui_style Style, byte_string Name, ui_style_registery *Registery)
 {
-    local_persist ui_style_registery Registery;
-
-    // NOTE: Basically an initialization routine... Probably move this?
-    if (!Registery.Arena)
-    {
-        memory_arena_params Params = { 0 };
-        Params.AllocatedFromFile = __FILE__;
-        Params.AllocatedFromLine = __LINE__;
-        Params.CommitSize  = ArenaDefaultCommitSize;
-        Params.ReserveSize = ArenaDefaultReserveSize;
-
-        u32 SentinelCount    = ThemeNameLength;
-        u32 CachedStyleCount = ThemeMaxCount - ThemeNameLength;
-
-        Registery.Arena        = AllocateArena(Params);
-        Registery.Sentinels    = PushArena(Registery.Arena, SentinelCount    * sizeof(ui_cached_style), AlignOf(ui_cached_style));
-        Registery.CachedStyles = PushArena(Registery.Arena, CachedStyleCount * sizeof(ui_cached_style), AlignOf(ui_cached_style));
-        Registery.CachedName   = PushArena(Registery.Arena, CachedStyleCount * sizeof(ui_style_name)  , AlignOf(ui_style_name));
-        Registery.Capacity     = CachedStyleCount;
-        Registery.Count        = 0;
-    }
-
     if (Name.Size <= ThemeNameLength)
     {
-        ui_style_name *CachedName = UIGetCachedNameFromStyleName(Name, &Registery);
+        ui_style_name *CachedName = UIGetCachedNameFromStyleName(Name, Registery);
 
         if (!CachedName)
         {
-            ui_cached_style *Sentinel = UIGetStyleSentinel(Name, &Registery);
+            ui_cached_style *Sentinel = UIGetStyleSentinel(Name, Registery);
 
-            ui_cached_style *CachedStyle = Registery.CachedStyles + Registery.Count;
+            ui_cached_style *CachedStyle = Registery->CachedStyles + Registery->Count;
             CachedStyle->Style = Style;
-            CachedStyle->Index = Registery.Count;
+            CachedStyle->Index = Registery->Count;
             CachedStyle->Next  = Sentinel->Next;
 
-            CachedName = Registery.CachedName + CachedStyle->Index;
-            CachedName->Value.String = PushArena(Registery.Arena, Name.Size + 1, AlignOf(u8));
+            CachedName = Registery->CachedName + CachedStyle->Index;
+            CachedName->Value.String = PushArena(Registery->Arena, Name.Size + 1, AlignOf(u8));
             CachedName->Value.Size   = Name.Size;
             memcpy(CachedName->Value.String, Name.String, Name.Size);
 
             Sentinel->Next   = CachedStyle;
-            Registery.Count += 1;
+            Registery->Count += 1;
         }
         else
         {
@@ -478,7 +415,7 @@ CacheStyle(ui_style Style, byte_string Name)
 }
 
 internal b32
-ParseStyleTokens(style_parser *Parser)
+ParseStyleTokens(style_parser *Parser, ui_style_registery *Registery)
 {
     b32 Success = {0};
 
@@ -604,7 +541,7 @@ ParseStyleTokens(style_parser *Parser)
                 return Success;
             }
 
-            CacheStyle(Parser->CurrentStyle, Parser->CurrentUserStyleName);
+            CacheStyle(Parser->CurrentStyle, Parser->CurrentUserStyleName, Registery);
 
             Parser->CurrentType          = UIStyle_None;
             Parser->CurrentStyle         = (ui_style){ 0 };
