@@ -73,7 +73,6 @@ IsValidRenderHandle(render_handle Handle)
 
 // BUG: 
 // 1) Does not track the stats.
-// 2) Memory Allocs are broken?
 
 internal render_batch_list *
 GetBatchList(render_context *Context, RenderPass_Type Pass)

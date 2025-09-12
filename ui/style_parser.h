@@ -2,9 +2,8 @@
 
 // [Globals]
 
-#define ThemeNameLength          64
-#define ThemeCount              256
-#define ThemeErrorMessageLength 256
+#define ThemeNameLength 64
+#define ThemeMaxCount   256
 
 // [Enums]
 
@@ -48,11 +47,6 @@ typedef enum UIStyle_Type
 
 // [Types]
 
-typedef struct style_id
-{
-    u32 Value;
-} style_id;
-
 typedef struct style_token
 {
     u32 LineInFile;
@@ -67,42 +61,8 @@ typedef struct style_token
     };
 } style_token;
 
-typedef struct ui_window_style
-{
-    style_id ThemeId;
 
-    vec4_f32 Color;
-    vec4_f32 BorderColor;
-    u32      BorderWidth;
-    vec2_f32 Size;
-    vec2_f32 Spacing;
-    vec4_f32 Padding;
-} ui_window_style;
-
-typedef struct ui_button_style
-{
-    style_id ThemeId;
-
-    vec4_f32 Color;
-    vec4_f32 BorderColor;
-    u32      BorderWidth;
-    vec2_f32 Size;
-} ui_button_style;
-
-typedef struct ui_style
-{
-    vec4_f32 Color;
-    vec4_f32 BorderColor;
-    u32      BorderWidth;
-    vec2_f32 Size;
-    vec2_f32 Spacing;
-    vec4_f32 Padding;
-
-    style_id Id;
-    style_id HoverTheme;
-    style_id ClickTheme;
-} ui_style;
-
+// TODO: Maybe separate this into a tokenizer and a parser.
 typedef struct style_parser
 {
     u32           TokenCount;
@@ -119,20 +79,6 @@ typedef struct style_parser
     UIStyle_Type CurrentType;
 } style_parser;
 
-typedef struct style_info
-{
-    u8  Name[ThemeNameLength];
-    u32 NameLength;
-
-    style_id NextWithSameLength;
-    ui_style Theme;
-} style_info;
-
-typedef struct style_table
-{
-    style_info Themes[ThemeCount];
-    u32        NextWriteIndex;
-} style_table;
 
 // [GLOBALS]
 
@@ -153,10 +99,7 @@ read_only global bit_field StyleTypeValidAttributesTable[] =
 
 // [API]
 
-internal ui_style       *GetUIStyle      (read_only char *ThemeName, style_id *ComponentId);
-internal ui_window_style GetWindowTheme  (read_only char *ThemeName, style_id ThemeId);
-internal ui_button_style GetButtonTheme  (read_only char *ThemeName, style_id ThemeId);
-internal void            LoadThemeFiles  (byte_string *Files, u32 FileCount);
+internal void LoadThemeFiles  (byte_string *Files, u32 FileCount);
 
 // [Parsing]
 
@@ -170,7 +113,3 @@ internal UIStyleAttribute_Flag GetStyleAttributeFlagFromIdentifier  (byte_string
 
 internal read_only char *UIStyleAttributeToString  (UIStyleAttribute_Flag Flag);
 internal void            WriteStyleErrorMessage    (u32 LineInFile, OSMessage_Severity Severity, byte_string Format, ...);
-
-// [Queries]
-internal ui_window_style GetWindowTheme  (read_only char *ThemeName, style_id ThemeId);
-internal ui_button_style GetButtonTheme  (read_only char *ThemeName, style_id ThemeId);

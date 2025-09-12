@@ -38,7 +38,7 @@ D3D11GetVertexBuffer(u64 Size, d3d11_backend *Backend)
 
     if(Size > Kilobyte(64))
     {
-        OSAbort(1);
+        OSLogMessage(byte_string_literal("Failed to acquire D3D11 Vertex Buffer."), OSMessage_Fatal);
     }
 
     return Result;
@@ -47,10 +47,10 @@ D3D11GetVertexBuffer(u64 Size, d3d11_backend *Backend)
 // [PER-RENDERER API]
 
 internal render_handle
-InitializeRenderer(memory_arena *StaticArena)
+InitializeRenderer(memory_arena *Arena)
 {
     render_handle  Result  = { 0 };
-    d3d11_backend *Backend = PushArray(StaticArena, d3d11_backend, 1); 
+    d3d11_backend *Backend = PushArray(Arena, d3d11_backend, 1); 
     HRESULT        Error   = S_OK;
 
     {
@@ -161,7 +161,7 @@ InitializeRenderer(memory_arena *StaticArena)
                                0, 0, &VShaderSrcBlob, &VShaderErrBlob);
             if(FAILED(Error))
             {
-                OSAbort(1);
+                OSLogMessage(byte_string_literal("Failed to compile D3D11 vertex shader."), OSMessage_Fatal);
             }
 
             void *ByteCode = VShaderSrcBlob->lpVtbl->GetBufferPointer(VShaderSrcBlob);
@@ -169,7 +169,7 @@ InitializeRenderer(memory_arena *StaticArena)
             Error = Device->lpVtbl->CreateVertexShader(Device, ByteCode, ByteSize, 0, &VShader);
             if(FAILED(Error))
             {
-                OSAbort(1);
+                OSLogMessage(byte_string_literal("Failed to create D3D11 vertex shader."), OSMessage_Fatal);
             }
 
             d3d11_input_layout Layout = D3D11ILayoutTable[Type];
@@ -178,7 +178,7 @@ InitializeRenderer(memory_arena *StaticArena)
                                                       &ILayout);
             if(FAILED(Error))
             {
-                OSAbort(1);
+                OSLogMessage(byte_string_literal("Failed to create D3D11 input layout."), OSMessage_Fatal);
             }
 
             VShaderSrcBlob->lpVtbl->Release(VShaderSrcBlob);
@@ -272,7 +272,7 @@ SubmitRenderCommands(render_context *RenderContext, render_handle BackendHandle)
 
     // Render Game
     {
-        const FLOAT ClearColor[4] = { 1.0f, 0.0f, 0.0f, 1.0f };
+        const FLOAT ClearColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
         DeviceContext->lpVtbl->ClearRenderTargetView(DeviceContext, RenderView, ClearColor);
     }
 

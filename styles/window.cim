@@ -1,4 +1,4 @@
-style "FileBrowser_Window" for Window
+style "TestWindow" for Window
 {
     Color       := [33, 33, 33, 255];
     BorderWidth := 2;
@@ -9,7 +9,7 @@ style "FileBrowser_Window" for Window
     Size    := [200, 550];
 }
 
-style "FileBrowser_HeaderButtons" for Button
+style "TestWindow" for Button
 {
     Color       := [124, 77, 255, 255];
     BorderWidth := 0;
@@ -17,17 +17,8 @@ style "FileBrowser_HeaderButtons" for Button
     Size        := [50, 20];
 
     @Hover
-    Size  := [70,40];
     Color := [142, 101, 255, 255];
 
     @Click
     BorderColor := [255, 0, 0, 255];
-}
-
-style "FileBrowser_HistoryButtons" for Button
-{
-    Color       := [124, 77, 255, 255];
-    BorderWidth := 0;
-    BorderColor := [83, 52, 235, 255];
-    Size        := [120, 20];
 }

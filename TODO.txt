@@ -1,5 +1,3 @@
 TASK:
-- Fix the parsing bug(s)
-- Fix the error reporting (parser)
 - Start Implementing the UI
 - Figure out the API for drawing

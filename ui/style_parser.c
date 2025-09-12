@@ -1,87 +1,6 @@
 // [Globals]
 
-// TODO: Remove this global.
-internal style_table UIStyle_Table;
-
 // [Public API Implementation]
-
-internal ui_style *
-GetUIStyle(read_only char *ThemeName, style_id *ComponentId)
-{
-    if (ComponentId && ComponentId->Value >= ThemeNameLength)
-    {
-        style_info *ThemeInfo = &UIStyle_Table.Themes[ComponentId->Value];
-        return &ThemeInfo->Theme;
-    }
-    else
-    {
-        Assert(ThemeName);
-
-        u8 *NameToFind = (u8 *)ThemeName;
-        u32 NameLength = (u32)strlen(ThemeName);
-
-        style_info *Sentinel = &UIStyle_Table.Themes[NameLength];
-        style_id    ReadPointer = Sentinel->NextWithSameLength;
-
-        while (ReadPointer.Value)
-        {
-            style_info *ThemeInfo = &UIStyle_Table.Themes[ReadPointer.Value];
-
-            if (strcmp((read_only char *)NameToFind, (read_only char *)ThemeInfo->Name) == 0)
-            {
-                if (ComponentId)
-                {
-                    ComponentId->Value = ReadPointer.Value;
-                }
-
-                return &ThemeInfo->Theme;
-            }
-
-            ReadPointer = ThemeInfo->NextWithSameLength;
-        }
-
-        return NULL;
-    }
-
-}
-
-internal ui_window_style
-GetWindowTheme(read_only char *ThemeName, style_id ThemeId)
-{
-    ui_window_style Result = {0};
-    ui_style       *Theme  = GetUIStyle(ThemeName, &ThemeId);
-
-    if (Theme)
-    {
-        Result.ThemeId     = ThemeId;
-        Result.BorderColor = Theme->BorderColor;
-        Result.BorderWidth = Theme->BorderWidth;
-        Result.Color       = Theme->Color;
-        Result.Padding     = Theme->Padding;
-        Result.Size        = Theme->Size;
-        Result.Spacing     = Theme->Spacing;
-    }
-
-    return Result;
-}
-
-internal ui_button_style
-GetButtonTheme(read_only char *ThemeName, style_id ThemeId)
-{
-    ui_button_style Result = {0};
-    ui_style       *Theme  = GetUIStyle(ThemeName, &ThemeId);
-
-    if (Theme)
-    {
-        Result.ThemeId     = ThemeId;
-        Result.BorderColor = Theme->BorderColor;
-        Result.BorderWidth = Theme->BorderWidth;
-        Result.Color       = Theme->Color;
-        Result.Size        = Theme->Size;
-    }
-
-    return Result;
-}
 
 internal void
 LoadThemeFiles(byte_string *Files, u32 FileCount)
@@ -154,7 +73,7 @@ LoadThemeFiles(byte_string *Files, u32 FileCount)
         PopArenaTo(Parser.Arena, 0);
     }
 
-    // BUG: Probably need to release some data.
+    // TODO: Release the allocated data.
 }
 
 // [Internal Implementation]
@@ -317,7 +236,7 @@ TokenizeStyleFile(os_file *File, style_parser *Parser)
         else if (Char == '"')
         {
             style_token *Token = CreateStyleToken(UIStyleToken_String, Parser);
-            Token->Identifier = ByteString(File->Content.String + File->At, 0);
+            Token->Identifier = ByteString(File->Content.String + File->At + 1, 0);
 
             while (OSIsValidFile(File) && OSGetNextFileChar(File) != '\"') 
             {
@@ -390,11 +309,11 @@ WriteStyleAttribute(UIStyleAttribute_Flag Attribute, style_token ValueToken, sty
     } break;
 
     case UIStyleAttribute_Size:        Parser->CurrentStyle.Size        = Vec2F32(ValueToken.Vector.X, ValueToken.Vector.Y);  break;
-    case UIStyleAttribute_Color:       Parser->CurrentStyle.Color       = NormalizeColors(ValueToken.Vector);                  break;
-    case UIStyleAttribute_Padding:     Parser->CurrentStyle.Padding     = ValueToken.Vector;                                   break;
+    case UIStyleAttribute_Color:       Parser->CurrentStyle.Color       = NormalizedColor(ValueToken.Vector);                 break;
+    case UIStyleAttribute_Padding:     Parser->CurrentStyle.Padding     = ValueToken.Vector;                                  break;
     case UIStyleAttribute_Spacing:     Parser->CurrentStyle.Spacing     = Vec2F32(ValueToken.Vector.X, ValueToken.Vector.Y);  break;
-    case UIStyleAttribute_BorderColor: Parser->CurrentStyle.BorderColor = NormalizeColors(ValueToken.Vector);                  break;
-    case UIStyleAttribute_BorderWidth: Parser->CurrentStyle.BorderWidth = ValueToken.UInt32;                                   break;
+    case UIStyleAttribute_BorderColor: Parser->CurrentStyle.BorderColor = NormalizedColor(ValueToken.Vector);                 break;
+    case UIStyleAttribute_BorderWidth: Parser->CurrentStyle.BorderWidth = ValueToken.UInt32;                                  break;
 
     }
 }
@@ -438,6 +357,124 @@ GetStyleAttributeFlagFromIdentifier(byte_string Identifier)
     }
     
     return AttributeFlag;
+}
+
+internal ui_cached_style *
+UIGetStyleSentinel(byte_string Name, ui_style_registery *Registery)
+{
+    ui_cached_style *Result = 0;
+
+    if (Registery)
+    {
+        Result = Registery->Sentinels + (Name.Size - 1);
+    }
+
+    return Result;
+}
+
+internal ui_style_name *
+UIGetCachedNameFromStyleName(byte_string Name, ui_style_registery *Registery)
+{
+    ui_style_name *Result = 0;
+
+    if (Registery)
+    {
+        ui_cached_style *CachedStyle = 0;
+        ui_cached_style *Sentinel    = UIGetStyleSentinel(Name, Registery);
+
+        for (CachedStyle = Sentinel->Next; CachedStyle != 0; CachedStyle = CachedStyle->Next)
+        {
+            byte_string CachedString = Registery->CachedName[CachedStyle->Index].Value;
+            if (ByteStringMatches(Name, CachedString))
+            {
+                Result = &Registery->CachedName[CachedStyle->Index];
+                break;
+            }
+        }
+    }
+
+    return Result;
+}
+
+internal ui_style
+UIGetStyleFromCachedName(ui_style_name Name, ui_style_registery *Registery)
+{
+    ui_style Result = { 0 };
+
+    if (Registery)
+    {
+        u64              SentinelIndex = Name.Value.Size - 1;
+        ui_cached_style *Sentinel      = Registery->Sentinels + SentinelIndex;
+
+        for (ui_cached_style *CachedStyle = Sentinel->Next; CachedStyle != 0; CachedStyle = CachedStyle->Next)
+        {
+            byte_string CachedString = Registery->CachedName[CachedStyle->Index].Value;
+            if (Name.Value.String == CachedString.String)
+            {
+                Result = CachedStyle->Style;
+                break;
+            }
+        }
+    }
+
+    return Result;
+}
+
+internal void
+CacheStyle(ui_style Style, byte_string Name)
+{
+    local_persist ui_style_registery Registery;
+
+    // NOTE: Basically an initialization routine... Probably move this?
+    if (!Registery.Arena)
+    {
+        memory_arena_params Params = { 0 };
+        Params.AllocatedFromFile = __FILE__;
+        Params.AllocatedFromLine = __LINE__;
+        Params.CommitSize  = ArenaDefaultCommitSize;
+        Params.ReserveSize = ArenaDefaultReserveSize;
+
+        u32 SentinelCount    = ThemeNameLength;
+        u32 CachedStyleCount = ThemeMaxCount - ThemeNameLength;
+
+        Registery.Arena        = AllocateArena(Params);
+        Registery.Sentinels    = PushArena(Registery.Arena, SentinelCount    * sizeof(ui_cached_style), AlignOf(ui_cached_style));
+        Registery.CachedStyles = PushArena(Registery.Arena, CachedStyleCount * sizeof(ui_cached_style), AlignOf(ui_cached_style));
+        Registery.CachedName   = PushArena(Registery.Arena, CachedStyleCount * sizeof(ui_style_name)  , AlignOf(ui_style_name));
+        Registery.Capacity     = CachedStyleCount;
+        Registery.Count        = 0;
+    }
+
+    if (Name.Size <= ThemeNameLength)
+    {
+        ui_style_name *CachedName = UIGetCachedNameFromStyleName(Name, &Registery);
+
+        if (!CachedName)
+        {
+            ui_cached_style *Sentinel = UIGetStyleSentinel(Name, &Registery);
+
+            ui_cached_style *CachedStyle = Registery.CachedStyles + Registery.Count;
+            CachedStyle->Style = Style;
+            CachedStyle->Index = Registery.Count;
+            CachedStyle->Next  = Sentinel->Next;
+
+            CachedName = Registery.CachedName + CachedStyle->Index;
+            CachedName->Value.String = PushArena(Registery.Arena, Name.Size + 1, AlignOf(u8));
+            CachedName->Value.Size   = Name.Size;
+            memcpy(CachedName->Value.String, Name.String, Name.Size);
+
+            Sentinel->Next   = CachedStyle;
+            Registery.Count += 1;
+        }
+        else
+        {
+            WriteStyleErrorMessage(0, OSMessage_Error, byte_string_literal("Two different styles cannot have the same name."));
+        }
+    }
+    else
+    {
+        WriteStyleErrorMessage(0, OSMessage_Error, byte_string_literal("Style name exceeds maximum length of 64"));
+    }
 }
 
 internal b32
@@ -494,7 +531,7 @@ ParseStyleTokens(style_parser *Parser)
                 return Success;
             }
 
-            Parser->CurrentUserStyleName = PeekTokens[2].Identifier;
+            Parser->CurrentUserStyleName = PeekTokens[0].Identifier;
             Parser->AtToken             += ArrayCount(PeekTokens) + 1;
         } break;
 
@@ -567,7 +604,7 @@ ParseStyleTokens(style_parser *Parser)
                 return Success;
             }
 
-            // TODO: We need to store Parser.CurrentStyle somewhere and somehow.
+            CacheStyle(Parser->CurrentStyle, Parser->CurrentUserStyleName);
 
             Parser->CurrentType          = UIStyle_None;
             Parser->CurrentStyle         = (ui_style){ 0 };
