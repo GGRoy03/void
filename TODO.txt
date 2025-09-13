@@ -1,3 +1,0 @@
-TASK:
-- Start Implementing the UI
-- Figure out the API for drawing
