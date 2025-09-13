@@ -3,7 +3,7 @@
 internal size_t 
 EstimateUIPassFootprint(render_pass_ui_stats Stats)
 {
-    size_t Result = UIPassPaddingSize;
+    size_t Result = UIPassDefaultPaddingSize;
 
     if(Stats.GroupCount == 0 || Stats.PassCount == 0 || Stats.RenderedDataSize == 0)
     {
@@ -30,37 +30,42 @@ BeginRendereringContext(render_context *Context)
 {
     if(Context)
     {
-        // Prev is only ever set if we chained, meaning we didn't reserve enough
-        // memory and we had to allocate another arena. In those cases we want to 
-        // clear the overflowing arenas and re-allocate inside a bigger one. We
-        // can estimate a decent size for the next frame using this frame's stat.
+        // BUG: This looks really off. I never release any arenas.
 
-        memory_arena *UIPassArena = Context->PassArena[RenderPass_UI];
-        if (UIPassArena)
+        // UI Pass
         {
-            ClearArena(UIPassArena);
+            if (!Context->UIArena || Context->UIArena->Prev)
+            {
+                // TODO: We must release the old arena if it exists and it chained.
+
+                memory_arena_params Params = { 0 };
+                Params.ReserveSize       = EstimateUIPassFootprint(Context->UIStats);
+                Params.CommitSize        = ArenaDefaultCommitSize;
+                Params.AllocatedFromFile = __FILE__;
+                Params.AllocatedFromLine = __LINE__;
+
+                Context->UIArena = AllocateArena(Params);
+            }
+            else
+            {
+                ClearArena(Context->UIArena);
+            }
+
+            // Reset stats
+            Context->UIStats.BatchCount       = 0;
+            Context->UIStats.GroupCount       = 0;
+            Context->UIStats.PassCount        = 0;
+            Context->UIStats.RenderedDataSize = 0;
+
+            // Reset Pointers
+            Context->UIParams.First = 0;
+            Context->UIParams.Last  = 0;
         }
 
-        if(!UIPassArena || UIPassArena->Current->Prev)
+        // Game Pass
         {
-            memory_arena_params Params = {0};
-            Params.ReserveSize       = EstimateUIPassFootprint(Context->UIStats);
-            Params.CommitSize        = ArenaDefaultCommitSize;
-            Params.AllocatedFromFile = __FILE__;
-            Params.AllocatedFromLine = __LINE__;
 
-            Context->PassArena[RenderPass_UI] = AllocateArena(Params);
         }
-
-        // Reset stats
-        Context->UIStats.BatchCount       = 0;
-        Context->UIStats.GroupCount       = 0;
-        Context->UIStats.PassCount        = 0;
-        Context->UIStats.RenderedDataSize = 0;
-
-        // Reset Pointers
-        Context->FirstPassNode[RenderPass_UI] = 0;
-        Context->LastPassNode[RenderPass_UI]  = 0;
     }
 }
 
@@ -71,112 +76,70 @@ IsValidRenderHandle(render_handle Handle)
     return Result;
 }
 
-// BUG: 
-// 1) Does not track the stats.
+// [Batches]
 
-internal render_batch_list *
-GetBatchList(render_context *Context, RenderPass_Type Pass)
+internal void *
+PushDataInBatchList(memory_arena *Arena, render_batch_list *BatchList)
 {
-    render_batch_list *Result = 0;
+    void *Result = 0;
 
-    if (Context)
+    render_batch_node *Node = BatchList->Last;
+    if (!Node || Node->Value.ByteCount + BatchList->BytesPerInstance > Node->Value.ByteCapacity)
     {
-        // NOTE: I believe this should check the validity of the parameters as well.
-
-        render_pass_node *PassNode  = Context->LastPassNode[Pass];
-        memory_arena     *PassArena = Context->PassArena[Pass];
-        if (!PassNode)
-        {
-            render_pass_params_ui *Params = PushArena(PassArena, sizeof(render_pass_params_ui), AlignOf(render_pass_params_ui));
-            Params->First = 0;
-            Params->Last  = 0;
-
-            PassNode = PushArena(PassArena, sizeof(render_pass_node), AlignOf(render_pass_node));
-            PassNode->Next           = 0;
-            PassNode->Pass.Type      = RenderPass_UI;
-            PassNode->Pass.Params.UI = Params;
-
-            Context->FirstPassNode[Pass] = PassNode;
-            Context->LastPassNode[Pass]  = PassNode;
-        }
-
-        // BUG: This should not access the UI directly. This whole Batch/List/Params code
-        // need some serious work.
-
-        render_rect_group_node *RectNode = PassNode->Pass.Params.UI->Last;
-        if (!RectNode)
-        {
-            RectNode = PushArena(PassArena, sizeof(render_rect_group_node), AlignOf(render_rect_group_node));
-            RectNode->BatchList.BatchCount       = 0;
-            RectNode->BatchList.ByteCount        = 0;
-            RectNode->BatchList.BytesPerInstance = RenderPassDataSizeTable[Pass];
-            RectNode->BatchList.First            = 0;
-            RectNode->BatchList.Last             = 0;
-
-            PassNode->Pass.Params.UI->First = RectNode;
-        }
-
-        Result = &RectNode->BatchList;
-    }
-
-    return Result;
-}
-
-// BUG: Does not track the stats per pass.
-
-internal render_batch *
-BeginRenderBatch(u64 Size, render_batch_list *BatchList, memory_arena *Arena)
-{
-    render_batch *Result = 0;
-
-    if (BatchList)
-    {
-        void *Memory = PushArena(Arena, Size, AlignOf(void *));
-
-        render_batch_node *Node = PushArena(Arena, sizeof(render_batch_node), AlignOf(render_batch_node));
-        Node->Next               = 0;
-        Node->Value.ByteCapacity = Size;
+        Node = PushArray(Arena, render_batch_node, 1);
         Node->Value.ByteCount    = 0;
-        Node->Value.Memory       = Memory;
+        Node->Value.ByteCapacity = Kilobyte(5); // BUG: This works, but would be better if we could infer it?
+        Node->Value.Memory       = PushArrayNoZero(Arena, u8, Node->Value.ByteCapacity);
 
-        if (BatchList->First)
-        {
-            BatchList->Last->Next = Node;
-            BatchList->Last       = Node;
-        }
-        else
+        if (!BatchList->Last)
         {
             BatchList->First = Node;
             BatchList->Last  = Node;
         }
-
-        Result = &Node->Value;
+        else
+        {
+            BatchList->Last->Next = Node;
+            BatchList->Last       = Node;
+        }
 
         BatchList->BatchCount += 1;
     }
 
+    Result = Node->Value.Memory + Node->Value.ByteCount;
+
+    Node->Value.ByteCount += BatchList->BytesPerInstance;
+    BatchList->ByteCount  += BatchList->BytesPerInstance;
+
     return Result;
 }
 
-internal render_rect *
-AllocateRect(render_batch *Batch)
+internal render_batch_list *
+GetUIBatchList(render_context *Context)
 {
-    render_rect *Result = 0;
+    render_batch_list      *Result    = 0;
+    render_pass_params_ui  *Params    = &Context->UIParams;
+    render_rect_group_node *GroupNode = Params->Last;
 
-    if (Batch)
+    if (!GroupNode)
     {
-        u64 Size  = sizeof(render_rect);
+        GroupNode = PushArena(Context->UIArena, sizeof(render_rect_group_node), AlignOf(render_rect_group_node));
+        GroupNode->Next                       = 0;
+        GroupNode->BatchList.BatchCount       = 0;
+        GroupNode->BatchList.ByteCount        = 0;
+        GroupNode->BatchList.BytesPerInstance = RenderPassDataSizeTable[RenderPass_UI];
+        GroupNode->BatchList.First            = 0;
+        GroupNode->BatchList.Last             = 0;
 
-        // NOTE: Not entirely sure what I want to do here.
-        // Because I don't know how the caller will use this code yet.
-        if (Batch->ByteCount + Size > Batch->ByteCapacity)
-        {
-            return NULL;
-        }
-
-        Result            = (render_rect *)((u8 *)Batch->Memory + Batch->ByteCount);
-        Batch->ByteCount += Size;
+        Params->First = GroupNode;
     }
 
+    // NOTE: What is this mess?
+    if (Params->Last && Params->Last != GroupNode)
+    {
+        Params->Last->Next = GroupNode;
+    }
+    Params->Last = GroupNode;
+
+    Result = &GroupNode->BatchList;
     return Result;
 }

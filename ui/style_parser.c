@@ -94,7 +94,7 @@ LoadThemeFiles(byte_string *Files, u32 FileCount, ui_style_registery *Registery)
         PopArenaTo(Parser.Arena, 0);
     }
 
-    ReleaseArena(&Parser.Arena);
+    ReleaseArena(Parser.Arena);
     OSRelease(Parser.TokenBuffer);
 }
 

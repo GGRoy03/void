@@ -30,6 +30,17 @@ AllocateArena(memory_arena_params Params)
     return Arena;
 }
 
+internal void
+ReleaseArena(memory_arena *Arena)
+{
+    memory_arena *Prev = 0;
+    for (memory_arena *Node = Arena->Current; Node != 0; Node = Prev)
+    {
+        Prev = Node->Prev;
+        OSRelease(Node);
+    }
+}
+
 internal void *
 PushArena(memory_arena *Arena, u64 Size, u64 Alignment)
 {

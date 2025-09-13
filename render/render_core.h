@@ -1,4 +1,4 @@
-// [Constants]
+// [CONSTANTS]
 
 typedef enum Renderer_Backend
 {
@@ -13,21 +13,14 @@ typedef enum RenderPass_Type
     RenderPass_Type_Count = 1,
 } RenderPass_Type;
 
-// [Core Types]
+// [CORE TYPES]
 
 typedef struct render_handle
 {
     u64 u64[1];
 } render_handle;
 
-// WARN: Should not exist (byte_string)
-typedef struct shader_source
-{
-    read_only u8 *Data;
-              u64 Size;
-} shader_source;
-
-// NOTE: Must be padded to match 16 bytes alignment.
+// NOTE: Must be padded to 16 bytes alignment.
 typedef struct render_rect
 {
     vec4_f32 RectBounds;
@@ -118,11 +111,9 @@ struct render_pass_node
 
 typedef struct render_context
 {
-    render_pass_ui_stats UIStats;
-
-    memory_arena     *PassArena[RenderPass_Type_Count];
-    render_pass_node *FirstPassNode[RenderPass_Type_Count];
-    render_pass_node *LastPassNode[RenderPass_Type_Count];
+    render_pass_ui_stats  UIStats;
+    memory_arena         *UIArena;
+    render_pass_params_ui UIParams;
 } render_context;
 
 // [Globals]
@@ -131,7 +122,7 @@ read_only global u32 UIPassDefaultBatchCount       = 10;
 read_only global u32 UIPassDefaultGroupCount       = 20;
 read_only global u32 UIPassDefaultPassCount        = 5;
 read_only global u32 UIPassDefaultRenderedDataSize = Kilobyte(50);
-read_only global u32 UIPassPaddingSize             = Kilobyte(25);
+read_only global u32 UIPassDefaultPaddingSize      = Kilobyte(25);
 
 read_only global u64 RenderPassDataSizeTable[] =
 {
@@ -140,14 +131,14 @@ read_only global u64 RenderPassDataSizeTable[] =
 
 // [CORE API]
 
+// [Misc]
 internal void BeginRenderingContext  (render_context *Context);
 internal b32  IsValidRenderHandle    (render_handle Handle);
 
-// WARN: Highly possible that some of these functions shouldn't be here. Also, this is a really unstable
-// API.
-internal render_batch      *BeginRenderBatch  (u64 Size, render_batch_list *BatchList, memory_arena *Arena);
-internal render_batch_list *GetBatchList      (render_context *Context, RenderPass_Type Pass);
-internal render_rect       *AllocateRect      (render_batch *Batch);
+// [Batches]
+
+internal void              * PushDataInBatchList  (memory_arena *Arena, render_batch_list *BatchList);
+internal render_batch_list * GetUIBatchList       (render_context *Context);
 
 // [PER-RENDERER API]
 

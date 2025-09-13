@@ -9,7 +9,7 @@ style "TestWindow" for Window
     Size    := [200, 550];
 }
 
-style "TestWindow" for Button
+style "TestButton" for Button
 {
     Color       := [124, 77, 255, 255];
     BorderWidth := 0;

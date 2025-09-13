@@ -116,14 +116,14 @@ read_only global u8 D3D11RectPShader[] =
 "}                                        \n"
 ;
 
-read_only global shader_source D3D11VShaderSourceTable[] =
+read_only global byte_string D3D11VShaderSourceTable[] =
 {
-    {D3D11RectVShader, sizeof(D3D11RectVShader)},
+    byte_string_compile(D3D11RectVShader),
 };
 
-read_only global shader_source D3D11PShaderSourceTable[] =
+read_only global byte_string D3D11PShaderSourceTable[] =
 {
-    {D3D11RectPShader, sizeof(D3D11RectPShader)},
+    byte_string_compile(D3D11RectPShader),
 };
 
 read_only global d3d11_input_layout D3D11ILayoutTable[] =

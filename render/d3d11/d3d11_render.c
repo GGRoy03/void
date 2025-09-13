@@ -152,11 +152,11 @@ InitializeRenderer(memory_arena *Arena)
 
         ForEachEnum(RenderPass_Type, Type)
         {
-            read_only shader_source Source = D3D11VShaderSourceTable[Type];
+            byte_string Source = D3D11VShaderSourceTable[Type];
 
             ID3DBlob *VShaderSrcBlob = 0;
             ID3DBlob *VShaderErrBlob = 0;
-            Error = D3DCompile(Source.Data, Source.Size,
+            Error = D3DCompile(Source.String, Source.Size,
                                0, 0, 0, "VSMain", "vs_5_0",
                                0, 0, &VShaderSrcBlob, &VShaderErrBlob);
             if(FAILED(Error))
@@ -189,11 +189,11 @@ InitializeRenderer(memory_arena *Arena)
 
         ForEachEnum(RenderPass_Type, Type)
         {
-            read_only shader_source Source = D3D11PShaderSourceTable[Type];
+            byte_string Source = D3D11PShaderSourceTable[Type];
 
             ID3DBlob *PShaderSrcBlob = 0;
             ID3DBlob *PShaderErrBlob = 0;
-            Error = D3DCompile(Source.Data, Source.Size,
+            Error = D3DCompile(Source.String, Source.Size,
                                0, 0, 0, "PSMain", "ps_5_0",
                                0, 0, &PShaderSrcBlob, &PShaderErrBlob);
             if(FAILED(Error))
@@ -276,79 +276,76 @@ SubmitRenderCommands(render_context *RenderContext, render_handle BackendHandle)
         DeviceContext->lpVtbl->ClearRenderTargetView(DeviceContext, RenderView, ClearColor);
     }
 
-    // Render UI
+    // Render UI (Single Pass)
     {
+        render_pass_params_ui Params = RenderContext->UIParams;
+
         // Rasterizer
         D3D11_VIEWPORT Viewport = {0.0f, 0.0f, (f32)Resolution.X, (f32)Resolution.Y, 0.0f, 1.0f};
         DeviceContext->lpVtbl->RSSetViewports(DeviceContext, 1, &Viewport);
 
-        for (render_pass_node *PassNode = RenderContext->FirstPassNode[RenderPass_UI]; PassNode != 0; PassNode = PassNode->Next)
+        for (render_rect_group_node *RectGroupNode = Params.First; RectGroupNode != 0; RectGroupNode = RectGroupNode->Next)
         {
-            render_pass            Pass   = PassNode->Pass;
-            render_pass_params_ui *Params = Pass.Params.UI;
+            render_batch_list BatchList = RectGroupNode->BatchList;
 
-            for (render_rect_group_node *RectGroupNode = Params->First; RectGroupNode != 0; RectGroupNode = RectGroupNode->Next)
+            ID3D11Buffer *VBuffer = D3D11GetVertexBuffer(BatchList.ByteCount, Backend);
             {
-                render_batch_list BatchList = RectGroupNode->BatchList;
+                D3D11_MAPPED_SUBRESOURCE Resource = {0};
+                DeviceContext->lpVtbl->Map(DeviceContext, (ID3D11Resource*)VBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
 
-                ID3D11Buffer *VBuffer = D3D11GetVertexBuffer(BatchList.ByteCount, Backend);
+                u8 *WritePointer = Resource.pData;
+                u64 WriteOffset  = 0;
+                for(render_batch_node *Batch = BatchList.First; Batch != 0; Batch = Batch->Next)
                 {
-                    D3D11_MAPPED_SUBRESOURCE Resource = {0};
-                    DeviceContext->lpVtbl->Map(DeviceContext, (ID3D11Resource*)VBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-
-                    u8 *WritePointer = Resource.pData;
-                    u64 WriteOffset  = 0;
-                    for(render_batch_node *Batch = BatchList.First; Batch != 0; Batch = Batch->Next)
-                    {
-                        u64 WriteSize = Batch->Value.ByteCount;
-                        MemoryCopy(WritePointer + WriteOffset, Batch->Value.Memory, WriteSize);
-                        WriteOffset += WriteSize;
-                    }
-
-                    DeviceContext->lpVtbl->Unmap(DeviceContext, (ID3D11Resource *)VBuffer, 0);
+                    u64 WriteSize = Batch->Value.ByteCount;
+                    MemoryCopy(WritePointer + WriteOffset, Batch->Value.Memory, WriteSize);
+                    WriteOffset += WriteSize;
                 }
 
-                // Uniform Buffers
-                ID3D11Buffer *UniformBuffer = Backend->UBuffers[RenderPass_UI];
-                {
-                    d3d11_rect_uniform_buffer Uniform = { 0 };
-                    Uniform.Transform[0] = Vec4F32(1, 0, 0, 0);
-                    Uniform.Transform[1] = Vec4F32(0, 1, 0, 0);
-                    Uniform.Transform[2] = Vec4F32(0, 0, 1, 0);
-                    Uniform.ViewportSize = Vec2F32((f32)Resolution.X, (f32)Resolution.Y);
-
-                    D3D11_MAPPED_SUBRESOURCE Resource = { 0 };
-                    DeviceContext->lpVtbl->Map(DeviceContext, (ID3D11Resource *)UniformBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
-                    MemoryCopy(Resource.pData, &Uniform, sizeof(Uniform));
-                    DeviceContext->lpVtbl->Unmap(DeviceContext, (ID3D11Resource *)UniformBuffer, 0);
-                }
-
-                // Pipeline Info
-                ID3D11InputLayout  *ILayout = Backend->ILayouts[RenderPass_UI];
-                ID3D11VertexShader *VShader = Backend->VShaders[RenderPass_UI];
-                ID3D11PixelShader  *PShader = Backend->PShaders[RenderPass_UI];
-
-                // OM
-                DeviceContext->lpVtbl->OMSetRenderTargets(DeviceContext, 1, &Backend->RenderView, 0);
-
-                // IA
-                u32 Stride = (u32)BatchList.BytesPerInstance;
-                u32 Offset = 0;
-                DeviceContext->lpVtbl->IASetVertexBuffers(DeviceContext, 0, 1, &VBuffer, &Stride, &Offset);
-                DeviceContext->lpVtbl->IASetInputLayout(DeviceContext, ILayout);
-                DeviceContext->lpVtbl->IASetPrimitiveTopology(DeviceContext, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
-
-                // Shaders
-                DeviceContext->lpVtbl->VSSetShader(DeviceContext, VShader, 0, 0);
-                DeviceContext->lpVtbl->PSSetShader(DeviceContext, PShader, 0, 0);
-                DeviceContext->lpVtbl->VSSetConstantBuffers(DeviceContext, 0, 1, &UniformBuffer);
-
-                // Draw
-                u32 InstanceCount = (u32)(BatchList.ByteCount / BatchList.BytesPerInstance);
-                DeviceContext->lpVtbl->DrawInstanced(DeviceContext, 4, InstanceCount, 0, 0);
+                DeviceContext->lpVtbl->Unmap(DeviceContext, (ID3D11Resource *)VBuffer, 0);
             }
+
+            // Uniform Buffers
+            ID3D11Buffer *UniformBuffer = Backend->UBuffers[RenderPass_UI];
+            {
+                d3d11_rect_uniform_buffer Uniform = { 0 };
+                Uniform.Transform[0] = Vec4F32(1, 0, 0, 0);
+                Uniform.Transform[1] = Vec4F32(0, 1, 0, 0);
+                Uniform.Transform[2] = Vec4F32(0, 0, 1, 0);
+                Uniform.ViewportSize = Vec2F32((f32)Resolution.X, (f32)Resolution.Y);
+
+                D3D11_MAPPED_SUBRESOURCE Resource = { 0 };
+                DeviceContext->lpVtbl->Map(DeviceContext, (ID3D11Resource *)UniformBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+                MemoryCopy(Resource.pData, &Uniform, sizeof(Uniform));
+                DeviceContext->lpVtbl->Unmap(DeviceContext, (ID3D11Resource *)UniformBuffer, 0);
+            }
+
+            // Pipeline Info
+            ID3D11InputLayout  *ILayout = Backend->ILayouts[RenderPass_UI];
+            ID3D11VertexShader *VShader = Backend->VShaders[RenderPass_UI];
+            ID3D11PixelShader  *PShader = Backend->PShaders[RenderPass_UI];
+
+            // OM
+            DeviceContext->lpVtbl->OMSetRenderTargets(DeviceContext, 1, &Backend->RenderView, 0);
+
+            // IA
+            u32 Stride = (u32)BatchList.BytesPerInstance;
+            u32 Offset = 0;
+            DeviceContext->lpVtbl->IASetVertexBuffers(DeviceContext, 0, 1, &VBuffer, &Stride, &Offset);
+            DeviceContext->lpVtbl->IASetInputLayout(DeviceContext, ILayout);
+            DeviceContext->lpVtbl->IASetPrimitiveTopology(DeviceContext, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+
+            // Shaders
+            DeviceContext->lpVtbl->VSSetShader(DeviceContext, VShader, 0, 0);
+            DeviceContext->lpVtbl->PSSetShader(DeviceContext, PShader, 0, 0);
+            DeviceContext->lpVtbl->VSSetConstantBuffers(DeviceContext, 0, 1, &UniformBuffer);
+
+            // Draw
+            u32 InstanceCount = (u32)(BatchList.ByteCount / BatchList.BytesPerInstance);
+            DeviceContext->lpVtbl->DrawInstanced(DeviceContext, 4, InstanceCount, 0, 0);
         }
     }
+    
 
     // Present
     HRESULT Error = SwapChain->lpVtbl->Present(SwapChain, 0, 0);

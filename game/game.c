@@ -37,19 +37,7 @@ GameEntryPoint()
     {
         BeginRendereringContext(&GameState.RenderContext);
 
-        // NOTE: This code is quite bad. Need to figure this out. Probably will do
-        // as we re-implement the UI.
-        {
-            render_batch_list *BatchList = GetBatchList(&GameState.RenderContext, RenderPass_UI);
-            render_batch      *Batch     = BeginRenderBatch(10 * sizeof(render_rect), BatchList, GameState.RenderContext.PassArena[RenderPass_UI]);
-
-            render_rect *Rect = AllocateRect(Batch);
-            Rect->Color      = NormalizedColor(Vec4F32(173.f, 184.f, 154.f, 255.f));
-            Rect->RectBounds = Vec4F32(400.f, 400.f, 550.f, 750.f);
-
-            BatchList->ByteCount += sizeof(render_rect); // WARN: Do not do this! Make smarter functions.
-        }
-
+        TestUI(&UIState, &GameState.RenderContext);
         SubmitRenderCommands(&GameState.RenderContext, GameState.RendererHandle);
 
         OSSleep(5);
