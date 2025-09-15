@@ -12,13 +12,7 @@ style "TestWindow" for Window
 style "TestButton" for Button
 {
     Color       := [124, 77, 255, 255];
-    BorderWidth := 0;
+    BorderWidth := 2;
     BorderColor := [83, 52, 235, 255];
     Size        := [50, 20];
-
-    @Hover
-    Color := [142, 101, 255, 255];
-
-    @Click
-    BorderColor := [255, 0, 0, 255];
 }

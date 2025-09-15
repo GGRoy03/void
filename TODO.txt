@@ -1,3 +1,5 @@
 TASK:
-- Start Implementing the UI
-- Figure out the API for drawing
+- Learn about AA (SmoothStep)
+- Better border rendering
+- Continue Implementing the UI (Font Rendering, More Layout Options)
+- Figure out the API for drawing (Decouple from layout?)
