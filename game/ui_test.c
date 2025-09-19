@@ -24,9 +24,27 @@ TestUI(void)
 
 	if (!UITest.IsInitialized)
 	{
-		// Allocations/Caching
-		UITest.WindowStyle = UIGetCachedNameFromStyleName(byte_string_literal("TestWindow"), &Pipeline->StyleRegistery);
-		UITest.ButtonStyle = UIGetCachedNameFromStyleName(byte_string_literal("TestButton"), &Pipeline->StyleRegistery);
+		// Pipeline
+		{
+			byte_string ThemeFiles[] =
+			{
+				byte_string_literal("D:/Work/CIM/styles/window.cim"),
+			};
+
+			ui_pipeline_params Params = {0};
+			Params.ThemeFiles    = ThemeFiles;
+			Params.ThemeCount    = ArrayCount(ThemeFiles);
+			Params.TreeDepth     = 4;
+			Params.TreeNodeCount = 16;
+
+			*Pipeline = UICreatePipeline(Params);
+		}
+
+		// Styles
+		{
+			UITest.WindowStyle = UIGetCachedNameFromStyleName(byte_string_literal("TestWindow"), &Pipeline->StyleRegistery);
+			UITest.ButtonStyle = UIGetCachedNameFromStyleName(byte_string_literal("TestButton"), &Pipeline->StyleRegistery);
+		}
 
 		// Layout
 		UIWindow(UITest.WindowStyle, Pipeline);

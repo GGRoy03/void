@@ -1,5 +1,32 @@
 // [Components]
 
+//LayoutNode = GetNextLayoutNode(&Pipeline->LayoutTree);
+//LayoutNode->Base.Id = Root->Base.Id;
+//
+//
+//u32 ParentId = ((ui_layout_node *)(Root->Base.Parent))->Base.Id;
+//if (ParentId < Pipeline->StyleTree.NodeCount)
+//{
+//    ui_layout_node *Parent = Pipeline->LayoutTree.LayoutNodes + ParentId;
+//    if (Parent)
+//    {
+//        ui_layout_node **First = (ui_layout_node **)&Parent->Base.First;
+//        if (!First)
+//        {
+//            *First = LayoutNode;
+//        }
+//
+//        ui_layout_node **Last = (ui_layout_node **)&Parent->Base.Last;
+//        if (Last)
+//        {
+//            *Last = LayoutNode;
+//        }
+//
+//        LayoutNode->Base.Prev = Parent->Base.Last;
+//        Parent->Base.Last = LayoutNode;
+//    }
+//}
+
 internal void
 UIWindow(ui_style_name StyleName, ui_pipeline *Pipeline)
 {
@@ -7,11 +34,10 @@ UIWindow(ui_style_name StyleName, ui_pipeline *Pipeline)
 
     // Style Node
     {
-        ui_style_node *Node = GetNextStyleNode(&Pipeline->StyleTree);
+        ui_node *Node = UIGetNextNode(&Pipeline->StyleTree, UINode_Window);
         if (Node)
         {
-            Node->Value = Style;
-            Node->Type  = UINode_Window;
+            Node->Style = Style;
 
             // TODO: Link the base somewhow.
         }
@@ -25,11 +51,10 @@ UIButton(ui_style_name StyleName, ui_pipeline *Pipeline)
 
     // Style Node
     {
-        ui_style_node *Node = GetNextStyleNode(&Pipeline->StyleTree);
+        ui_node *Node = UIGetNextNode(&Pipeline->LayoutTree, UINode_Button);
         if (Node)
         {
-            Node->Value = Style;
-            Node->Type  = UINode_Button;
+            Node->Style = Style;
 
             // TODO: Link the base somewhow.
         }
@@ -187,27 +212,17 @@ PopParentNodeFromTree(ui_tree *Tree)
     }
 }
 
-internal ui_style_node *
-GetNextStyleNode(ui_tree *Tree)
+internal ui_node *
+UIGetNextNode(ui_tree *Tree, UINode_Type Type)
 {
-    ui_style_node *Result = 0;
+    ui_node *Result = 0;
 
     if (Tree->NodeCount < Tree->NodeCapacity)
     {
-        Result = Tree->StyleNodes + Tree->NodeCount++;
-    }
+        Result = Tree->Nodes + Tree->NodeCount;
+        Result->Type = Type;
 
-    return Result;
-}
-
-internal ui_layout_node *
-GetNextLayoutNode(ui_tree *Tree)
-{
-    ui_layout_node *Result = 0;
-
-    if (Tree->NodeCount < Tree->NodeCapacity)
-    {
-        Result = Tree->LayoutNodes + Tree->NodeCount++;
+        ++Tree->NodeCount;
     }
 
     return Result;
@@ -229,13 +244,13 @@ AllocateUITree(ui_tree_params Params)
 
         case UITree_Style:
         {
-            Footprint += Params.NodeCount * sizeof(ui_style_node);   // Node Array
+            Footprint += Params.NodeCount * sizeof(ui_style);         // Node Array
         } break;
 
         case UITree_Layout:
         {
-            Footprint += Params.NodeCount * sizeof(ui_layout_node);   // Node Array
-            Footprint += Params.NodeCount * sizeof(ui_layout_node *); // Layout Queue
+            Footprint += Params.NodeCount * sizeof(ui_layout_box);    // Node Array
+            Footprint += Params.NodeCount * sizeof(ui_node *);        // Layout Queue
         } break;
 
         default:
@@ -257,8 +272,8 @@ AllocateUITree(ui_tree_params Params)
     if(Arena)
     {
         Result.Arena        = Arena;
-        Result.Nodes        = PushArray(Arena, void *, Params.NodeCount);
-        Result.ParentStack  = PushArray(Arena, void *, Params.Depth    );
+        Result.Nodes        = PushArray(Arena, ui_node, Params.NodeCount);
+        Result.ParentStack  = PushArray(Arena, ui_node *, Params.Depth    );
         Result.MaximumDepth = Params.Depth;
         Result.NodeCapacity = Params.NodeCount;
         Result.Type         = Params.Type;
@@ -270,9 +285,9 @@ AllocateUITree(ui_tree_params Params)
 // [Pipeline Helpers]
 
 internal b32
-IsParallelUINode(ui_node_base *Base1, ui_node_base *Base2)
+IsParallelUINode(ui_node *Node1, ui_node *Node2)
 {
-    b32 Result = (Base1->Id == Base2->Id);
+    b32 Result = (Node1->Id == Node2->Id);
     return Result;
 }
 
@@ -285,13 +300,47 @@ IsUINodeALeaf(UINode_Type Type)
 
 // [Pipeline]
 
+internal ui_pipeline
+UICreatePipeline(ui_pipeline_params Params)
+{
+    ui_pipeline Result = {0};
+
+    // Trees
+    {
+        {
+            ui_tree_params TreeParams = {0};
+            TreeParams.Depth     = Params.TreeDepth;
+            TreeParams.NodeCount = Params.TreeNodeCount;
+            TreeParams.Type      = UITree_Style;
+
+            Result.StyleTree = AllocateUITree(TreeParams);
+        }
+
+        {
+            ui_tree_params TreeParams = { 0 };
+            TreeParams.Depth     = Params.TreeDepth;
+            TreeParams.NodeCount = Params.TreeNodeCount;
+            TreeParams.Type      = UITree_Layout;
+
+            Result.LayoutTree = AllocateUITree(TreeParams);
+        }
+    }
+
+    // Registery
+    {
+        LoadThemeFiles(Params.ThemeFiles, Params.ThemeCount, &Result.StyleRegistery);
+    }
+
+    return Result;
+}
+
 internal void
 UIPipelineExecute(ui_pipeline *Pipeline)
 {   Assert(Pipeline);
 
-    ui_style_node *Root       = &Pipeline->StyleTree.StyleNodes[0];
-    render_pass   *RenderPass = GetRenderPass(0, 0, RenderPass_UI);
-
+    // Unpacking
+    ui_node     *Root       = &Pipeline->StyleTree.Nodes[0];
+    render_pass *RenderPass = GetRenderPass(0, 0, RenderPass_UI);
 
     UIPipelineSynchronize(Pipeline, Root);
 
@@ -301,36 +350,38 @@ UIPipelineExecute(ui_pipeline *Pipeline)
 }
 
 internal void
-UIPipelineSynchronize(ui_pipeline *Pipeline, ui_style_node *Root)
+UIPipelineSynchronize(ui_pipeline *Pipeline, ui_node *Root)
 {
-    ui_layout_node *LayoutNode = &Pipeline->LayoutTree.LayoutNodes[Root->Base.Id];
+    // Unpacking
 
-    if (!IsParallelUINode(&Root->Base, &LayoutNode->Base))
+    ui_node *LNode       = &Pipeline->LayoutTree.Nodes[Root->Id];
+    ui_node *SNodeParent = (ui_node *)Root->Parent;
+
+    if (!IsParallelUINode(Root, LNode))
     {
-        LayoutNode = GetNextLayoutNode(&Pipeline->LayoutTree);
-        LayoutNode->Base.Id = Root->Base.Id;
-
-        
-        u32 ParentId = ((ui_layout_node *)(Root->Base.Parent))->Base.Id;
+        LNode = UIGetNextNode(&Pipeline->LayoutTree, Root->Type);
+        LNode->Id = Root->Id;
+  
+        u32 ParentId = SNodeParent->Id;
         if (ParentId < Pipeline->StyleTree.NodeCount)
         {
-            ui_layout_node *Parent = Pipeline->LayoutTree.LayoutNodes + ParentId;
+            ui_node *Parent = Pipeline->LayoutTree.Nodes + ParentId;
             if (Parent)
             {
-                ui_layout_node **First = (ui_layout_node **)&Parent->Base.First;
+                ui_node **First = (ui_node **)&Parent->First;
                 if (!First)
                 {
-                    *First = LayoutNode;
+                    *First = LNode;
                 }
 
-                ui_layout_node **Last = (ui_layout_node **)&Parent->Base.Last;
+                ui_node **Last = (ui_node **)&Parent->Last;
                 if (Last)
                 {
-                    *Last = LayoutNode;
+                    *Last = LNode;
                 }
 
-                LayoutNode->Base.Prev = Parent->Base.Last;
-                Parent->Base.Last     = LayoutNode;
+                LNode->Prev  = *Last;
+                Parent->Last = LNode;
             }
         }
     }
@@ -341,15 +392,14 @@ UIPipelineSynchronize(ui_pipeline *Pipeline, ui_style_node *Root)
     // the style tree is the unique source of truth again... Seems
     // really cheap as well? Just need to figure out the flags then...
     {
-        LayoutNode->Value.Width   = Root->Value.Size.X;
-        LayoutNode->Value.Height  = Root->Value.Size.Y;
-        LayoutNode->Value.Padding = Root->Value.Padding;
-        LayoutNode->Value.Spacing = Root->Value.Spacing;
-        LayoutNode->Value.Flags   = UILayoutBox_DrawBackground;
+        LNode->Layout.Width   = Root->Style.Size.X;
+        LNode->Layout.Height  = Root->Style.Size.Y;
+        LNode->Layout.Padding = Root->Style.Padding;
+        LNode->Layout.Spacing = Root->Style.Spacing;
+        LNode->Layout.Flags   = UILayoutBox_DrawBackground; // TODO: Where are these coming from?
     }
 
-    // WARN: That is so bad... Base does not reference the original node at all.
-    for (ui_style_node *Child = Root->Base.First; Child != 0; Child = Child->Base.Next)
+    for (ui_node *Child = Root->First; Child != 0; Child = Child->Next)
     {
         UIPipelineSynchronize(Pipeline, Child);
     }
@@ -364,22 +414,22 @@ UIPipelineTopDownLayout(ui_pipeline *Pipeline)
 
     if (StyleTree && LayoutTree)
     {
-        layout_node_queue Queue = { 0 };
+        node_queue Queue = { 0 };
         {
             typed_queue_params Params = { 0 };
             Params.QueueSize = LayoutTree->NodeCount;
 
-            Queue = BeginLayoutNodeQueue(Params, StyleTree->Arena);
+            Queue = BeginNodeQueue(Params, StyleTree->Arena);
         }
 
         if (Queue.Data)
         {
-            PushLayoutNodeQueue(&Queue, &LayoutTree->LayoutNodes[0]);
+            PushNodeQueue(&Queue, &LayoutTree->Nodes[0]);
 
-            while (!IsLayoutNodeQueueEmpty(&Queue))
+            while (!IsNodeQueueEmpty(&Queue))
             {
-                ui_layout_node *Current = PopLayoutNodeQueue(&Queue);
-                ui_layout_box  *Box     = &Current->Value;
+                ui_node        *Current = PopNodeQueue(&Queue);
+                ui_layout_box  *Box     = &Current->Layout;
 
                 f32 AvailableWidth  = Box->Width  - (Box->Padding.X + Box->Padding.Z);
                 f32 AvailableHeight = Box->Height - (Box->Padding.Y + Box->Padding.W);
@@ -392,14 +442,12 @@ UIPipelineTopDownLayout(ui_pipeline *Pipeline)
                 // Positioning
                 if (Box->Flags & UILayoutBox_FlowRow)
                 {
-                    // WARN: That is so bad... Base does not reference the original node at all.
-                    for (ui_layout_node *ChildNode = Current->Base.First; (ChildNode != 0 && AvailableWidth); ChildNode = ChildNode->Base.Next)
+                    for (ui_node *ChildNode = Current->First; (ChildNode != 0 && AvailableWidth); ChildNode = ChildNode->Next)
                     {
-                        ui_layout_box *ChildBox = &ChildNode->Value;
+                        ChildNode->Layout.ClientX = ClientX;
+                        ChildNode->Layout.ClientY = ClientY;
                 
-                        ChildNode->Value.ClientX = ClientX;
-                        ChildNode->Value.ClientY = ClientY;
-                
+                        ui_layout_box *ChildBox = &ChildNode->Layout;
                         ChildBox->Width  = ChildBox->Width  <= AvailableWidth  ? ChildBox->Width  : AvailableWidth;
                         ChildBox->Height = ChildBox->Height <= AvailableHeight ? ChildBox->Height : AvailableHeight;
                 
@@ -407,18 +455,17 @@ UIPipelineTopDownLayout(ui_pipeline *Pipeline)
                         ClientX        += OccupiedWidth;
                         AvailableWidth -= OccupiedWidth;
 
-                        PushLayoutNodeQueue(&Queue, ChildNode);
+                        PushNodeQueue(&Queue, ChildNode);
                     }
                 }
                 else if (Box->Flags & UILayoutBox_FlowColumn)
                 {
-                    // WARN: That is so bad... Base does not reference the original node at all.
-                    for (ui_layout_node *ChildNode = Current->Base.First; (ChildNode != 0 && AvailableHeight); ChildNode = ChildNode->Base.Next)
+                    for (ui_node *ChildNode = Current->First; (ChildNode != 0 && AvailableHeight); ChildNode = ChildNode->Next)
                     {
-                        ChildNode->Value.ClientX = ClientX;
-                        ChildNode->Value.ClientY = ClientY;
+                        ChildNode->Layout.ClientX = ClientX;
+                        ChildNode->Layout.ClientY = ClientY;
                 
-                        ui_layout_box *ChildBox = &ChildNode->Value;
+                        ui_layout_box *ChildBox = &ChildNode->Layout;
                         ChildBox->Width  = ChildBox->Width  <= AvailableWidth  ? ChildBox->Width  : AvailableWidth;
                         ChildBox->Height = ChildBox->Height <= AvailableHeight ? ChildBox->Height : AvailableHeight;
                 
@@ -426,12 +473,13 @@ UIPipelineTopDownLayout(ui_pipeline *Pipeline)
                         ClientY         += OccupiedHeight;
                         AvailableHeight -= OccupiedHeight;
                 
-                        PushLayoutNodeQueue(&Queue, ChildNode);
+                        PushNodeQueue(&Queue, ChildNode);
                     }
                 }
             }
 
-            PopArena(LayoutTree->Arena, LayoutTree->NodeCount * sizeof(ui_style_node *));
+            // NOTE: Not really clear that we are clearing the queue...
+            PopArena(LayoutTree->Arena, LayoutTree->NodeCount * sizeof(ui_node *));
         }
         else
         {
@@ -445,10 +493,10 @@ UIPipelineTopDownLayout(ui_pipeline *Pipeline)
 }
 
 internal void
-UIPipelineCollectDrawList(ui_pipeline *Pipeline, render_pass *Pass, ui_style_node *Root)
+UIPipelineCollectDrawList(ui_pipeline *Pipeline, render_pass *Pass, ui_node *Root)
 {
-    ui_style      *Style = &Root->Value;
-    ui_layout_box *Box   = &Pipeline->LayoutTree.LayoutNodes[Root->Base.Id].Value;
+    ui_style      *Style = &Root->Style;
+    ui_layout_box *Box   = &Pipeline->LayoutTree.Nodes[Root->Id].Layout;
 
     render_batch_list *List = 0;
     rect_group_node   *Node = 0;
@@ -508,8 +556,7 @@ UIPipelineCollectDrawList(ui_pipeline *Pipeline, render_pass *Pass, ui_style_nod
         }
     }
 
-    // WARN: That is so bad... Base does not reference the original node at all.
-    for (ui_style_node *Child = Root->Base.First; Child != 0; Child = Child->Base.Next)
+    for (ui_node *Child = Root->First; Child != 0; Child = Child->Next)
     {
         UIPipelineCollectDrawList(Pipeline, Pass, Child);
     }

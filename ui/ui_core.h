@@ -53,31 +53,22 @@ typedef struct ui_style
 // Many Trees are used throughout the pipeline. Every type of node is held
 // in the same tree structure for simplicity.
 
-typedef struct ui_node_base
+typedef struct ui_node
 {
+    u32   Id;
     void *Parent;
     void *First;
     void *Last;
     void *Next;
     void *Prev;
 
-    u32 Id;
-} ui_node_base;
-
-typedef struct ui_style_node ui_style_node;
-struct ui_style_node
-{
-    UINode_Type  Type;
-    ui_node_base Base;
-    ui_style     Value;
-};
-
-typedef struct ui_layout_node ui_layout_node;
-struct ui_layout_node
-{
-    ui_node_base  Base;
-    ui_layout_box Value;
-};
+    UINode_Type Type;
+    union
+    {
+        ui_style      Style;
+        ui_layout_box Layout;
+    };
+} ui_node;
 
 typedef struct ui_tree_params
 {
@@ -91,18 +82,13 @@ typedef struct ui_tree
     memory_arena *Arena;
     UITree_Type   Type;
 
-    u32 NodeCapacity;
-    u32 NodeCount;
-    union
-    {
-        void           *Nodes;
-        ui_style_node  *StyleNodes;
-        ui_layout_node *LayoutNodes;
-    };
+    u32      NodeCapacity;
+    u32      NodeCount;
+    ui_node *Nodes;
 
-    u32    ParentTop;
-    u32    MaximumDepth;
-    void **ParentStack;
+    u32       ParentTop;
+    u32       MaximumDepth;
+    ui_node **ParentStack;
 } ui_tree;
 
 typedef struct ui_style_name
@@ -129,6 +115,14 @@ typedef struct ui_style_registery
     memory_arena    *Arena;
 } ui_style_registery;
 
+typedef struct ui_pipeline_params
+{
+    byte_string   *ThemeFiles;
+    u32            ThemeCount;
+    
+    u32 TreeDepth;
+    u32 TreeNodeCount;
+} ui_pipeline_params;
 
 typedef struct ui_pipeline
 {
@@ -137,7 +131,7 @@ typedef struct ui_pipeline
     ui_style_registery StyleRegistery;
 } ui_pipeline;
 
-DEFINE_TYPED_QUEUE(LayoutNode, layout_node, ui_layout_node *);
+DEFINE_TYPED_QUEUE(Node, node, ui_node *);
 
 // [Globals]
 
@@ -162,19 +156,18 @@ internal ui_style          UIGetStyleFromCachedName      (ui_style_name Name, ui
 
 internal ui_tree  AllocateUITree     (ui_tree_params Params);
 
-internal void             PopParentNodeFromTree  (ui_tree *Tree);
-internal void             PushParentNodeInTree   (void *Node, ui_tree *Tree);
-internal void           * GetParentNodeFromTree  (ui_tree *Tree);
-internal ui_style_node  * GetNextStyleNode       (ui_tree *Tree);
-internal ui_layout_node * GetNextLayoutNode      (ui_tree *Tree);
-
+internal void      PopParentNodeFromTree  (ui_tree *Tree);
+internal void      PushParentNodeInTree   (void *Node, ui_tree *Tree);
+internal void    * GetParentNodeFromTree  (ui_tree *Tree);
+internal ui_node * UIGetNextNode          (ui_tree *Tree, UINode_Type Type);
 
 // [Pipeline]
 
-internal b32  IsParallelUINode  (ui_node_base *Base1, ui_node_base *Base2);
+internal b32  IsParallelUINode  (ui_node *Node1, ui_node *Node2);
 internal b32  IsUINodeALeaf     (UINode_Type Type);
 
-internal void UIPipelineExecute          (ui_pipeline *Pipeline);
-internal void UIPipelineSynchronize      (ui_pipeline *Pipeline, ui_style_node *Root);
-internal void UIPipelineTopDownLayout    (ui_pipeline *Pipeline);
-internal void UIPipelineCollectDrawList  (ui_pipeline *Pipeline, render_pass *Pass, ui_style_node *Root);
+internal ui_pipeline UICreatePipeline           (ui_pipeline_params Params);
+internal void        UIPipelineExecute          (ui_pipeline *Pipeline);
+internal void        UIPipelineSynchronize      (ui_pipeline *Pipeline, ui_node *Root);
+internal void        UIPipelineTopDownLayout    (ui_pipeline *Pipeline);
+internal void        UIPipelineCollectDrawList  (ui_pipeline *Pipeline, render_pass *Pass, ui_node *Root);
