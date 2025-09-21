@@ -15,7 +15,7 @@ IsValidRenderHandle(render_handle Handle)
 }
 
 internal b32 
-RenderHandleMacthes(render_handle H1, render_handle H2)
+RenderHandleMatches(render_handle H1, render_handle H2)
 {
     b32 Result = (H1.u64[0] == H2.u64[0]);
     return Result;
@@ -114,4 +114,20 @@ GetRenderPass(memory_arena *Arena, render_pass_list *List, RenderPass_Type Type)
     }
 
     return &Result->Value;
-} 
+}
+
+internal b32
+CanMergeGroupParams(rect_group_params *Old, rect_group_params *New)
+{
+    if (IsValidRenderHandle(Old->AtlasTextureView) && !RenderHandleMatches(Old->AtlasTextureView, New->AtlasTextureView))
+    {
+        return 0;
+    }
+
+    if (!Mat3x3AreEqual(&Old->Transform, &New->Transform))
+    {
+        return 0;
+    }
+
+    return 1;
+}

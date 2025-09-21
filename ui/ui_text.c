@@ -45,7 +45,7 @@ UILoadFont(byte_string Name, f32 Size, render_handle BackendHandle, UIFontCovera
 
             Result              = (ui_font*)(HeapBase + TableFootprint);
             Result->GlyphTable  = Table;
-            Result->TextureSize = TextureSize;
+            Result->TextureSize = Vec2I32ToVec2F32(TextureSize);
             Result->Size        = Size;
             Result->Coverage    = Coverage;
             Result->Arena       = Arena;
@@ -62,7 +62,7 @@ UILoadFont(byte_string Name, f32 Size, render_handle BackendHandle, UIFontCovera
                     IsValid = OSAcquireFontObjects(Name, Size, &Result->GPUFontObjects, &Result->OSFontObjects);
                     if (IsValid)
                     {
-                        // TODO: Get the line-height.
+                        Result->LineHeight = OSGetLineHeight(Size, &Result->OSFontObjects);
                     }
                     else
                     {
@@ -85,6 +85,8 @@ UILoadFont(byte_string Name, f32 Size, render_handle BackendHandle, UIFontCovera
             ReleaseGlyphCache   (&Result->GPUFontObjects);
             ReleaseGlyphTransfer(&Result->GPUFontObjects);
             OSReleaseFontObjects(&Result->OSFontObjects);
+
+            Result = 0;
         }
     }
 
@@ -117,7 +119,7 @@ GetDirectGlyphTableFootprint(glyph_table_params Params)
 
 internal direct_glyph_table *
 PlaceDirectGlyphTableInMemory(glyph_table_params Params, void *Memory)
-{Assert(Params.EntryCount > 0 && Memory);
+{   Assert(Params.EntryCount > 0 && Memory);
 
     direct_glyph_table *Result = 0;
 
@@ -134,13 +136,13 @@ PlaceDirectGlyphTableInMemory(glyph_table_params Params, void *Memory)
 }
 
 internal void
-UpdateDirectGlyphTableEntry(u32 CodePoint, os_glyph_layout NewLayout, os_glyph_rasterize_info NewRasterInfo, direct_glyph_table *Table)
-{Assert(Table);
+UpdateDirectGlyphTableEntry(u32 CodePoint, os_glyph_layout NewLayout, os_glyph_raster_info NewRasterInfo, direct_glyph_table *Table)
+{   Assert(Table);
 
     if (CodePoint < Table->EntryCount)
     {
         glyph_state *State = Table->Entries + CodePoint;
-        State->Layout        = NewLayout;
-        State->RasterizeInfo = NewRasterInfo;
+        State->Layout     = NewLayout;
+        State->RasterInfo = NewRasterInfo;
     }
 }

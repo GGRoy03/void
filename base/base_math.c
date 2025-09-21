@@ -24,6 +24,16 @@ Vec4F32(f32 X, f32 Y, f32 Z, f32 W)
 	return Result;
 }
 
+internal vec2_f32
+Vec2I32ToVec2F32(vec2_i32 Vec)
+{
+	vec2_f32 Result;
+	Result.X = (f32)Vec.X;
+	Result.Y = (f32)Vec.Y;
+
+	return Result;
+}
+
 internal matrix_3x3 
 Mat3x3Zero(void)
 {
@@ -45,6 +55,25 @@ Mat3x3Identity(void)
 	Result.c2r1 = 0;
 	Result.c2r2 = 1;
 
+	return Result;
+}
+
+internal rect_f32
+RectF32(f32 MinX, f32 MinY, f32 MaxX, f32 MaxY)
+{
+	rect_f32 Result;
+	Result.Min.X = MinX;
+	Result.Min.Y = MinY;
+	Result.Max.X = MaxX;
+	Result.Max.Y = MaxY;
+
+	return Result;
+}
+
+internal rect_f32
+RectF32Zero(void)
+{
+	rect_f32 Result = {0};
 	return Result;
 }
 
@@ -98,6 +127,13 @@ internal b32
 Vec2F32IsEmpty(vec2_f32 Vec)
 {
 	b32 Result = (Vec.X == 0) && (Vec.Y == 0);
+	return Result;
+}
+
+internal b32
+Mat3x3AreEqual(matrix_3x3 *m1, matrix_3x3 *m2)
+{
+	b32 Result = MemoryCompare(m1, m2, sizeof(matrix_3x3)) == 0;
 	return Result;
 }
 

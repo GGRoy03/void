@@ -23,11 +23,6 @@ typedef enum OSMessage_Severity
 
 // [Core Types]
 
-typedef struct os_handle
-{
-    u64 u64[1];
-} os_handle;
-
 typedef struct os_system_info
 {
     u64 PageSize;
@@ -62,11 +57,11 @@ typedef struct os_glyph_layout
     f32      AdvanceX;
 } os_glyph_layout;
 
-typedef struct os_glyph_rasterize_info
+typedef struct os_glyph_raster_info
 {
-    b32           IsRasterized;
-    texture_coord TextureCoord;
-} os_glyph_rasterize_info;
+    b32      IsRasterized;
+    rect_f32 SampleSource;
+} os_glyph_raster_info;
 
 // [FORWARD DECLARATION]
 
@@ -111,7 +106,8 @@ internal void  OSAbort         (i32 ExitCode);
 
 // [Text]
 
-external b32                     OSAcquireFontObjects  (byte_string Name, f32 Size, gpu_font_objects *GPUObjects, os_font_objects *OSObjects);
-external void                    OSReleaseFontObjects  (os_font_objects *Objects);
-external os_glyph_layout         OSGetGlyphLayout      (u8 Character, os_font_objects *FontObjects, vec2_i32 TextureSize, f32 Size);
-external os_glyph_rasterize_info OSRasterizeGlyph      (u8 Character, rect_f32 Rect, vec2_i32 TextureSize, os_font_objects *OSFontObjects, gpu_font_objects *GPUFontObjects);
+external b32                  OSAcquireFontObjects  (byte_string Name, f32 Size, gpu_font_objects *GPUObjects, os_font_objects *OSObjects);
+external void                 OSReleaseFontObjects  (os_font_objects *Objects);
+external os_glyph_layout      OSGetGlyphLayout      (u8 Character, os_font_objects *FontObjects, vec2_f32 TextureSize, f32 Size);
+external os_glyph_raster_info OSRasterizeGlyph      (u8 Character, rect_f32 Rect, os_font_objects *OSFontObjects, gpu_font_objects *GPUFontObjects, render_handle RendererHandle);
+extern   f32                  OSGetLineHeight       (f32 FontSize, os_font_objects *OSFontObjects);

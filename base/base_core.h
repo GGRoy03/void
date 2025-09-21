@@ -91,10 +91,12 @@ typedef long long i64;
 
 typedef uint32_t  bit_field;
 
-typedef struct texture_coord
+typedef struct os_handle
 {
-    f32 u0;
-    f32 v0;
-    f32 u1;
-    f32 v1;
-} texture_coord;
+    u64 u64[1];
+} os_handle;
+
+typedef struct render_handle
+{
+    u64 u64[1];
+} render_handle;

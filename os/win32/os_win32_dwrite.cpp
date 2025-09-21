@@ -170,7 +170,7 @@ OSReleaseFontObjects(os_font_objects *Objects)
 // NOTE: Only handles extended ASCII right now.
 
 extern "C" os_glyph_layout
-OSGetGlyphLayout(u8 Character, os_font_objects *FontObjects, vec2_i32 TextureSize, f32 Size)
+OSGetGlyphLayout(u8 Character, os_font_objects *FontObjects, vec2_f32 TextureSize, f32 Size)
 {
     os_glyph_layout  Result    = {0};
     HRESULT          Error     = S_OK;
@@ -193,6 +193,12 @@ OSGetGlyphLayout(u8 Character, os_font_objects *FontObjects, vec2_i32 TextureSiz
             Result.Size.Y   = (u16)(Metrics.height + 0.5f);
             Result.Offset.X = (f32)(Metrics.left);
             Result.Offset.Y = (f32)(Metrics.top);
+
+            // NOTE: I have no idea if this is the correct fix...
+            if (Result.Size.X == 0)
+            {
+                Result.Size.X = Metrics.widthIncludingTrailingWhitespace;
+            }
 
             u16 GlyphIndex = 0;
             u32 CodePoint  = (u32)WideCharacter.String[0];
@@ -233,10 +239,10 @@ OSGetGlyphLayout(u8 Character, os_font_objects *FontObjects, vec2_i32 TextureSiz
 
 // NOTE: Only handles extended ASCII right now.
 
-extern "C" os_glyph_rasterize_info
-OSRasterizeGlyph(u8 Character, rect_f32 Rect, vec2_i32 TextureSize, os_font_objects *OSFontObjects, gpu_font_objects *GPUFontObjects)
+extern "C" os_glyph_raster_info
+OSRasterizeGlyph(u8 Character, rect_f32 Rect, os_font_objects *OSFontObjects, gpu_font_objects *GPUFontObjects, render_handle RendererHandle)
 {
-    os_glyph_rasterize_info Result = {0};
+    os_glyph_raster_info Result = {0};
 
     if (OSFontObjects)
     {
@@ -261,6 +267,7 @@ OSRasterizeGlyph(u8 Character, rect_f32 Rect, vec2_i32 TextureSize, os_font_obje
                                                      OSFontObjects->TextFormat, &DrawRect, OSFontObjects->FillBrush,
                                                      D2D1_DRAW_TEXT_OPTIONS_CLIP | D2D1_DRAW_TEXT_OPTIONS_ENABLE_COLOR_FONT,
                                                      DWRITE_MEASURING_MODE_NATURAL);
+                PopArena(Arena, WideGlyph.Size * sizeof(WideGlyph.String[0]));
 
                 HRESULT Error = OSFontObjects->RenderTarget->EndDraw();
                 if (FAILED(Error))
@@ -268,23 +275,26 @@ OSRasterizeGlyph(u8 Character, rect_f32 Rect, vec2_i32 TextureSize, os_font_obje
                     Assert(!"Failed EndDraw.");
                 }
 
-                TransferGlyph(Rect, { 0 }, GPUFontObjects);
+                Result.IsRasterized = true;
+                Result.SampleSource = Rect;
 
-                {
-                    texture_coord Tex;
-                    Tex.u0 = (f32) Rect.Min.X  / TextureSize.X;
-                    Tex.v0 = (f32) Rect.Min.Y  / TextureSize.Y;
-                    Tex.u1 = (f32)(Rect.Max.X) / TextureSize.X;
-                    Tex.v1 = (f32)(Rect.Max.Y) / TextureSize.Y;
-
-                    Result.IsRasterized = true;
-                    Result.TextureCoord = Tex;
-                }
-
-                PopArena(Arena, WideGlyph.Size * sizeof(WideGlyph.String[0]));
+                TransferGlyph(Rect, RendererHandle, GPUFontObjects);
             }
         }
     }
+
+    return Result;
+}
+
+extern "C" f32
+OSGetLineHeight(f32 FontSize, os_font_objects *OSFontObjects)
+{   Assert(FontSize > 0 && OSFontObjects && OSFontObjects->FontFace);
+
+    DWRITE_FONT_METRICS FontMetrics = {};
+    OSFontObjects->FontFace->GetMetrics(&FontMetrics);
+
+    f32 Scale  = FontSize / (f32)FontMetrics.designUnitsPerEm;
+    f32 Result = (f32)(FontMetrics.ascent + FontMetrics.descent + FontMetrics.lineGap) * Scale;
 
     return Result;
 }

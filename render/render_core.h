@@ -19,16 +19,11 @@ typedef struct direct_glyph_table direct_glyph_table;
 
 // [CORE TYPES]
 
-typedef struct render_handle
-{
-    u64 u64[1];
-} render_handle;
-
 // NOTE: Must be padded to 16 bytes alignment.
 typedef struct render_rect
 {
-    vec4_f32 RectBounds;
-    vec4_f32 AtlasSampleSource;
+    rect_f32 RectBounds;
+    rect_f32 AtlasSampleSource;
     vec4_f32 Color;
     vec4_f32 CornerRadii;
     f32      BorderWidth, Softness, SampleAtlas, _P0; // Style Params
@@ -162,12 +157,13 @@ internal void          BeginRenderingContext  (render_pass_list *List);
 
 internal b32           IsValidRenderHandle    (render_handle Handle);
 internal render_handle RenderHandle           (u64 Handle);
-internal b32           RenderHandleMacthes    (render_handle H1, render_handle H2);
+internal b32           RenderHandleMatches    (render_handle H1, render_handle H2);
 
 // [Batches]
 
 internal void        * PushDataInBatchList  (memory_arena *Arena, render_batch_list *BatchList);
 internal render_pass * GetRenderPass        (memory_arena *Arena, render_pass_list *List, RenderPass_Type Type);
+internal b32           CanMergeGroupParams  (rect_group_params *Old, rect_group_params *New);
 
 // [PER-RENDERER API]
 
@@ -177,8 +173,8 @@ internal void          SubmitRenderCommands  (render_pass_list *List, render_han
 
 // [Text]
 
-internal b32  CreateGlyphCache      (render_handle BackendHandle, vec2_i32 Size, gpu_font_objects *FontObjects);
+internal b32  CreateGlyphCache      (render_handle BackendHandle, vec2_f32 Size, gpu_font_objects *FontObjects);
 internal void ReleaseGlyphCache     (gpu_font_objects *FontObjects);
-internal b32  CreateGlyphTransfer   (render_handle Backend, vec2_i32 Size, gpu_font_objects *FontObjects);
+internal b32  CreateGlyphTransfer   (render_handle Backend, vec2_f32 Size, gpu_font_objects *FontObjects);
 internal void ReleaseGlyphTransfer  (gpu_font_objects *FontObjects);
 external void TransferGlyph         (rect_f32 Rect, render_handle RendererHandle, gpu_font_objects *FontObjects);

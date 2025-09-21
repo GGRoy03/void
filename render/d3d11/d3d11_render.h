@@ -87,7 +87,7 @@ read_only global u8 D3D11RectVShader[] =
 "{                                                                                                 \n"
 "    float4 RectInPixel         : POS;                                                             \n"
 "    float4 AtlasSrcInPixel     : FONT;                                                            \n"
-"    float4 Color                 : COL;                                                           \n"
+"    float4 Color               : COL;                                                             \n"
 "    float4 CornderRadiiInPixel : CORR;                                                            \n"
 "    float4 StyleParams         : STY;                                                             \n" // X: BorderWidth, Y: Softness, Z: Sample Atlas
 "    uint   VertexId            : SV_VertexID;                                                     \n"
@@ -180,7 +180,7 @@ read_only global u8 D3D11RectVShader[] =
 "{                                                                                                 \n"
 "                                                                                                  \n"
 "    float4 AlbedoSample = float4(1, 1, 1, 1);                                                     \n"
-"    if(Input.MustSampleAtlas > 1)                                                                 \n"
+"    if(Input.MustSampleAtlas > 0)                                                                 \n"
 "    {                                                                                             \n"
 "        AlbedoSample = AtlasTexture.Sample(AtlasSampler, Input.TexCoordInPercent);                \n"
 "    }                                                                                             \n"

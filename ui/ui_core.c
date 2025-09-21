@@ -1,6 +1,7 @@
 // [Components]
 
 // NOTE: Temporary global ID tracker. Obviously, this is not good.
+// TODO: Remove this system?
 global i32 NextId;
 
 internal void
@@ -15,10 +16,10 @@ UIWindow(ui_style_name StyleName, ui_pipeline *Pipeline)
         {
             Node->Style = Style;
             Node->Id    = NextId++;
-            UILinkNodes(Node, GetParentNodeFromTree(&Pipeline->StyleTree));
+            UILinkNodes(Node, UIGetParentNodeFromTree(&Pipeline->StyleTree));
         }
 
-        PushParentNodeInTree(Node, &Pipeline->StyleTree);
+        UIPushParentNodeInTree(Node, &Pipeline->StyleTree);
     }
 }
 
@@ -34,63 +35,82 @@ UIButton(ui_style_name StyleName, ui_pipeline *Pipeline)
         {
             Node->Style = Style;
             Node->Id    = NextId++;
-            UILinkNodes(Node, GetParentNodeFromTree(&Pipeline->StyleTree));
+            UILinkNodes(Node, UIGetParentNodeFromTree(&Pipeline->StyleTree));
         }
     }
 }
 
 // NOTE: Only supports direct glyph access for now.
 // NOTE: Only supports extended ASCII for now.
-// NOTE: Doesn't quite work yet, since we do not create any node.
 
 internal void
-UILabel(byte_string Text, ui_pipeline *Pipeline, ui_font *Font)
-{   UNUSED(Pipeline);
-
+UILabel(byte_string Text, ui_pipeline *Pipeline)
+{
     f32 TextWidth  = 0;
     f32 TextHeight = 0;
 
-    for (u32 Idx = 0; Idx < Text.Size; Idx++)
+    ui_font      *Font           = PeekFontStack(&Pipeline->FontStack);
+    ui_character *Characters     = PushArray(Pipeline->StaticArena, ui_character, Text.Size);
+    u32           CharacterCount = (u32)Text.Size; Assert(CharacterCount == Text.Size);
+    if (Characters)
     {
-        u8 Character = Text.String[Idx];
-
-        glyph_state State = FindGlyphEntryByDirectAccess((u32)Character, Font->GlyphTable);
-        if (!State.RasterizeInfo.IsRasterized)
+        for (u32 Idx = 0; Idx < Text.Size; Idx++)
         {
-            os_glyph_layout GlyphLayout = OSGetGlyphLayout(Character, &Font->OSFontObjects, Font->TextureSize, Font->Size);
+            u8 Character = Text.String[Idx];
 
-            stbrp_rect STBRect = {0};
-            STBRect.w = (u16)GlyphLayout.Size.X; Assert(STBRect.w == GlyphLayout.Size.X);
-            STBRect.h = (u16)GlyphLayout.Size.Y; Assert(STBRect.h == GlyphLayout.Size.Y);
-            stbrp_pack_rects(&Font->AtlasContext, &STBRect, 1);
+            glyph_state          State      = FindGlyphEntryByDirectAccess((u32)Character, Font->GlyphTable);
+            os_glyph_layout      Layout     = State.Layout;
+            os_glyph_raster_info RasterInfo = State.RasterInfo;
 
-            if (STBRect.was_packed)
+            if (!RasterInfo.IsRasterized)
             {
-                rect_f32 Rect;
-                Rect.Min.X = (f32)STBRect.x;
-                Rect.Min.Y = (f32)STBRect.y;
-                Rect.Max.X = (f32)STBRect.x + STBRect.w;
-                Rect.Max.Y = (f32)STBRect.y + STBRect.h;
-                os_glyph_rasterize_info RasterInfo = OSRasterizeGlyph(Character, Rect, Font->TextureSize, &Font->OSFontObjects, &Font->GPUFontObjects);
+                Layout = OSGetGlyphLayout(Character, &Font->OSFontObjects, Font->TextureSize, Font->Size);
 
-                UpdateDirectGlyphTableEntry((u32)Character, GlyphLayout, RasterInfo, Font->GlyphTable);
-            }
-            else
-            {
-                OSLogMessage(byte_string_literal("Failed to pack rect."), OSMessage_Error);
+                stbrp_rect STBRect = { 0 };
+                STBRect.w = (u16)Layout.Size.X; Assert(STBRect.w == Layout.Size.X);
+                STBRect.h = (u16)Layout.Size.Y; Assert(STBRect.h == Layout.Size.Y);
+                stbrp_pack_rects(&Font->AtlasContext, &STBRect, 1);
+
+                if (STBRect.was_packed)
+                {
+                    rect_f32 Rect;
+                    Rect.Min.X = (f32)STBRect.x;
+                    Rect.Min.Y = (f32)STBRect.y;
+                    Rect.Max.X = (f32)STBRect.x + STBRect.w;
+                    Rect.Max.Y = (f32)STBRect.y + STBRect.h;
+                    RasterInfo = OSRasterizeGlyph(Character, Rect, &Font->OSFontObjects, &Font->GPUFontObjects, Pipeline->RendererHandle);
+
+                    UpdateDirectGlyphTableEntry((u32)Character, Layout, RasterInfo, Font->GlyphTable);
+                }
+                else
+                {
+                    OSLogMessage(byte_string_literal("Failed to pack rect."), OSMessage_Error);
+                }
             }
 
-            TextWidth += GlyphLayout.Size.X;
-            TextHeight = GlyphLayout.Size.Y > TextHeight ? GlyphLayout.Size.Y : TextHeight;
+            TextWidth += Layout.AdvanceX;
+            TextHeight = Layout.Size.Y > TextHeight ? Layout.Size.Y : TextHeight;
+
+            Characters[Idx].Layout       = Layout;
+            Characters[Idx].SampleSource = RasterInfo.SampleSource;
         }
-        else
+
+        ui_node *Node = UIGetNextNode(&Pipeline->StyleTree, UINode_Button);
+        if (Node)
         {
-            TextWidth += State.Layout.Size.X;
-            TextHeight = State.Layout.Size.Y > TextHeight ? State.Layout.Size.Y : TextHeight;
+            ui_style Style = { 0 };
+            Style.BorderColor = NormalizedColor(Vec4F32(255.f, 0.f, 0.f, 255.f));
+            Style.BorderWidth = 1;
+            Style.Softness    = 1.f;
+            Style.Size        = Vec2F32(TextWidth, TextHeight);
+
+            Node->Style = Style;
+            Node->Id    = NextId++;
+            UILinkNodes(Node, UIGetParentNodeFromTree(&Pipeline->StyleTree));
+
+            UISetTextBinding(Pipeline, Characters, CharacterCount, Font, Node);
         }
     }
-
-    // TODO: Create the style node... Then how do we draw text?
 }
 
 // [Style]
@@ -157,7 +177,7 @@ UIGetStyleFromCachedName(ui_style_name Name, ui_style_registery *Registery)
 // [Tree]
 
 internal void *
-GetParentNodeFromTree(ui_tree *Tree)
+UIGetParentNodeFromTree(ui_tree *Tree)
 {   Assert(Tree);
 
     void *Result = 0;
@@ -171,7 +191,7 @@ GetParentNodeFromTree(ui_tree *Tree)
 }
 
 internal void
-PushParentNodeInTree(void *Node, ui_tree *Tree)
+UIPushParentNodeInTree(void *Node, ui_tree *Tree)
 {   Assert(Node && Tree);
 
     if(Tree->ParentTop < Tree->MaximumDepth)
@@ -181,7 +201,7 @@ PushParentNodeInTree(void *Node, ui_tree *Tree)
 }
 
 internal void
-PopParentNodeFromTree(ui_tree *Tree)
+UIPopParentNodeFromTree(ui_tree *Tree)
 {   Assert(Tree);
 
     if (Tree->ParentTop > 0)
@@ -207,7 +227,7 @@ UIGetNextNode(ui_tree *Tree, UINode_Type Type)
 }
 
 internal ui_tree
-AllocateUITree(ui_tree_params Params)
+UIAllocateTree(ui_tree_params Params)
 {   Assert(Params.Depth > 0 && Params.NodeCount > 0 && Params.Type != UITree_None);
 
     ui_tree Result = {0};
@@ -260,17 +280,55 @@ AllocateUITree(ui_tree_params Params)
     return Result;
 }
 
+// [State]
+
+internal void
+UIPushFont(ui_pipeline *Pipeline, ui_font *Font)
+{
+    PushFontStack(&Pipeline->FontStack, Font);
+}
+
+internal void
+UIPopFont(ui_pipeline *Pipeline)
+{
+    PopFontStack(&Pipeline->FontStack);
+}
+
+// [Bindings]
+
+internal void
+UISetTextBinding(ui_pipeline *Pipeline, ui_character *Characters, u32 Count, ui_font *Font, ui_node *Node)
+{   Assert(Node->Id < Pipeline->LayoutTree.NodeCapacity);
+
+    ui_node *LNode = &Pipeline->LayoutTree.Nodes[Node->Id];
+    if (Font)
+    {
+        LNode->Layout.Text = PushArray(Pipeline->StaticArena, ui_text, 1);
+        LNode->Layout.Text->AtlasTexture     = RenderHandle((u64)Font->GPUFontObjects.GlyphCacheView);
+        LNode->Layout.Text->AtlasTextureSize = Font->TextureSize;
+        LNode->Layout.Text->Size             = Count;
+        LNode->Layout.Text->Characters       = Characters;
+        LNode->Layout.Text->LineHeight       = Font->LineHeight;
+
+        LNode->Layout.Flags |= UILayoutBox_DrawText;
+    }
+    else
+    {
+        OSLogMessage(byte_string_literal("Could not set font: Font Stack is empty."), OSMessage_Error);
+    }
+}
+
 // [Pipeline Helpers]
 
 internal b32
-IsParallelUINode(ui_node *Node1, ui_node *Node2)
+UIIsParallelNode(ui_node *Node1, ui_node *Node2)
 {
     b32 Result = (Node1->Id == Node2->Id);
     return Result;
 }
 
 internal b32
-IsUINodeALeaf(UINode_Type Type)
+UIIsNodeALeaf(UINode_Type Type)
 {
     b32 Result = (Type == UINode_Button);
     return Result;
@@ -310,15 +368,27 @@ UICreatePipeline(ui_pipeline_params Params)
 {
     ui_pipeline Result = {0};
 
-    // Arena
+    // Arena (TODO: Params Alloc)
     {
-        memory_arena_params ArenaParams = {0};
-        ArenaParams.AllocatedFromFile = __FILE__;
-        ArenaParams.AllocatedFromLine = __LINE__;
-        ArenaParams.ReserveSize       = Megabyte(1);
-        ArenaParams.CommitSize        = Kilobyte(1);
+        {
+            memory_arena_params ArenaParams = {0};
+            ArenaParams.AllocatedFromFile = __FILE__;
+            ArenaParams.AllocatedFromLine = __LINE__;
+            ArenaParams.ReserveSize       = Megabyte(1);
+            ArenaParams.CommitSize        = Kilobyte(1);
 
-        Result.FrameArena = AllocateArena(ArenaParams);
+            Result.FrameArena = AllocateArena(ArenaParams);
+        }
+
+        {
+            memory_arena_params ArenaParams = { 0 };
+            ArenaParams.AllocatedFromFile = __FILE__;
+            ArenaParams.AllocatedFromLine = __LINE__;
+            ArenaParams.ReserveSize       = Megabyte(1);
+            ArenaParams.CommitSize        = Kilobyte(1);
+
+            Result.StaticArena = AllocateArena(ArenaParams);
+        }
     }
 
     // Trees
@@ -329,7 +399,7 @@ UICreatePipeline(ui_pipeline_params Params)
             TreeParams.NodeCount = Params.TreeNodeCount;
             TreeParams.Type      = UITree_Style;
 
-            Result.StyleTree = AllocateUITree(TreeParams);
+            Result.StyleTree = UIAllocateTree(TreeParams);
         }
 
         {
@@ -338,7 +408,7 @@ UICreatePipeline(ui_pipeline_params Params)
             TreeParams.NodeCount = Params.TreeNodeCount;
             TreeParams.Type      = UITree_Layout;
 
-            Result.LayoutTree = AllocateUITree(TreeParams);
+            Result.LayoutTree = UIAllocateTree(TreeParams);
         }
 
         for (u32 Idx = 0; Idx < Result.StyleTree.NodeCapacity; Idx++)
@@ -357,6 +427,19 @@ UICreatePipeline(ui_pipeline_params Params)
         LoadThemeFiles(Params.ThemeFiles, Params.ThemeCount, &Result.StyleRegistery);
     }
 
+    // Fonts
+    {
+        typed_stack_params StackParams = {0};
+        StackParams.StackSize = Params.FontCount;
+
+        Result.FontStack = BeginFontStack(StackParams, Result.StaticArena);
+    }
+
+    // Handles
+    {
+        Result.RendererHandle = Params.RendererHandle;
+    }
+
     return Result;
 }
 
@@ -372,14 +455,15 @@ UIPipelineExecute(ui_pipeline *Pipeline, render_pass_list *PassList)
 {   Assert(Pipeline);
 
     // Unpacking
-    ui_node     *Root       = &Pipeline->StyleTree.Nodes[0];
+    ui_node     *SRoot      = &Pipeline->StyleTree.Nodes[0];
+    ui_node     *LRoot      = &Pipeline->LayoutTree.Nodes[0];
     render_pass *RenderPass = GetRenderPass(Pipeline->FrameArena, PassList, RenderPass_UI);
 
-    UIPipelineSynchronize(Pipeline, Root);
+    UIPipelineSynchronize(Pipeline, SRoot);
 
     UIPipelineTopDownLayout(Pipeline);
 
-    UIPipelineBuildDrawList(Pipeline, RenderPass, Root);
+    UIPipelineBuildDrawList(Pipeline, RenderPass, SRoot, LRoot);
 }
 
 internal void
@@ -388,7 +472,7 @@ UIPipelineSynchronize(ui_pipeline *Pipeline, ui_node *Root)
     ui_node *LNode       = &Pipeline->LayoutTree.Nodes[Root->Id];
     ui_node *SNodeParent = (ui_node *)Root->Parent;
 
-    if (!IsParallelUINode(Root, LNode))
+    if (!UIIsParallelNode(Root, LNode))
     {
         LNode = UIGetNextNode(&Pipeline->LayoutTree, Root->Type);
         LNode->Id = Root->Id;
@@ -402,11 +486,11 @@ UIPipelineSynchronize(ui_pipeline *Pipeline, ui_node *Root)
     }
 
     {
-        LNode->Layout.Width   = Root->Style.Size.X;
-        LNode->Layout.Height  = Root->Style.Size.Y;
-        LNode->Layout.Padding = Root->Style.Padding;
-        LNode->Layout.Spacing = Root->Style.Spacing;
-        LNode->Layout.Flags   = UILayoutBox_DrawBackground | UILayoutBox_DrawBorders | UILayoutBox_FlowColumn; // TODO: Where are these coming from?
+        LNode->Layout.Width    = Root->Style.Size.X;
+        LNode->Layout.Height   = Root->Style.Size.Y;
+        LNode->Layout.Padding  = Root->Style.Padding;
+        LNode->Layout.Spacing  = Root->Style.Spacing;
+        LNode->Layout.Flags   |= UILayoutBox_DrawBackground | UILayoutBox_DrawBorders | UILayoutBox_PlaceChildrenVertically; // TODO: Where are these coming from?
     }
 
     for (ui_node *Child = Root->First; Child != 0; Child = Child->Next)
@@ -443,49 +527,55 @@ UIPipelineTopDownLayout(ui_pipeline *Pipeline)
 
                 f32 AvailableWidth  = Box->Width  - (Box->Padding.X + Box->Padding.Z);
                 f32 AvailableHeight = Box->Height - (Box->Padding.Y + Box->Padding.W);
-                
-                f32 ClientX = Box->ClientX + Box->Padding.X;
-                f32 ClientY = Box->ClientY + Box->Padding.Y;
-                
-                // TODO: Simplify this.
+                f32 UsedWidth       = 0;
+                f32 UsedHeight      = 0;
+                f32 BasePosX        = Box->ClientX + Box->Padding.X;
+                f32 BasePosY        = Box->ClientY + Box->Padding.Y;
 
-                // Positioning
-                if (Box->Flags & UILayoutBox_FlowRow)
                 {
-                    for (ui_node *ChildNode = Current->First; (ChildNode != 0 && AvailableWidth); ChildNode = ChildNode->Next)
+                    for (ui_node *ChildNode = Current->First; (ChildNode != 0 && UsedWidth <= AvailableWidth); ChildNode = ChildNode->Next)
                     {
-                        ChildNode->Layout.ClientX = ClientX;
-                        ChildNode->Layout.ClientY = ClientY;
-                
+                        ChildNode->Layout.ClientX = BasePosX + UsedWidth;
+                        ChildNode->Layout.ClientY = BasePosY + UsedHeight;
+
                         ui_layout_box *ChildBox = &ChildNode->Layout;
                         ChildBox->Width  = ChildBox->Width  <= AvailableWidth  ? ChildBox->Width  : AvailableWidth;
                         ChildBox->Height = ChildBox->Height <= AvailableHeight ? ChildBox->Height : AvailableHeight;
-                
-                        f32 OccupiedWidth = ChildBox->Width + Box->Spacing.X;
-                        ClientX        += OccupiedWidth;
-                        AvailableWidth -= OccupiedWidth;
+
+                        if (Box->Flags & UILayoutBox_PlaceChildrenVertically)
+                        {
+                            UsedHeight += ChildBox->Height + Box->Spacing.Y;
+                        }
+                        else
+                        {
+                            UsedWidth += ChildBox->Width + Box->Spacing.X;
+                        }
 
                         PushNodeQueue(&Queue, ChildNode);
                     }
                 }
-                else if (Box->Flags & UILayoutBox_FlowColumn)
+
+                // Text Position
                 {
-                    for (ui_node *ChildNode = Current->First; (ChildNode != 0 && AvailableHeight); ChildNode = ChildNode->Next)
+                    if (Box->Flags & UILayoutBox_DrawText)
                     {
-                        ChildNode->Layout.ClientX = ClientX;
-                        ChildNode->Layout.ClientY = ClientY;
-                
-                        ui_layout_box *ChildBox = &ChildNode->Layout;
-                        ChildBox->Width  = ChildBox->Width  <= AvailableWidth  ? ChildBox->Width  : AvailableWidth;
-                        ChildBox->Height = ChildBox->Height <= AvailableHeight ? ChildBox->Height : AvailableHeight;
-                
-                        f32 OccupiedHeight = ChildBox->Height + Box->Spacing.Y;
-                        ClientY         += OccupiedHeight;
-                        AvailableHeight -= OccupiedHeight;
-                
-                        PushNodeQueue(&Queue, ChildNode);
+                        ui_text *Text    = Box->Text;
+                        vec2_f32 TextPos = Vec2F32(BasePosX, BasePosY); // TODO: Text Alignment.
+
+                        // TODO: Text wrapping and stuff.
+                        for (u32 Idx = 0; Idx < Text->Size; Idx++)
+                        {
+                            ui_character *Character = &Text->Characters[Idx];
+                            Character->Position.Min.X = TextPos.X + Character->Layout.Offset.X;
+                            Character->Position.Min.Y = TextPos.Y + Character->Layout.Offset.Y;
+                            Character->Position.Max.X = Character->Position.Min.X + Character->Layout.AdvanceX;
+                            Character->Position.Max.Y = Character->Position.Min.Y + Text->LineHeight;
+
+                            TextPos.X += (Character->Position.Max.X) - (Character->Position.Min.X);
+                        }
                     }
                 }
+
             }
 
             // NOTE: Not really clear that we are clearing the queue...
@@ -503,88 +593,87 @@ UIPipelineTopDownLayout(ui_pipeline *Pipeline)
 }
 
 internal void
-UIPipelineBuildDrawList(ui_pipeline *Pipeline, render_pass *Pass, ui_node *Root)
+UIPipelineBuildDrawList(ui_pipeline *Pipeline, render_pass *Pass, ui_node *SRoot, ui_node *LRoot)
 {
-    ui_style      *Style = &Root->Style;
-    ui_layout_box *Box   = &Pipeline->LayoutTree.Nodes[Root->Id].Layout;
+    ui_style      *Style = &SRoot->Style;
+    ui_layout_box *Box   = &LRoot->Layout;
 
-    render_batch_list     *List   = 0;
-    rect_group_node       *Node   = 0;
-    render_pass_params_ui *Params = &Pass->Params.UI.Params;
+    render_batch_list     *List      = 0;
+    render_pass_params_ui *UIParams  = &Pass->Params.UI.Params;
+    rect_group_params      NewParams = {.Transform = Mat3x3Identity()};
     {
-        Node = Params->Last;
+        rect_group_node *Node = UIParams->Last;
 
-        // TODO: Merge Check
         b32 CanMerge = 1;
+        if(Node)
         {
-            // TOOD: Clip Check
-            if(Box->Flags & UILayoutBox_HasClip)
+            if(Box->Flags & UILayoutBox_DrawText)
             {
-
+                Assert(Box->Text);
+                NewParams.AtlasTextureSize = Box->Text->AtlasTextureSize;
+                NewParams.AtlasTextureView = Box->Text->AtlasTexture;
             }
 
+            CanMerge = CanMergeGroupParams(&Node->Params, &NewParams);
         }
 
-        // Alloc Check
+        if (!Node || !CanMerge)
         {
-            if (!Node || !CanMerge)
+            Node = PushArray(Pipeline->FrameArena, rect_group_node, 1);
+            Node->BatchList.BytesPerInstance = sizeof(render_rect);
+
+            if (!UIParams->First)
             {
-                Node = PushArray(Pipeline->FrameArena, rect_group_node, 1);
-                Node->BatchList.BytesPerInstance = sizeof(render_rect);
-
-                if (!Params->First)
-                {
-                    Params->First = Node;
-                }
-
-                if (Params->Last)
-                {
-                    Params->Last->Next = Node;
-                }
-
-                Params->Last = Node;
-
-                Node->Params.AtlasTextureSize = Vec2F32(0.f, 0.f);
-                Node->Params.AtlasTextureView = RenderHandle(0);
-                Node->Params.Transform        = Mat3x3Identity();;
+                UIParams->First = Node;
             }
+
+            if (UIParams->Last)
+            {
+                UIParams->Last->Next = Node;
+            }
+
+            UIParams->Last = Node;
         }
 
-        List = &Node->BatchList;
+        Node->Params = NewParams;        // BUG: This is simply wrong.
+        List         = &Node->BatchList;
     }
 
     if (Box->Flags & UILayoutBox_DrawBackground)
     {
-        render_rect *Rect = PushDataInBatchList(Pipeline->FrameArena, List);
-
-        // Rect
-        {
-            Rect->RectBounds  = Vec4F32(Box->ClientX, Box->ClientY, Box->ClientX + Box->Width, Box->ClientY + Box->Height);
-            Rect->Color       = Style->Color;
-            Rect->BorderWidth = 0;
-            Rect->CornerRadii = Style->CornerRadius;
-            Rect->SampleAtlas = 0;
-            Rect->Softness    = Style->Softness;
-        }
+        render_rect *Rect = PushDataInBatchList(Pipeline->FrameArena, List);  
+        Rect->RectBounds  = RectF32(Box->ClientX, Box->ClientY, Box->ClientX + Box->Width, Box->ClientY + Box->Height);
+        Rect->Color       = Style->Color;
+        Rect->CornerRadii = Style->CornerRadius;
+        Rect->Softness    = Style->Softness;
+        
     }
 
     if (Box->Flags & UILayoutBox_DrawBorders)
     {
         render_rect *Rect = PushDataInBatchList(Pipeline->FrameArena, List);
+        Rect->RectBounds  = RectF32(Box->ClientX, Box->ClientY, Box->ClientX + Box->Width, Box->ClientY + Box->Height);
+        Rect->Color       = Style->BorderColor;
+        Rect->BorderWidth = (f32)Style->BorderWidth;
+        Rect->CornerRadii = Style->CornerRadius;
+        Rect->Softness    = Style->Softness;
+    }
 
-        // Rect
+    if (Box->Flags & UILayoutBox_DrawText)
+    {
+        for (u32 Idx = 0; Idx < Box->Text->Size; Idx++)
         {
-            Rect->RectBounds  = Vec4F32(Box->ClientX, Box->ClientY, Box->ClientX + Box->Width, Box->ClientY + Box->Height);
-            Rect->Color       = Style->BorderColor;
-            Rect->BorderWidth = (f32)Style->BorderWidth;
-            Rect->CornerRadii = Style->CornerRadius;
-            Rect->SampleAtlas = 0;
-            Rect->Softness    = Style->Softness;
+            render_rect *Rect = PushDataInBatchList(Pipeline->FrameArena, List);
+            Rect->SampleAtlas       = 1.f;
+            Rect->AtlasSampleSource = Box->Text->Characters[Idx].SampleSource;
+            Rect->RectBounds        = Box->Text->Characters[Idx].Position;
+            Rect->Color             = Vec4F32(1.f, 1.f, 1.f, 1.f);
         }
     }
 
-    for (ui_node *Child = Root->First; Child != 0; Child = Child->Next)
+    for (ui_node *SChild = SRoot->First; SChild != 0; SChild = SChild->Next)
     {
-        UIPipelineBuildDrawList(Pipeline, Pass, Child);
+        ui_node *LChild = &Pipeline->LayoutTree.Nodes[SChild->Id];
+        UIPipelineBuildDrawList(Pipeline, Pass, SChild, LChild);
     }
 }

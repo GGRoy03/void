@@ -300,9 +300,6 @@ SubmitRenderCommands(render_pass_list *RenderPassList, render_handle BackendHand
     // Update State
     vec2_i32 Resolution = Backend->LastResolution;
     {
-        // NOTE: Probably don't want to call this every frame. We can check a boolean that is
-        // set by WM_SIZE. Maybe it's OKAY?
-
         vec2_i32 CurrentResolution = OSGetClientSize();
 
         if (!Vec2I32IsEqual(Resolution, CurrentResolution))
@@ -322,7 +319,7 @@ SubmitRenderCommands(render_pass_list *RenderPassList, render_handle BackendHand
     for (render_pass_node *PassNode = RenderPassList->First; PassNode != 0; PassNode = PassNode->Next)
     {
         render_pass Pass = PassNode->Value;
-        
+
         switch (Pass.Type)
         {
 
@@ -382,21 +379,21 @@ SubmitRenderCommands(render_pass_list *RenderPassList, render_handle BackendHand
                 // OM
                 DeviceContext->lpVtbl->OMSetRenderTargets(DeviceContext, 1, &Backend->RenderView, 0);
                 DeviceContext->lpVtbl->OMSetBlendState(DeviceContext, Backend->DefaultBlendState, 0, 0xFFFFFFFF);
-                
+
                 // IA
                 u32 Stride = (u32)BatchList.BytesPerInstance;
                 u32 Offset = 0;
                 DeviceContext->lpVtbl->IASetVertexBuffers(DeviceContext, 0, 1, &VBuffer, &Stride, &Offset);
                 DeviceContext->lpVtbl->IASetInputLayout(DeviceContext, ILayout);
                 DeviceContext->lpVtbl->IASetPrimitiveTopology(DeviceContext, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
-                
+
                 // Shaders
                 DeviceContext->lpVtbl->VSSetShader(DeviceContext, VShader, 0, 0);
                 DeviceContext->lpVtbl->VSSetConstantBuffers(DeviceContext, 0, 1, &UniformBuffer);
                 DeviceContext->lpVtbl->PSSetShader(DeviceContext, PShader, 0, 0);
                 DeviceContext->lpVtbl->PSSetShaderResources(DeviceContext, 0, 1, &AtlasView);
                 DeviceContext->lpVtbl->PSSetSamplers(DeviceContext, 0, 1, &Backend->AtlasSamplerState);
-                
+
                 // Draw
                 u32 InstanceCount = (u32)(BatchList.ByteCount / BatchList.BytesPerInstance);
                 DeviceContext->lpVtbl->DrawInstanced(DeviceContext, 4, InstanceCount, 0, 0);
@@ -422,7 +419,7 @@ SubmitRenderCommands(render_pass_list *RenderPassList, render_handle BackendHand
 // [Text]
 
 internal b32
-CreateGlyphCache(render_handle BackendHandle, vec2_i32 Size, gpu_font_objects *FontObjects)
+CreateGlyphCache(render_handle BackendHandle, vec2_f32 Size, gpu_font_objects *FontObjects)
 {
     b32            Result  = 0;
     HRESULT        Error   = S_OK;
@@ -431,8 +428,8 @@ CreateGlyphCache(render_handle BackendHandle, vec2_i32 Size, gpu_font_objects *F
     if (Backend && FontObjects)
     {
         D3D11_TEXTURE2D_DESC Desc = { 0 };
-        Desc.Width            = Size.X;
-        Desc.Height           = Size.Y;
+        Desc.Width            = (UINT)Size.X;
+        Desc.Height           = (UINT)Size.Y;
         Desc.MipLevels        = 1;
         Desc.ArraySize        = 1;
         Desc.Format           = DXGI_FORMAT_B8G8R8A8_UNORM;
@@ -476,7 +473,7 @@ ReleaseGlyphCache(gpu_font_objects *FontObjects)
 }
 
 internal b32
-CreateGlyphTransfer(render_handle BackendHandle, vec2_i32 Size, gpu_font_objects *FontObjects)
+CreateGlyphTransfer(render_handle BackendHandle, vec2_f32 Size, gpu_font_objects *FontObjects)
 {
     b32            Result  = 0;
     HRESULT        Error   = S_OK;
@@ -485,8 +482,8 @@ CreateGlyphTransfer(render_handle BackendHandle, vec2_i32 Size, gpu_font_objects
     if (Backend && FontObjects)
     {
         D3D11_TEXTURE2D_DESC Desc = {0};
-        Desc.Width            = Size.X;
-        Desc.Height           = Size.Y;
+        Desc.Width            = (UINT)Size.X;
+        Desc.Height           = (UINT)Size.Y;
         Desc.MipLevels        = 1;
         Desc.ArraySize        = 1;
         Desc.Format           = DXGI_FORMAT_B8G8R8A8_UNORM;
@@ -541,16 +538,18 @@ TransferGlyph(rect_f32 Rect, render_handle RendererHandle, gpu_font_objects *Fon
 
     if (Backend && FontObjects)
     {
+        // NOTE: We apply weird rounding by casting to UINT..
+
         D3D11_BOX SourceBox;
         SourceBox.left   = 0;
         SourceBox.top    = 0;
         SourceBox.front  = 0;
-        SourceBox.right  = (u32)Rect.Max.X;
-        SourceBox.bottom = (u32)Rect.Max.Y;
+        SourceBox.right  = (UINT)(Rect.Max.X - Rect.Min.X);
+        SourceBox.bottom = (UINT)(Rect.Max.Y - Rect.Min.Y);
         SourceBox.back   = 1;
 
         Backend->DeviceContext->lpVtbl->CopySubresourceRegion(Backend->DeviceContext, (ID3D11Resource *)FontObjects->GlyphCache,
-                                                              0, (u32)Rect.Min.X, (u32)Rect.Min.Y, 0, (ID3D11Resource *)FontObjects->GlyphTransfer,
-                                                              0, &SourceBox);
+                                                              0, (UINT)Rect.Min.X, (UINT)Rect.Min.Y, 0, 
+                                                              (ID3D11Resource *)FontObjects->GlyphTransfer, 0, &SourceBox);
     }
 }

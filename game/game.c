@@ -27,7 +27,7 @@ GameEntryPoint()
         BeginRendereringContext(&GameState.RenderPassList);
 
         {
-            TestUI(&GameState.RenderPassList);
+            TestUI(&GameState.RenderPassList, GameState.RendererHandle);
         }
 
         SubmitRenderCommands(&GameState.RenderPassList, GameState.RendererHandle);
