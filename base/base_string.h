@@ -25,13 +25,19 @@ typedef struct unicode_decode
 #define byte_string_literal(String) ByteString((u8 *)String, sizeof(String) - 1)
 #define byte_string_compile(String) {(u8 *)String, sizeof(String)}
 
+// [Constructors]
+
 external byte_string ByteString  (u8  *String, u64 Size);
 internal wide_string WideString  (u16 *String, u64 Size);
+
+// [String Utilities]
+
+internal b32 IsValidByteString (byte_string Input);
 
 // [Character Utilities]
 
 internal b32  IsAlpha            (u8 Char);
-internal b32  IsNumber           (u8 Char);
+internal b32  IsDigit            (u8 Char);
 internal b32  IsWhiteSpace       (u8 Char);
 internal u8   ToLowerChar        (u8 Char);
 internal b32  ByteStringMatches  (byte_string Str1, byte_string Str2);

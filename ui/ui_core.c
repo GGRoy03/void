@@ -44,72 +44,68 @@ UIButton(ui_style_name StyleName, ui_pipeline *Pipeline)
 // NOTE: Only supports extended ASCII for now.
 
 internal void
-UILabel(byte_string Text, ui_pipeline *Pipeline)
+UILabel(ui_style_name StyleName, byte_string Text, ui_pipeline *Pipeline)
 {
-    f32 TextWidth  = 0;
-    f32 TextHeight = 0;
-
-    ui_font      *Font           = PeekFontStack(&Pipeline->FontStack);
-    ui_character *Characters     = PushArray(Pipeline->StaticArena, ui_character, Text.Size);
-    u32           CharacterCount = (u32)Text.Size; Assert(CharacterCount == Text.Size);
-    if (Characters)
+    ui_style Style = UIGetStyleFromCachedName(StyleName, &Pipeline->StyleRegistery);
+    ui_node *Node  = UIGetNextNode(&Pipeline->StyleTree, UINode_Label);
+    if (Node)
     {
-        for (u32 Idx = 0; Idx < Text.Size; Idx++)
+        Node->Style = Style;
+        Node->Id    = NextId++;
+        UILinkNodes(Node, UIGetParentNodeFromTree(&Pipeline->StyleTree));
+
+        f32 TextWidth  = 0;
+        f32 TextHeight = 0;
+
+        ui_font      *Font           = Node->Style.Font.Ref;
+        ui_character *Characters     = PushArray(Pipeline->StaticArena, ui_character, Text.Size);
+        u32           CharacterCount = (u32)Text.Size; Assert(CharacterCount == Text.Size);
+        if (Characters)
         {
-            u8 Character = Text.String[Idx];
-
-            glyph_state          State      = FindGlyphEntryByDirectAccess((u32)Character, Font->GlyphTable);
-            os_glyph_layout      Layout     = State.Layout;
-            os_glyph_raster_info RasterInfo = State.RasterInfo;
-
-            if (!RasterInfo.IsRasterized)
+            for (u32 Idx = 0; Idx < Text.Size; Idx++)
             {
-                Layout = OSGetGlyphLayout(Character, &Font->OSFontObjects, Font->TextureSize, Font->Size);
-
-                stbrp_rect STBRect = { 0 };
-                STBRect.w = (u16)Layout.Size.X; Assert(STBRect.w == Layout.Size.X);
-                STBRect.h = (u16)Layout.Size.Y; Assert(STBRect.h == Layout.Size.Y);
-                stbrp_pack_rects(&Font->AtlasContext, &STBRect, 1);
-
-                if (STBRect.was_packed)
+                u8 Character = Text.String[Idx];
+            
+                glyph_state          State      = FindGlyphEntryByDirectAccess((u32)Character, Font->GlyphTable);
+                os_glyph_layout      Layout     = State.Layout;
+                os_glyph_raster_info RasterInfo = State.RasterInfo;
+            
+                if (!RasterInfo.IsRasterized)
                 {
-                    rect_f32 Rect;
-                    Rect.Min.X = (f32)STBRect.x;
-                    Rect.Min.Y = (f32)STBRect.y;
-                    Rect.Max.X = (f32)STBRect.x + STBRect.w;
-                    Rect.Max.Y = (f32)STBRect.y + STBRect.h;
-                    RasterInfo = OSRasterizeGlyph(Character, Rect, &Font->OSFontObjects, &Font->GPUFontObjects, Pipeline->RendererHandle);
-
-                    UpdateDirectGlyphTableEntry((u32)Character, Layout, RasterInfo, Font->GlyphTable);
+                    Layout = OSGetGlyphLayout(Character, &Font->OSFontObjects, Font->TextureSize, Font->Size);
+            
+                    stbrp_rect STBRect = { 0 };
+                    STBRect.w = (u16)Layout.Size.X; Assert(STBRect.w == Layout.Size.X);
+                    STBRect.h = (u16)Layout.Size.Y; Assert(STBRect.h == Layout.Size.Y);
+                    stbrp_pack_rects(&Font->AtlasContext, &STBRect, 1);
+            
+                    if (STBRect.was_packed)
+                    {
+                        rect_f32 Rect;
+                        Rect.Min.X = (f32)STBRect.x;
+                        Rect.Min.Y = (f32)STBRect.y;
+                        Rect.Max.X = (f32)STBRect.x + STBRect.w;
+                        Rect.Max.Y = (f32)STBRect.y + STBRect.h;
+                        RasterInfo = OSRasterizeGlyph(Character, Rect, &Font->OSFontObjects, &Font->GPUFontObjects, Pipeline->RendererHandle);
+            
+                        UpdateDirectGlyphTableEntry((u32)Character, Layout, RasterInfo, Font->GlyphTable);
+                    }
+                    else
+                    {
+                        OSLogMessage(byte_string_literal("Failed to pack rect."), OSMessage_Error);
+                    }
                 }
-                else
-                {
-                    OSLogMessage(byte_string_literal("Failed to pack rect."), OSMessage_Error);
-                }
+            
+                TextWidth += Layout.AdvanceX;
+                TextHeight = Layout.Size.Y > TextHeight ? Layout.Size.Y : TextHeight;
+            
+                Characters[Idx].Layout       = Layout;
+                Characters[Idx].SampleSource = RasterInfo.SampleSource;
             }
-
-            TextWidth += Layout.AdvanceX;
-            TextHeight = Layout.Size.Y > TextHeight ? Layout.Size.Y : TextHeight;
-
-            Characters[Idx].Layout       = Layout;
-            Characters[Idx].SampleSource = RasterInfo.SampleSource;
         }
 
-        ui_node *Node = UIGetNextNode(&Pipeline->StyleTree, UINode_Button);
-        if (Node)
-        {
-            ui_style Style = { 0 };
-            Style.BorderColor = NormalizedColor(Vec4F32(255.f, 0.f, 0.f, 255.f));
-            Style.BorderWidth = 1;
-            Style.Softness    = 1.f;
-            Style.Size        = Vec2F32(TextWidth, TextHeight);
-
-            Node->Style = Style;
-            Node->Id    = NextId++;
-            UILinkNodes(Node, UIGetParentNodeFromTree(&Pipeline->StyleTree));
-
-            UISetTextBinding(Pipeline, Characters, CharacterCount, Font, Node);
-        }
+        Node->Style.Size = Vec2F32(TextWidth, TextHeight);
+        UISetTextBinding(Pipeline, Characters, CharacterCount, Font, Node);
     }
 }
 
@@ -280,20 +276,6 @@ UIAllocateTree(ui_tree_params Params)
     return Result;
 }
 
-// [State]
-
-internal void
-UIPushFont(ui_pipeline *Pipeline, ui_font *Font)
-{
-    PushFontStack(&Pipeline->FontStack, Font);
-}
-
-internal void
-UIPopFont(ui_pipeline *Pipeline)
-{
-    PopFontStack(&Pipeline->FontStack);
-}
-
 // [Bindings]
 
 internal void
@@ -424,15 +406,7 @@ UICreatePipeline(ui_pipeline_params Params)
 
     // Registery
     {
-        LoadThemeFiles(Params.ThemeFiles, Params.ThemeCount, &Result.StyleRegistery);
-    }
-
-    // Fonts
-    {
-        typed_stack_params StackParams = {0};
-        StackParams.StackSize = Params.FontCount;
-
-        Result.FontStack = BeginFontStack(StackParams, Result.StaticArena);
+        LoadThemeFiles(Params.ThemeFiles, Params.ThemeCount, &Result.StyleRegistery, Params.RendererHandle);
     }
 
     // Handles
@@ -464,6 +438,11 @@ UIPipelineExecute(ui_pipeline *Pipeline, render_pass_list *PassList)
     UIPipelineTopDownLayout(Pipeline);
 
     UIPipelineBuildDrawList(Pipeline, RenderPass, SRoot, LRoot);
+}
+
+internal void
+UIPipelineCrystallizeStyles(ui_pipeline *Pipeline, ui_node *Root)
+{   UNUSED(Pipeline && Root);
 }
 
 internal void
@@ -556,20 +535,21 @@ UIPipelineTopDownLayout(ui_pipeline *Pipeline)
                 }
 
                 // Text Position
+                // TODO: Text wrapping and stuff.
+                // TODO: Text Alignment.
                 {
                     if (Box->Flags & UILayoutBox_DrawText)
                     {
                         ui_text *Text    = Box->Text;
-                        vec2_f32 TextPos = Vec2F32(BasePosX, BasePosY); // TODO: Text Alignment.
+                        vec2_f32 TextPos = Vec2F32(BasePosX, BasePosY);
 
-                        // TODO: Text wrapping and stuff.
                         for (u32 Idx = 0; Idx < Text->Size; Idx++)
                         {
                             ui_character *Character = &Text->Characters[Idx];
-                            Character->Position.Min.X = TextPos.X + Character->Layout.Offset.X;
-                            Character->Position.Min.Y = TextPos.Y + Character->Layout.Offset.Y;
-                            Character->Position.Max.X = Character->Position.Min.X + Character->Layout.AdvanceX;
-                            Character->Position.Max.Y = Character->Position.Min.Y + Text->LineHeight;
+                            Character->Position.Min.X = roundf(TextPos.X + Character->Layout.Offset.X);
+                            Character->Position.Min.Y = roundf(TextPos.Y + Character->Layout.Offset.Y);
+                            Character->Position.Max.X = roundf(Character->Position.Min.X + Character->Layout.AdvanceX);
+                            Character->Position.Max.Y = roundf(Character->Position.Min.Y + Text->LineHeight);
 
                             TextPos.X += (Character->Position.Max.X) - (Character->Position.Min.X);
                         }

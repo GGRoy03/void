@@ -2,8 +2,9 @@
 
 // [STD-LIB]
 
-#include "stdio.h"
-#include "stdarg.h"
+#include <stdio.h>
+#include <stdarg.h>
+#include <math.h>
 
 // [Detect Compiler]
 

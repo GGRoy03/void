@@ -6,6 +6,7 @@ typedef struct ui_test
 	// Styles
 	ui_style_name WindowStyle;
 	ui_style_name ButtonStyle;
+	ui_style_name LabelStyle;
 
 	// Misc
 	b32 IsInitialized;
@@ -14,15 +15,18 @@ typedef struct ui_test
 internal void
 TestUI(render_pass_list *PassList, render_handle RendererHandle)
 {
-	local_persist ui_test UITest;
+    local_persist ui_test UITest;
 
-	// Unpacking
-	ui_pipeline *Pipeline = &UITest.Pipeline;
+    // Unpacking
+    ui_pipeline   *Pipeline    = &UITest.Pipeline;
+    ui_style_name *WindowStyle = &UITest.WindowStyle;
+	ui_style_name *ButtonStyle = &UITest.ButtonStyle;
+	ui_style_name *LabelStyle  = &UITest.LabelStyle;
 
-	if (!UITest.IsInitialized)
-	{
-		// Pipeline
-		{
+    if (!UITest.IsInitialized)
+    {
+        // Pipeline
+        {
 			byte_string ThemeFiles[] =
 			{
 				byte_string_literal("D:/Work/CIM/styles/window.cim"),
@@ -41,21 +45,16 @@ TestUI(render_pass_list *PassList, render_handle RendererHandle)
 
 		// Styles
 		{
-			UITest.WindowStyle = UIGetCachedNameFromStyleName(byte_string_literal("TestWindow"), &Pipeline->StyleRegistery);
-			UITest.ButtonStyle = UIGetCachedNameFromStyleName(byte_string_literal("TestButton"), &Pipeline->StyleRegistery);
-		}
-
-		// Fonts
-		{
-			ui_font *MainFont = UILoadFont(byte_string_literal("Consolas"), 15, RendererHandle, UIFontCoverage_ASCIIOnly);
-			UIPushFont(Pipeline, MainFont);
+			*WindowStyle = UIGetCachedNameFromStyleName(byte_string_literal("TestWindow"), &Pipeline->StyleRegistery);
+			*ButtonStyle = UIGetCachedNameFromStyleName(byte_string_literal("TestButton"), &Pipeline->StyleRegistery);
+			*LabelStyle  = UIGetCachedNameFromStyleName(byte_string_literal("TestLabel") , &Pipeline->StyleRegistery);
 		}
 
 		// Layout
-		UIWindow(UITest.WindowStyle, Pipeline);
-		UIButton(UITest.ButtonStyle, Pipeline);
-		UIButton(UITest.ButtonStyle, Pipeline);
-		UILabel(byte_string_literal("Hello. This is text."), Pipeline);
+		UIWindow(*WindowStyle, Pipeline);
+		UIButton(*ButtonStyle, Pipeline);
+		UIButton(*ButtonStyle, Pipeline);
+		UILabel (*LabelStyle , byte_string_literal("Texxxxt"), Pipeline);
 
 		UITest.IsInitialized = 1;
 	}

@@ -78,10 +78,11 @@ internal void ProccessInputMessage(os_button_state *NewState, b32 IsDown);
 
 // [Files]
 
-internal b32  OSFileIsValid            (os_file *File);
-internal void OSFileIgnoreWhiteSpaces  (os_file *File);
-internal u8   OSFileGetChar            (os_file *File);
-internal u8   OSFileGetNextChar        (os_file *File);
+internal b32   IsValidFile      (os_file *File);
+internal void  SkipWhiteSpaces  (os_file *File);
+internal u8  * PeekFilePointer  (os_file *File);
+internal u8    PeekFile         (os_file *File, u32 Offset);
+internal void  AdvanceFile      (os_file *File, u32 Count);
 
 internal os_handle OSFindFile  (byte_string Path);
 internal os_file   OSReadFile  (os_handle Handle, memory_arena *Arena);

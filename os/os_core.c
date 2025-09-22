@@ -11,33 +11,43 @@ ProccessInputMessage(os_button_state *NewState, b32 IsDown)
 // [Agnostic File API]
 
 internal b32 
-OSFileIsValid(os_file *File)
+IsValidFile(os_file *File)
 {
     b32 Result = File->At < File->Content.Size;
     return Result;
 }
 
 internal void 
-OSFileIgnoreWhiteSpaces(os_file *File)
+SkipWhiteSpaces(os_file *File)
 {
-    while(OSFileIsValid(File) && IsWhiteSpace(File->Content.String[File->At]))
+    while(IsValidFile(File) && IsWhiteSpace(PeekFile(File, 0)))
     {
-        ++File->At;
+        AdvanceFile(File, 1);
     }
 }
 
-internal u8
-OSFileGetChar(os_file *File)
+internal u8 *
+PeekFilePointer(os_file *File)
 {
-    u8 Result = File->Content.String[File->At];
+    u8 *Result = &File->Content.String[File->At];
     return Result;
 }
 
 internal u8
-OSFileGetNextChar(os_file *File)
+PeekFile(os_file *File, u32 Offset)
 {
-    File->At  += 1;
-    u8 Result  = OSFileGetChar(File);
+    u8 Result = 0;
+
+    if (File->At + Offset < File->Content.Size)
+    {
+        Result = File->Content.String[File->At + Offset];
+    }
 
     return Result;
+}
+
+internal void
+AdvanceFile(os_file *File, u32 Count)
+{
+    File->At += Count;
 }

@@ -10,7 +10,7 @@ UILoadFont(byte_string Name, f32 Size, render_handle BackendHandle, UIFontCovera
         TableParams.EntryCount = Coverage == UIFontCoverage_ASCIIOnly ? 255 : 0;
     }
 
-    vec2_i32 TextureSize    = OSGetClientSize();
+    vec2_i32 TextureSize    = Vec2I32(1024, 1024);
     size_t   Footprint      = sizeof(ui_font);
     size_t   TableFootprint = 0;
     {

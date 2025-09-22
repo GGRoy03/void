@@ -16,6 +16,14 @@ WideString(u16 *String, u64 Size)
     return Result;
 }
 
+// [String Utilities]
+
+internal b32
+IsValidByteString(byte_string Input)
+{
+    b32 Result = (Input.String) && (Input.Size);
+    return Result;
+}
 // [Character Utilities]
 
 static b32
@@ -26,7 +34,7 @@ IsAlpha(u8 Char)
 }
 
 static b32
-IsNumber(u8 Char)
+IsDigit(u8 Char)
 {
     b32 Result = (Char >= '0' && Char <= '9');
     return Result;

@@ -24,6 +24,16 @@ Vec4F32(f32 X, f32 Y, f32 Z, f32 W)
 	return Result;
 }
 
+internal vec2_i32
+Vec2I32(i32 X, i32 Y)
+{
+	vec2_i32 Result;
+	Result.X = X;
+	Result.Y = Y;
+
+	return Result;
+}
+
 internal vec2_f32
 Vec2I32ToVec2F32(vec2_i32 Vec)
 {

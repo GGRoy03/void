@@ -1,5 +1,12 @@
 // [CONSTANTS]
 
+typedef enum UIStyleNode_Flag
+{
+    UIStyleNode_NoFlag       = 0,
+    UIStyleNode_DirtySubtree = 1 << 0,
+    UIStyleNode_DirtySpine   = 1 << 1,
+} UIStyleNode_Flag;
+
 typedef enum UILayoutBox_Flag
 {
     UILayoutBox_NoFlag                  = 0,
@@ -30,7 +37,6 @@ typedef enum UINode_Type
 typedef struct ui_node ui_node;
 typedef struct ui_font ui_font;
 DEFINE_TYPED_QUEUE(Node, node, ui_node *);
-DEFINE_TYPED_STACK(Font, font, ui_font *);
 
 // [CORE TYPES]
 
@@ -75,19 +81,32 @@ typedef struct ui_layout_box
 
 typedef struct ui_style
 {
+    // Color
     vec4_f32 Color;
+    f32      Opacity;
+
+    // Layout
+    vec4_f32 Padding;
+    vec2_f32 Size;
+    vec2_f32 Spacing;
+
+    // Borders/Corners
     vec4_f32 BorderColor;
     vec4_f32 CornerRadius;
     f32      Softness;
     u32      BorderWidth;
-    vec2_f32 Size;
-    vec2_f32 Spacing;
-    vec4_f32 Padding;
-} ui_style;
 
-// [Node Types]
-// Many Trees are used throughout the pipeline. Every type of node is held
-// in the same tree structure for simplicity.
+    // Font
+    f32 FontSize;
+    union
+    {
+        ui_font    *Ref;
+        byte_string Name;
+    } Font;
+
+    // Misc
+    bit_field Flags;
+} ui_style;
 
 typedef struct ui_node
 {
@@ -170,9 +189,6 @@ typedef struct ui_pipeline
     // Handles
     render_handle RendererHandle;
 
-    // State
-    font_stack FontStack;
-
     // TODO: Make something that is able to create a static arena inside an arena.
     memory_arena *FrameArena;
     memory_arena *StaticArena;
@@ -191,7 +207,7 @@ read_only global u32 LayoutTreeDefaultDepth    = 16;
 
 internal void UIWindow  (ui_style_name StyleName, ui_pipeline *Pipeline);
 internal void UIButton  (ui_style_name StyleName, ui_pipeline *Pipeline);
-internal void UILabel   (byte_string   Text     , ui_pipeline *Pipeline);
+internal void UILabel   (ui_style_name StyleName, byte_string Text, ui_pipeline *Pipeline);
 
 // [Style]
 
@@ -206,11 +222,6 @@ internal void      UIPopParentNodeFromTree  (ui_tree *Tree);
 internal void      UIPushParentNodeInTree   (void *Node, ui_tree *Tree);
 internal void    * UIGetParentNodeFromTree  (ui_tree *Tree);
 internal ui_node * UIGetNextNode            (ui_tree *Tree, UINode_Type Type);
-
-// [State]
-
-internal void UIPushFont  (ui_pipeline *Pipeline, ui_font *Font);
-internal void UIPopFont   (ui_pipeline *Pipeline);
 
 // [Bindings]
 

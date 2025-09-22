@@ -195,6 +195,7 @@ OSGetGlyphLayout(u8 Character, os_font_objects *FontObjects, vec2_f32 TextureSiz
             Result.Offset.Y = (f32)(Metrics.top);
 
             // NOTE: I have no idea if this is the correct fix...
+            // Seems to be okay for now.
             if (Result.Size.X == 0)
             {
                 Result.Size.X = Metrics.widthIncludingTrailingWhitespace;

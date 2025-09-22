@@ -34,6 +34,7 @@ typedef struct direct_glyph_table
 } direct_glyph_table;
 
 // NOTE: Should we just hold on to handles?
+
 typedef struct ui_font
 {
     // Backend
@@ -49,7 +50,7 @@ typedef struct ui_font
 
     // 2D Allocator
     stbrp_context AtlasContext;
-    stbrp_node *AtlasNodes;
+    stbrp_node   *AtlasNodes;
 
     // Tables
     direct_glyph_table *GlyphTable;
