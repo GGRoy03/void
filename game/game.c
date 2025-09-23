@@ -32,6 +32,7 @@ GameEntryPoint()
 
         SubmitRenderCommands(&GameState.RenderPassList, GameState.RendererHandle);
 
+        OSClearInputs();
         OSSleep(5);
     }
 }

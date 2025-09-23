@@ -388,6 +388,34 @@ OSGetMousePosition(void)
     return Result;
 }
 
+internal b32
+OSIsMouseClicked(OSMouseButton_Type Button)
+{
+    os_button_state *State = &OSWin32State.Inputs.MouseButtons[Button];
+
+    b32 Result = (State->EndedDown && State->HalfTransitionCount > 0);
+    return Result;
+}
+
+internal void
+OSClearInputs(void)
+{
+    os_inputs *Inputs = &OSWin32State.Inputs;
+
+    Inputs->ScrollDelta = 0.f;
+    Inputs->MouseDelta  = Vec2F32(0.f, 0.f);
+
+    for (u32 Idx = 0; Idx < OS_KeyboardButtonCount; Idx++)
+    {
+        Inputs->KeyboardButtons[Idx].HalfTransitionCount = 0;
+    }
+
+    for (u32 Idx = 0; Idx < OS_MouseButtonCount; Idx++)
+    {
+        Inputs->MouseButtons[Idx].HalfTransitionCount = 0;
+    }
+}
+
 // [Per-OS API Crash/Debug Implementation]
 
 internal void

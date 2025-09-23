@@ -13,6 +13,13 @@ typedef struct ui_test
 } ui_test;
 
 internal void
+TestButtonCallback(ui_node *Node, ui_pipeline *Pipeline)
+{	UNUSED(Node); UNUSED(Pipeline);
+
+	OSLogMessage(byte_string_literal("I have been clicked."), OSMessage_Info);
+}
+
+internal void
 TestUI(render_pass_list *PassList, render_handle RendererHandle)
 {
     local_persist ui_test UITest;
@@ -52,8 +59,8 @@ TestUI(render_pass_list *PassList, render_handle RendererHandle)
 
 		// Layout
 		UIWindow(*WindowStyle, Pipeline);
-		UIButton(*ButtonStyle, Pipeline);
-		UIButton(*ButtonStyle, Pipeline);
+		UIButton(*ButtonStyle, TestButtonCallback, Pipeline);
+		UIButton(*ButtonStyle, TestButtonCallback, Pipeline);
 		UILabel (*LabelStyle , byte_string_literal("Texxxxt"), Pipeline);
 
 		UITest.IsInitialized = 1;

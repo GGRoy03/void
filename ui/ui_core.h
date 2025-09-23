@@ -32,29 +32,21 @@ typedef enum UINode_Type
     UINode_Label  = 3,
 } UINode_Type;
 
-// [TYPED MACROS]
+// [FORWARD DECLARATIONS]
 
-typedef struct ui_node ui_node;
-typedef struct ui_font ui_font;
-DEFINE_TYPED_QUEUE(Node, node, ui_node *);
+typedef struct ui_node      ui_node;
+typedef struct ui_font      ui_font;
+typedef struct ui_text      ui_text;
+typedef struct ui_character ui_character;
+typedef struct ui_pipeline  ui_pipeline;
 
 // [CORE TYPES]
 
-typedef struct ui_character
-{
-    os_glyph_layout Layout;
-    rect_f32        SampleSource;
-    rect_f32        Position;
-} ui_character;
+DEFINE_TYPED_QUEUE(Node, node, ui_node *);
 
-typedef struct ui_text
-{
-    f32           LineHeight;
-    vec2_f32      AtlasTextureSize;
-    render_handle AtlasTexture;
-    ui_character *Characters;
-    u32           Size;
-} ui_text;
+// [Callbacks Types]
+
+typedef void ui_click_callback(ui_node *Node, ui_pipeline *Pipeline);
 
 typedef struct ui_layout_box
 {
@@ -72,8 +64,9 @@ typedef struct ui_layout_box
     rect_f32   Clip;
     matrix_3x3 Transform;
 
-    // Extra-Draw
-    ui_text *Text;
+    // Misc (Should text be callback based?)
+    ui_text           *Text;
+    ui_click_callback *ClickCallback;
 
     // Misc
     bit_field Flags;
@@ -170,6 +163,8 @@ typedef struct ui_style_registery
     memory_arena    *Arena;
 } ui_style_registery;
 
+// [Pipeline Types]
+
 typedef struct ui_pipeline_params
 {
     byte_string  *ThemeFiles;
@@ -194,7 +189,7 @@ typedef struct ui_pipeline
     memory_arena *StaticArena;
 } ui_pipeline;
 
-// [Globals]
+// [GLOBALS]
 
 read_only global u32 InvalidNodeId = 0xFFFFFFFF;
 
@@ -206,7 +201,7 @@ read_only global u32 LayoutTreeDefaultDepth    = 16;
 // [Components]
 
 internal void UIWindow  (ui_style_name StyleName, ui_pipeline *Pipeline);
-internal void UIButton  (ui_style_name StyleName, ui_pipeline *Pipeline);
+internal void UIButton  (ui_style_name StyleName, ui_click_callback *Callback, ui_pipeline *Pipeline);
 internal void UILabel   (ui_style_name StyleName, byte_string Text, ui_pipeline *Pipeline);
 
 // [Style]
@@ -226,8 +221,9 @@ internal ui_node * UIGetLayoutNodeFromStyleNode  (ui_node *Node, ui_pipeline *Pi
 
 // [Bindings]
 
-internal void UISetTextBinding  (ui_pipeline *Pipeline, ui_character *Characters, u32 Count, ui_font *Font, ui_node *Node);
-internal void UISetFlagBinding  (ui_node *Node, b32 Set, UILayoutBox_Flag Flag, ui_pipeline *Pipeline);
+internal void UISetTextBinding           (ui_pipeline *Pipeline, ui_character *Characters, u32 Count, ui_font *Font, ui_node *Node);
+internal void UISetFlagBinding           (ui_node *Node, b32 Set, UILayoutBox_Flag Flag, ui_pipeline *Pipeline);
+internal void UISetClickCallbackBinding  (ui_node *Node, ui_click_callback *Callback, ui_pipeline *Pipeline);
 
 // [Pipeline]
 

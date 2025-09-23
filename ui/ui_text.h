@@ -33,6 +33,22 @@ typedef struct direct_glyph_table
     u32          EntryCount;
 } direct_glyph_table;
 
+typedef struct ui_character
+{
+    os_glyph_layout Layout;
+    rect_f32        SampleSource;
+    rect_f32        Position;
+} ui_character;
+
+typedef struct ui_text
+{
+    f32           LineHeight;
+    vec2_f32      AtlasTextureSize;
+    render_handle AtlasTexture;
+    ui_character *Characters;
+    u32           Size;
+} ui_text;
+
 // NOTE: Should we just hold on to handles?
 
 typedef struct ui_font

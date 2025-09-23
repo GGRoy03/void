@@ -29,7 +29,7 @@ UIWindow(ui_style_name StyleName, ui_pipeline *Pipeline)
 }
 
 internal void
-UIButton(ui_style_name StyleName, ui_pipeline *Pipeline)
+UIButton(ui_style_name StyleName, ui_click_callback *Callback, ui_pipeline *Pipeline)
 {
     ui_style Style = UIGetStyleFromCachedName(StyleName, &Pipeline->StyleRegistery);
     ui_node *Node  = UIGetNextNode(&Pipeline->StyleTree, UINode_Button);
@@ -40,11 +40,20 @@ UIButton(ui_style_name StyleName, ui_pipeline *Pipeline)
         Node->Id    = NextId++;
         UILinkNodes(Node, UIGetParentNodeFromTree(&Pipeline->StyleTree));
 
-        if(Node->Style.BorderWidth > 0)
+        // Draw Flags
         {
-            UISetFlagBinding(Node, 1, UILayoutBox_DrawBorders, Pipeline);
+            if (Node->Style.BorderWidth > 0)
+            {
+                UISetFlagBinding(Node, 1, UILayoutBox_DrawBorders, Pipeline);
+            }
+            UISetFlagBinding(Node, 1, UILayoutBox_DrawBackground, Pipeline);
         }
-        UISetFlagBinding(Node, 1, UILayoutBox_DrawBackground, Pipeline);
+
+        // Callbacks (What about hovers?)
+        if (Callback)
+        {
+            UISetClickCallbackBinding(Node, Callback, Pipeline);
+        }
     }
 }
 
@@ -313,9 +322,18 @@ UIAllocateTree(ui_tree_params Params)
 // [Bindings]
 
 internal void
-UISetTextBinding(ui_pipeline *Pipeline, ui_character *Characters, u32 Count, ui_font *Font, ui_node *Node)
+UISetClickCallbackBinding(ui_node *Node, ui_click_callback *Callback, ui_pipeline *Pipeline)
 {
-    Assert(Node->Id < Pipeline->LayoutTree.NodeCapacity);
+    ui_node *LNode = UIGetLayoutNodeFromStyleNode(Node, Pipeline);
+    if (LNode)
+    {
+        LNode->Layout.ClickCallback = Callback;
+    }
+}
+
+internal void
+UISetTextBinding(ui_pipeline *Pipeline, ui_character *Characters, u32 Count, ui_font *Font, ui_node *Node)
+{   Assert(Node->Id < Pipeline->LayoutTree.NodeCapacity);
 
     ui_node *LNode = UIGetLayoutNodeFromStyleNode(Node, Pipeline);
     if (LNode && Font)
@@ -335,7 +353,7 @@ UISetTextBinding(ui_pipeline *Pipeline, ui_character *Characters, u32 Count, ui_
 
 internal void
 UISetFlagBinding(ui_node *Node, b32 Set, UILayoutBox_Flag Flag, ui_pipeline *Pipeline)
-{   Assert(Node && (Flag >= UILayoutBox_NoFlag && Flag <= UILayoutBox_HasClip) && Pipeline);
+{   Assert((Flag >= UILayoutBox_NoFlag && Flag <= UILayoutBox_HasClip));
 
     ui_node *LNode = UIGetLayoutNodeFromStyleNode(Node, Pipeline);
     if(LNode)
@@ -491,11 +509,25 @@ UIPipelineExecute(ui_pipeline *Pipeline, render_pass_list *PassList)
     // Hit-Testing
     {
         vec2_f32 MousePosition = OSGetMousePosition();
+        b32      MouseClicked  = OSIsMouseClicked(OSMouseButton_Left);
 
         ui_node *Node = UIPipelineHitTest(Pipeline, MousePosition, LRoot);
         if (Node)
         {
-            OSLogMessage(byte_string_literal("Something has been hit."), OSMessage_Info);
+            // TODO: Filters for this.
+            if (MouseClicked && Node->Layout.ClickCallback)
+            {
+                Node->Layout.ClickCallback(Node, Pipeline);
+            }
+
+            // BUG: At the start of the application, I think the mouse is not positioned correctly.
+            // Which causes unwanted hits.
+            // OSLogMessage(byte_string_literal("Something has been hit."), OSMessage_Info);
+        }
+
+        if (MouseClicked)
+        {
+            OSLogMessage(byte_string_literal("Mouse Is Clicked."), OSMessage_Info);
         }
     }
 
