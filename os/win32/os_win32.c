@@ -40,8 +40,57 @@ OSWin32WriteToConsole(byte_string ANSISequence)
 internal LRESULT CALLBACK
 OSWin32WindowProc(HWND Handle, UINT Message, WPARAM WParam, LPARAM LParam)
 {
+    os_inputs *Inputs = &OSWin32State.Inputs;
+
     switch(Message)
     {
+
+    case WM_MOUSEMOVE:
+    {
+        i32 MouseX = GET_X_LPARAM(LParam);
+        i32 MouseY = GET_Y_LPARAM(LParam);
+
+        Inputs->MouseDelta.X += (f32)(MouseX - Inputs->MousePosition.X);
+        Inputs->MouseDelta.Y += (f32)(MouseY - Inputs->MousePosition.Y);
+
+        Inputs->MousePosition.X = (f32)MouseX;
+        Inputs->MousePosition.Y = (f32)MouseY;
+    } break;
+
+    case WM_KEYDOWN:
+    case WM_KEYUP:
+    case WM_SYSKEYDOWN:
+    case WM_SYSKEYUP:
+    {
+        u32 VKCode  = (u32)WParam;
+        b32 WasDown = ((LParam & ((size_t)1 << 30)) != 0);
+        b32 IsDown  = ((LParam & ((size_t)1 << 31)) == 0);
+
+        if (WasDown != IsDown && VKCode < OS_KeyboardButtonCount)
+        {
+            ProcessInputMessage(&Inputs->KeyboardButtons[VKCode], IsDown);
+        }
+    } break;
+
+    case WM_LBUTTONDOWN:
+    {
+        ProcessInputMessage(&Inputs->MouseButtons[OSMouseButton_Left], 1);
+    } break;
+
+    case WM_LBUTTONUP:
+    {
+        ProcessInputMessage(&Inputs->MouseButtons[OSMouseButton_Left], 0);
+    } break;
+
+    case WM_RBUTTONDOWN:
+    {
+        ProcessInputMessage(&Inputs->MouseButtons[OSMouseButton_Right], 1);
+    } break;
+
+    case WM_RBUTTONUP:
+    {
+        ProcessInputMessage(&Inputs->MouseButtons[OSMouseButton_Right], 0);
+    } break;
 
     case WM_CLOSE:
     {
@@ -305,7 +354,7 @@ OSSleep(u32 Milliseconds)
     Sleep(Milliseconds);
 }
 
-// [Per-OS API Getters Implementation]
+// [OS State | PER_OS]
 
 internal os_system_info *
 OSGetSystemInfo(void)
@@ -329,6 +378,13 @@ OSGetClientSize(void)
         Result.Y = (ClientRect.bottom - ClientRect.top);
     }
 
+    return Result;
+}
+
+internal vec2_f32
+OSGetMousePosition(void)
+{
+    vec2_f32 Result = OSWin32State.Inputs.MousePosition;
     return Result;
 }
 

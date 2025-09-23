@@ -58,12 +58,13 @@ internal vec2_i32   Vec2I32            (i32 X, i32 Y);
 internal vec2_f32   Vec2I32ToVec2F32  (vec2_i32 Vec);
 internal matrix_3x3 Mat3x3Zero        (void);
 internal matrix_3x3 Mat3x3Identity    (void);
-internal rect_f32   RectF32           (f32 MinX, f32 MinY, f32 MaxX, f32 MaxY);
+internal rect_f32   RectF32           (f32 MinX, f32 MinY, f32 Width, f32 Height);
 internal rect_f32   RectF32Zero       (void);
 
 // [Rect]
 
 internal rect_f32 IntersectRectF32  (rect_f32 R1, rect_f32 R2);
+internal b32      IsPointInRect     (rect_f32 Target, vec2_f32 Point);
 
 // [Helpers]
 

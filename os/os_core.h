@@ -74,7 +74,7 @@ typedef struct ui_font          ui_font;
 
 // [Inputs]
 
-internal void ProccessInputMessage(os_button_state *NewState, b32 IsDown);
+internal void ProcessInputMessage(os_button_state *NewState, b32 IsDown);
 
 // [Files]
 
@@ -87,10 +87,11 @@ internal void  AdvanceFile      (os_file *File, u32 Count);
 internal os_handle OSFindFile  (byte_string Path);
 internal os_file   OSReadFile  (os_handle Handle, memory_arena *Arena);
 
-// [Info]
+// [OS State]
 
-internal os_system_info *OSGetSystemInfo  (void);
-internal vec2_i32        OSGetClientSize  (void);
+internal os_system_info *OSGetSystemInfo     (void);
+internal vec2_i32        OSGetClientSize     (void);
+internal vec2_f32        OSGetMousePosition  (void);
 
 // [Memory]
 

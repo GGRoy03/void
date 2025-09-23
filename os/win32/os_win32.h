@@ -4,6 +4,7 @@
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <windowsx.h>
 
 #pragma comment(lib, "user32")
 #pragma comment(lib, "dwrite")
@@ -21,16 +22,13 @@ typedef struct os_win32_state
     // Misc
     memory_arena *Arena;
 
-    // Text
+    // PER_OS
     os_text_backend *TextBackend;
+    os_system_info   SystemInfo;
+    os_inputs        Inputs;
 
-    // Info
-    os_system_info SystemInfo;
-
-    // Handles
+    // WIN32
     HWND WindowHandle;
-
-    // Console
     HWND ConsoleHandle;
     b32  ConsoleSupportsVT;
 } os_win32_state;

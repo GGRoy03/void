@@ -321,13 +321,11 @@ UISetTextBinding(ui_pipeline *Pipeline, ui_character *Characters, u32 Count, ui_
     if (LNode && Font)
     {
         LNode->Layout.Text = PushArray(Pipeline->StaticArena, ui_text, 1);
-        LNode->Layout.Text->AtlasTexture = RenderHandle((u64)Font->GPUFontObjects.GlyphCacheView);
+        LNode->Layout.Text->AtlasTexture     = RenderHandle((u64)Font->GPUFontObjects.GlyphCacheView);
         LNode->Layout.Text->AtlasTextureSize = Font->TextureSize;
-        LNode->Layout.Text->Size = Count;
-        LNode->Layout.Text->Characters = Characters;
-        LNode->Layout.Text->LineHeight = Font->LineHeight;
-
-        LNode->Layout.Flags |= UILayoutBox_DrawText;
+        LNode->Layout.Text->Size             = Count;
+        LNode->Layout.Text->Characters       = Characters;
+        LNode->Layout.Text->LineHeight       = Font->LineHeight;
     }
     else
     {
@@ -479,7 +477,7 @@ UIPipelineBegin(ui_pipeline *Pipeline)
 
 internal void
 UIPipelineExecute(ui_pipeline *Pipeline, render_pass_list *PassList)
-{   Assert(Pipeline);
+{   Assert(Pipeline && PassList);
 
     // Unpacking
     ui_node     *SRoot      = &Pipeline->StyleTree.Nodes[0];
@@ -490,12 +488,25 @@ UIPipelineExecute(ui_pipeline *Pipeline, render_pass_list *PassList)
 
     UIPipelineTopDownLayout(Pipeline);
 
+    // Hit-Testing
+    {
+        vec2_f32 MousePosition = OSGetMousePosition();
+
+        ui_node *Node = UIPipelineHitTest(Pipeline, MousePosition, LRoot);
+        if (Node)
+        {
+            OSLogMessage(byte_string_literal("Something has been hit."), OSMessage_Info);
+        }
+    }
+
     UIPipelineBuildDrawList(Pipeline, RenderPass, SRoot, LRoot);
 }
 
 internal void
 UIPipelineCrystallizeStyles(ui_pipeline *Pipeline, ui_node *Root)
 {   UNUSED(Pipeline && Root);
+
+    // TODO: Implement this....
 }
 
 internal void
@@ -624,6 +635,30 @@ UIPipelineTopDownLayout(ui_pipeline *Pipeline)
     }
 }
 
+internal ui_node *
+UIPipelineHitTest(ui_pipeline *Pipeline, vec2_f32 MousePosition, ui_node *LRoot)
+{
+    ui_layout_box *Box = &LRoot->Layout;
+
+    rect_f32 BoundingBox = RectF32(Box->ClientX, Box->ClientY, Box->Width, Box->Height);
+    if (IsPointInRect(BoundingBox, MousePosition))
+    {
+        for (ui_node *Child = LRoot->Last; Child != 0; Child = Child->Prev)
+        {
+            ui_node *Hit = UIPipelineHitTest(Pipeline, MousePosition, Child);
+
+            if (Hit)
+            {
+                return Hit;
+            }
+        }
+
+        return LRoot;
+    }
+
+    return 0;
+}
+
 internal void
 UIPipelineBuildDrawList(ui_pipeline *Pipeline, render_pass *Pass, ui_node *SRoot, ui_node *LRoot)
 {
@@ -639,7 +674,7 @@ UIPipelineBuildDrawList(ui_pipeline *Pipeline, render_pass *Pass, ui_node *SRoot
         b32 CanMerge = 1;
         if(Node)
         {
-            if(Box->Flags & UILayoutBox_DrawText)
+            if(HasFlag(Box->Flags, UILayoutBox_DrawText))
             {
                 Assert(Box->Text);
                 NewParams.AtlasTextureSize = Box->Text->AtlasTextureSize;
@@ -671,27 +706,27 @@ UIPipelineBuildDrawList(ui_pipeline *Pipeline, render_pass *Pass, ui_node *SRoot
         List         = &Node->BatchList;
     }
 
-    if (Box->Flags & UILayoutBox_DrawBackground)
+    if (HasFlag(Box->Flags, UILayoutBox_DrawBackground))
     {
         render_rect *Rect = PushDataInBatchList(Pipeline->FrameArena, List);  
-        Rect->RectBounds  = RectF32(Box->ClientX, Box->ClientY, Box->ClientX + Box->Width, Box->ClientY + Box->Height);
+        Rect->RectBounds  = RectF32(Box->ClientX, Box->ClientY, Box->Width, Box->Height);
         Rect->Color       = Style->Color;
         Rect->CornerRadii = Style->CornerRadius;
         Rect->Softness    = Style->Softness;
         
     }
 
-    if (Box->Flags & UILayoutBox_DrawBorders)
+    if (HasFlag(Box->Flags, UILayoutBox_DrawBorders))
     {
         render_rect *Rect = PushDataInBatchList(Pipeline->FrameArena, List);
-        Rect->RectBounds  = RectF32(Box->ClientX, Box->ClientY, Box->ClientX + Box->Width, Box->ClientY + Box->Height);
+        Rect->RectBounds  = RectF32(Box->ClientX, Box->ClientY, Box->Width, Box->Height);
         Rect->Color       = Style->BorderColor;
         Rect->BorderWidth = (f32)Style->BorderWidth;
         Rect->CornerRadii = Style->CornerRadius;
         Rect->Softness    = Style->Softness;
     }
 
-    if (Box->Flags & UILayoutBox_DrawText)
+    if (HasFlag(Box->Flags, UILayoutBox_DrawText))
     {
         for (u32 Idx = 0; Idx < Box->Text->Size; Idx++)
         {

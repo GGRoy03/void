@@ -239,6 +239,7 @@ internal ui_pipeline UICreatePipeline         (ui_pipeline_params Params);
 internal void        UIPipelineBegin          (ui_pipeline *Pipeline);
 internal void        UIPipelineExecute        (ui_pipeline *Pipeline, render_pass_list *PassList);
 
-internal void        UIPipelineSynchronize    (ui_pipeline *Pipeline, ui_node *Root);
-internal void        UIPipelineTopDownLayout  (ui_pipeline *Pipeline);
-internal void        UIPipelineBuildDrawList  (ui_pipeline *Pipeline, render_pass *Pass, ui_node *SRoot, ui_node *LRoot);
+internal void      UIPipelineSynchronize    (ui_pipeline *Pipeline, ui_node *Root);
+internal void      UIPipelineTopDownLayout  (ui_pipeline *Pipeline);
+internal ui_node * UIPipelineHitTest        (ui_pipeline *Pipeline, vec2_f32 MousePosition, ui_node *LRoot);
+internal void      UIPipelineBuildDrawList  (ui_pipeline *Pipeline, render_pass *Pass, ui_node *SRoot, ui_node *LRoot);

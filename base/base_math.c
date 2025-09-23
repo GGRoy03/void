@@ -69,13 +69,13 @@ Mat3x3Identity(void)
 }
 
 internal rect_f32
-RectF32(f32 MinX, f32 MinY, f32 MaxX, f32 MaxY)
+RectF32(f32 MinX, f32 MinY, f32 Width, f32 Height)
 {
 	rect_f32 Result;
 	Result.Min.X = MinX;
 	Result.Min.Y = MinY;
-	Result.Max.X = MaxX;
-	Result.Max.Y = MaxY;
+	Result.Max.X = MinX + Width;
+	Result.Max.Y = MinY + Height;
 
 	return Result;
 }
@@ -107,6 +107,14 @@ IntersectRectF32(rect_f32 R1, rect_f32 R2)
 		Result.Max.Y = 0;
 	}
 	
+	return Result;
+}
+
+internal b32
+IsPointInRect(rect_f32 Target, vec2_f32 Point)
+{
+	b32 Result = (Point.X <= Target.Max.X && Point.X >= Target.Min.X) &&
+		         (Point.Y <= Target.Max.Y && Point.Y >= Target.Min.Y);
 	return Result;
 }
 
