@@ -84,14 +84,14 @@ LoadThemeFiles(byte_string *Files, u32 FileCount, ui_style_registery *Registery,
         }
 
         Tokenizer.AtLine = 1;
-        Tokenizer.Count  = 0;
+        Tokenizer.Count = 0;
         PopArenaTo(Tokenizer.Arena, 0); // BUG: Wrong pop?
     }
 
     ReleaseArena(Tokenizer.Arena);
 }
 
-// [Internal Implementation]
+// [Tokenizer]
 
 internal style_token *
 CreateStyleToken(UIStyleToken_Type Type, style_tokenizer *Tokenizer)
@@ -104,33 +104,110 @@ CreateStyleToken(UIStyleToken_Type Type, style_tokenizer *Tokenizer)
     }
     else
     {
-        Result             = Tokenizer->Buffer + Tokenizer->Count++;
+        Result = Tokenizer->Buffer + Tokenizer->Count++;
         Result->LineInFile = Tokenizer->AtLine;
-        Result->Type       = Type;
+        Result->Type = Type;
     }
 
     return Result;
 }
 
-// [Tokenizer]
+internal b32
+ReadUnit(os_file *File, ui_unit *Result)
+{
+    f64 Number = 0;
 
-internal u32
-ReadNumber(os_file *File)
-{   Assert(IsDigit(PeekFile(File, 0)));
-
-    u32 Number    = 0;
-    u8  Character = PeekFile(File, 0);
-
-    while (IsDigit(Character))
+    while (IsValidFile(File))
     {
-        Number = Number * 10 + (Character - '0');
-        AdvanceFile(File, 1);
-        Character = PeekFile(File, 0);
+        u8 Char = PeekFile(File, 0);
+        if (IsDigit(Char))
+        {
+            Number = (Number * 10) + (Char - '0');
+            AdvanceFile(File, 1);
+        }
+        else
+        {
+            break;
+        }
     }
 
-    return Number;
-}
+    if (IsValidFile(File))
+    {
+        if (PeekFile(File, 0) == '.')
+        {
+            AdvanceFile(File, 1); // Consumes '.'
 
+            f64 C = 1.0 / 10.0;
+            while (IsValidFile(File))
+            {
+                u8 Char = PeekFile(File, 0);
+                if (IsDigit(Char))
+                {
+                    Number = Number + (C * (f64)(Char - '0'));
+                    C     *= 1.0f / 10.0f;
+
+                    AdvanceFile(File, 1);
+                }
+                else
+                {
+                    break;
+                }
+            }
+
+            if (IsValidFile(File))
+            {
+                if (PeekFile(File, 0) == '%')
+                {
+                    Result->Type = UIUnit_Percent;
+
+                    if (Number >= 0.f && Number <= 100.f)
+                    {
+                        Result->Percent = (f32)Number;
+                        AdvanceFile(File, 1);
+                    }
+                    else
+                    {
+                        return 0;  // TODO: Error messages?
+                    }
+                }
+                else
+                {
+                    Result->Type    = UIUnit_Float32;
+                    Result->Float32 = (f32)Number;
+                }
+            }
+            else
+            {
+                return 0;
+            }
+        }
+        else if (PeekFile(File, 0) == '%')
+        {
+            Result->Type = UIUnit_Percent;
+
+            if (Number >= 0.f && Number <= 100.f)
+            {
+                Result->Percent = (f32)Number;
+                AdvanceFile(File, 1);
+            }
+            else
+            {
+                return 0;  // TODO: Error messages?
+            }
+        }
+        else
+        {
+            Result->Type    = UIUnit_Float32;
+            Result->Float32 = (f32)Number;
+        }
+    }
+    else
+    {
+        return 0;
+    }
+
+    return 1;
+}
 
 internal b32
 ReadString(os_file *File, byte_string *OutString)
@@ -138,13 +215,18 @@ ReadString(os_file *File, byte_string *OutString)
     OutString->String = PeekFilePointer(File);
     OutString->Size   = 0;
 
-    u8 Character = *OutString->String;
-
-    while (IsAlpha(Character))
+    while (IsValidFile(File))
     {
-        OutString->Size += 1;
-        AdvanceFile(File, 1);
-        Character = PeekFile(File, 0);
+        u8 Character = PeekFile(File, 0);
+        if (IsAlpha(Character) || Character == '_')
+        {
+            ++OutString->Size;
+            AdvanceFile(File, 1);
+        }
+        else
+        {
+            break;
+        }
     }
 
     b32 Result = (OutString->String != 0) && (OutString->Size != 0);
@@ -166,10 +248,15 @@ ReadVector(os_file *File, u32 MinimumSize, u32 MaximumSize, style_token *Result)
         if (!IsDigit(Character))
         {
             WriteStyleErrorMessage(Result->LineInFile, OSMessage_Error, byte_string_literal("Vectors must only contain digits."));
-            break;
+            return 0;
         }
 
-        Result->Vector.Values[Count++] = (f32)ReadNumber(File);
+        b32 Success = ReadUnit(File, &Result->Vector.Values[Count++]);
+        if(!Success)
+        {
+            WriteStyleErrorMessage(Result->LineInFile, OSMessage_Error, byte_string_literal("Could not parse unit."));
+            return 0;
+        }
 
         SkipWhiteSpaces(File);
 
@@ -186,8 +273,8 @@ ReadVector(os_file *File, u32 MinimumSize, u32 MaximumSize, style_token *Result)
         }
         else
         {
-            WriteStyleErrorMessage(Result->LineInFile, OSMessage_Error, byte_string_literal("Invalid character found in vector %c"), Character);
-            break;
+            WriteStyleErrorMessage(Result->LineInFile, OSMessage_Error, byte_string_literal("Invalid character found in vector: %c"), Character);
+            return 0;
         }
     }
 
@@ -216,11 +303,11 @@ TokenizeStyleFile(os_file *File, style_tokenizer *Tokenizer)
                 return Success;
             }
 
-            if (ByteStringMatches(Identifier, byte_string_literal("style")))
+            if (ByteStringMatches(Identifier, byte_string_literal("style"), StringMatch_NoFlag))
             {
                 CreateStyleToken(UIStyleToken_Style, Tokenizer);
             }
-            else if (ByteStringMatches(Identifier, byte_string_literal("for")))
+            else if (ByteStringMatches(Identifier, byte_string_literal("for"), StringMatch_NoFlag))
             {
                 CreateStyleToken(UIStyleToken_For, Tokenizer);
             }
@@ -234,7 +321,13 @@ TokenizeStyleFile(os_file *File, style_tokenizer *Tokenizer)
 
         if (IsDigit(Char))
         {
-            CreateStyleToken(UIStyleToken_Number, Tokenizer)->UInt32 = ReadNumber(File);
+            Success = ReadUnit(File, &(CreateStyleToken(UIStyleToken_Number, Tokenizer)->Unit));
+            if (!Success)
+            {
+                WriteStyleErrorMessage(Tokenizer->AtLine, OSMessage_Error, byte_string_literal("Failed to parse unit."));
+                return Success;
+            }
+
             continue;
         }
 
@@ -243,7 +336,6 @@ TokenizeStyleFile(os_file *File, style_tokenizer *Tokenizer)
             u8 Next = PeekFile(File, 1);
             if (Char == '\r' && Next == '\n')
             {
-                Tokenizer->AtLine += 1;
                 AdvanceFile(File, 1);
             }
 
@@ -296,12 +388,19 @@ TokenizeStyleFile(os_file *File, style_tokenizer *Tokenizer)
             }
 
             CreateStyleToken(UIStyleToken_String, Tokenizer)->Identifier = String;
+            
+            if (PeekFile(File, 0) != '"')
+            {
+                WriteStyleErrorMessage(0, OSMessage_Error, byte_string_literal("Could not parse string. Invalid Characters?"));
+                return Success;
+            }
 
             AdvanceFile(File, 1); // Skip the second '"'
 
             continue;
         }
 
+        // TODO: I think we add specific tokens for {, } and ;
         CreateStyleToken((UIStyleToken_Type)Char, Tokenizer);
         AdvanceFile(File, 1);
     }
@@ -312,6 +411,50 @@ TokenizeStyleFile(os_file *File, style_tokenizer *Tokenizer)
 }
 
 // [Parser]
+
+internal b32 
+ValidateVectorUnitType(vec4_unit Vec, UIUnit_Type MustBe, u32 Count, u32 Offset)
+{   Assert(Count + Offset <= 4);
+
+    for (u32 Idx = Offset; Idx < Count + Offset; Idx++)
+    {
+        if (Vec.Values[Idx].Type != MustBe)
+        {
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
+internal b32
+ValidateColor(vec4_unit Vec)
+{
+    for (u32 Idx = 0; Idx < 4; Idx++)
+    {
+        // Validate that there is only plain floats.
+        if (Vec.Values[Idx].Type != UIUnit_Float32)
+        {
+            return 0;
+        }
+
+        // Validate the bounds of the values [0..255]
+        if (!(Vec.Values[Idx].Float32 >= 0 && Vec.Values[Idx].Float32 <= 255))
+        {
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
+internal ui_color
+ToNormalizedColor(vec4_unit Vec)
+{
+    f32      Inverse = 1.f / 255;
+    ui_color Result  = UIColor(Vec.X.Float32 * Inverse, Vec.Y.Float32 * Inverse, Vec.Z.Float32 * Inverse, Vec.W.Float32 * Inverse);
+    return Result;
+}
 
 internal UIStyleAttribute_Flag
 GetStyleAttributeFlag(byte_string Identifier)
@@ -330,45 +473,45 @@ GetStyleAttributeFlag(byte_string Identifier)
     byte_string BorderColor  = byte_string_literal("bordercolor");
     byte_string BorderRadius = byte_string_literal("borderradius");
 
-    if (ByteStringMatches(Identifier, Size))
+    if (ByteStringMatches(Identifier, Size, StringMatch_NoFlag))
     {
         Result = UIStyleAttribute_Size;
     }
-    else if (ByteStringMatches(Identifier, Color))
+    else if (ByteStringMatches(Identifier, Color, StringMatch_NoFlag))
     {
         Result = UIStyleAttribute_Color;
     }
-    else if (ByteStringMatches(Identifier, Padding))
+    else if (ByteStringMatches(Identifier, Padding, StringMatch_NoFlag))
     {
         Result = UIStyleAttribute_Padding;
     }
-    else if (ByteStringMatches(Identifier, Spacing))
+    else if (ByteStringMatches(Identifier, Spacing, StringMatch_NoFlag))
     {
         Result = UIStyleAttribute_Spacing;
     }
-    else if (ByteStringMatches(Identifier, FontSize))
+    else if (ByteStringMatches(Identifier, FontSize, StringMatch_NoFlag))
     {
         Result = UIStyleAttribute_FontSize;
     }
-    else if (ByteStringMatches(Identifier, FontName))
+    else if (ByteStringMatches(Identifier, FontName, StringMatch_NoFlag))
     {
         Result = UIStyleAttribute_FontName;
     }
-    else if (ByteStringMatches(Identifier, Softness))
+    else if (ByteStringMatches(Identifier, Softness, StringMatch_NoFlag))
     {
         Result = UIStyleAttribute_Softness;
     }
-    else if (ByteStringMatches(Identifier, BorderWidth))
+    else if (ByteStringMatches(Identifier, BorderWidth, StringMatch_NoFlag))
     {
         Result = UIStyleAttribute_BorderWidth;
     }
-    else if (ByteStringMatches(Identifier, BorderColor))
+    else if (ByteStringMatches(Identifier, BorderColor, StringMatch_NoFlag))
     {
         Result = UIStyleAttribute_BorderColor;
     }
-    else if (ByteStringMatches(Identifier, BorderRadius))
+    else if (ByteStringMatches(Identifier, BorderRadius, StringMatch_NoFlag))
     {
-        Result = UIStyleAttribute_BorderRadius;
+        Result = UIStyleAttribute_CornerRadius;
     }
 
     return Result;
@@ -392,7 +535,7 @@ IsAttributeFormattedCorrectly(UIStyleToken_Type TokenType, UIStyleAttribute_Flag
     case UIStyleToken_Vector:
     {
         Result = (AttributeFlag & UIStyleAttribute_BorderColor ) ||
-                 (AttributeFlag & UIStyleAttribute_BorderRadius) ||
+                 (AttributeFlag & UIStyleAttribute_CornerRadius) ||
                  (AttributeFlag & UIStyleAttribute_Padding     ) ||
                  (AttributeFlag & UIStyleAttribute_Spacing     ) ||
                  (AttributeFlag & UIStyleAttribute_Color       ) ||
@@ -404,10 +547,7 @@ IsAttributeFormattedCorrectly(UIStyleToken_Type TokenType, UIStyleAttribute_Flag
         Result = (AttributeFlag & UIStyleAttribute_FontName);
     } break;
 
-    default:
-    {
-
-    } break;
+    default: break;
 
     }
 
@@ -417,6 +557,8 @@ IsAttributeFormattedCorrectly(UIStyleToken_Type TokenType, UIStyleAttribute_Flag
 internal b32
 SaveStyleAttribute(UIStyleAttribute_Flag Attribute, style_token *Value, style_parser *Parser)
 {
+    b32 Valid = 1;
+
     switch (Attribute)
     {
 
@@ -426,20 +568,107 @@ SaveStyleAttribute(UIStyleAttribute_Flag Attribute, style_token *Value, style_pa
         return 0;
     } break;
 
-    case UIStyleAttribute_Size:         Parser->Style.Size         = Vec2F32(Value->Vector.X, Value->Vector.Y); break;
-    case UIStyleAttribute_Color:        Parser->Style.Color        = NormalizedColor(Value->Vector);            break;
-    case UIStyleAttribute_Padding:      Parser->Style.Padding      = Value->Vector;                             break;
-    case UIStyleAttribute_Spacing:      Parser->Style.Spacing      = Vec2F32(Value->Vector.X, Value->Vector.Y); break;
-    case UIStyleAttribute_FontSize:     Parser->Style.FontSize     = (f32)Value->UInt32;                        break;
-    case UIStyleAttribute_FontName:     Parser->Style.Font.Name    = Value->Identifier;                         break;
-    case UIStyleAttribute_Softness:     Parser->Style.Softness     = (f32)Value->UInt32;                        break;
-    case UIStyleAttribute_BorderColor:  Parser->Style.BorderColor  = NormalizedColor(Value->Vector);            break;
-    case UIStyleAttribute_BorderWidth:  Parser->Style.BorderWidth  = Value->UInt32;                             break;
-    case UIStyleAttribute_BorderRadius: Parser->Style.CornerRadius = Value->Vector;                             break;
+    case UIStyleAttribute_Size:
+    {
+        if (Value->Vector.Z.Type != UIUnit_None || Value->Vector.W.Type != UIUnit_None)
+        {
+            WriteStyleErrorMessage(Value->LineInFile, OSMessage_Error, byte_string_literal("Size must be: [Width, Height]"));
+            return 0;
+        }
+
+        Parser->Style.Size = Vec2Unit(Value->Vector.X, Value->Vector.Y);
+    } break;
+
+    case UIStyleAttribute_Color:
+    {
+        Valid = ValidateColor(Value->Vector);
+        if (!Valid)
+        {
+            WriteStyleErrorMessage(Value->LineInFile, OSMessage_Error, byte_string_literal("Color values must be included in [0, 255]"));
+            return 0;
+        }
+
+        Parser->Style.Color = ToNormalizedColor(Value->Vector);
+    } break;
+
+    case UIStyleAttribute_Padding:
+    {
+        Valid = ValidateVectorUnitType(Value->Vector, UIUnit_Float32, 4, 0);
+        if (!Valid)
+        {
+            WriteStyleErrorMessage(Value->LineInFile, OSMessage_Error, byte_string_literal("Padding must be: [Float, Float, Float, Float]"));
+            return 0;
+        }
+
+        Parser->Style.Padding = UIPadding(Value->Vector.X.Float32, Value->Vector.Y.Float32, Value->Vector.Z.Float32, Value->Vector.W.Float32);
+    } break;
+
+    case UIStyleAttribute_Spacing:
+    {
+        Valid = (ValidateVectorUnitType(Value->Vector, UIUnit_None, 2, 2));
+        if (!Valid)
+        {
+            WriteStyleErrorMessage(Value->LineInFile, OSMessage_Error, byte_string_literal("Spacing must be: [Horizontal, Vertical]"));
+            return 0;
+        }
+
+        Valid = ValidateVectorUnitType(Value->Vector, UIUnit_Float32, 2, 0);
+        if (!Valid)
+        {
+            WriteStyleErrorMessage(Value->LineInFile, OSMessage_Error, byte_string_literal("Spacing must be: [Float, Float]"));
+            return 0;
+        }
+
+        Parser->Style.Spacing = UISpacing(Value->Vector.X.Float32, Value->Vector.Y.Float32);
+    } break;
+
+    case UIStyleAttribute_FontSize:
+    {
+        Parser->Style.FontSize = Value->Unit.Float32;
+    } break;
+
+    case UIStyleAttribute_FontName:
+    {
+        Parser->Style.Font.Name = Value->Identifier;
+    } break;
+
+    case UIStyleAttribute_Softness:
+    {
+        Parser->Style.Softness = Value->Unit.Float32;
+    } break;
+
+    case UIStyleAttribute_BorderColor:
+    {
+        Valid = ValidateColor(Value->Vector);
+        if (!Valid)
+        {
+            WriteStyleErrorMessage(Value->LineInFile, OSMessage_Error, byte_string_literal("Color values must be included in [0, 255]"));
+            return 0;
+        }
+
+        Parser->Style.BorderColor = ToNormalizedColor(Value->Vector);
+    } break;
+
+    case UIStyleAttribute_BorderWidth:
+    {
+        Parser->Style.BorderWidth = Value->Unit.Float32;
+    } break;
+
+    case UIStyleAttribute_CornerRadius:
+    {
+        Valid = ValidateVectorUnitType(Value->Vector, UIUnit_Float32, 4, 0);
+        if(!Valid)
+        {
+            WriteStyleErrorMessage(Value->LineInFile, OSMessage_Error, byte_string_literal("Corner Radius must be: [Float, Float, Float, Float]"));
+            return 0;
+        }
+
+        Parser->Style.CornerRadius = UICornerRadius(Value->Vector.X.Float32, Value->Vector.Y.Float32, Value->Vector.Z.Float32, Value->Vector.W.Float32);
+    } break;
 
     }
 
-    return 1;
+    return Valid;
 }
 
 internal void
@@ -448,11 +677,13 @@ CacheStyle(ui_style Style, byte_string Name, ui_style_registery *Registery, rend
     if (Name.Size <= ThemeNameLength)
     {
         // NOTE: I believe this check is now useless since it is caught way earlier?
-        ui_style_name CachedName = UIGetCachedNameFromStyleName(Name, Registery);
+        ui_style_name CachedName = UIGetCachedName(Name, Registery);
 
         if (!IsValidByteString(CachedName.Value))
         {
-            // BUG: Doesn't check if it's an already referenced font.
+            // BUG: Doesn't check if it's an already referenced font. Yeah and this comes
+            // from the fact that the fonts are not centralized.
+            // TODO: Centralize the fonts.
 
             // Load deferred data
             if(IsValidByteString(Style.Font.Name))
@@ -611,7 +842,7 @@ ParseStyleHeader(style_parser *Parser, style_token *Tokens, u32 TokenBufferSize)
             return 0;
         }
 
-        ui_style_name CachedName = UIGetCachedNameFromStyleName(Name->Identifier, Parser->Registery);
+        ui_style_name CachedName = UIGetCachedName(Name->Identifier, Parser->Registery);
         if (IsValidByteString(CachedName.Value))
         {
             WriteStyleErrorMessage(Name->LineInFile, OSMessage_Error, byte_string_literal("A style with the same name already exists."));
@@ -645,18 +876,23 @@ ParseStyleHeader(style_parser *Parser, style_token *Tokens, u32 TokenBufferSize)
         byte_string WindowString = byte_string_literal("window");
         byte_string ButtonString = byte_string_literal("button");
         byte_string LabelString  = byte_string_literal("label");
+        byte_string HeaderString = byte_string_literal("header");
 
-        if (ByteStringMatches(Type->Identifier, WindowString))
+        if (ByteStringMatches(Type->Identifier, WindowString, StringMatch_NoFlag))
         {
-            Parser->StyleType = UIStyle_Window;
+            Parser->StyleType = UINode_Window;
         }
-        else if (ByteStringMatches(Type->Identifier, ButtonString))
+        else if (ByteStringMatches(Type->Identifier, ButtonString, StringMatch_NoFlag))
         {
-            Parser->StyleType = UIStyle_Button;
+            Parser->StyleType = UINode_Button;
         }
-        else if (ByteStringMatches(Type->Identifier, LabelString))
+        else if (ByteStringMatches(Type->Identifier, LabelString, StringMatch_NoFlag))
         {
-            Parser->StyleType = UIStyle_Label;
+            Parser->StyleType = UINode_Label;
+        }
+        else if (ByteStringMatches(Type->Identifier, HeaderString, StringMatch_NoFlag))
+        {
+            Parser->StyleType = UINode_Header;
         }
         else
         {
@@ -714,7 +950,7 @@ ParseStyleFile(style_parser *Parser, style_token *Tokens, u32 TokenBufferSize)
 
         Parser->StyleName = ByteString(0, 0);
         Parser->Style     = (ui_style){ 0 };
-        Parser->StyleType = UIStyle_None;
+        Parser->StyleType = UINode_None;
     }
 
     return 1;
@@ -735,14 +971,16 @@ UIStyleAttributeToString(UIStyleAttribute_Flag Flag)
     case UIStyleAttribute_Spacing:      return "Spacing";
     case UIStyleAttribute_FontSize:     return "Font Size";
     case UIStyleAttribute_FontName:     return "Font Name";
-    case UIStyleAttribute_Softness:     return "BorderSoftness";
-    case UIStyleAttribute_BorderColor:  return "BorderColor";
-    case UIStyleAttribute_BorderWidth:  return "BorderWidth";
-    case UIStyleAttribute_BorderRadius: return "BorderRadius";
+    case UIStyleAttribute_Softness:     return "Softness";
+    case UIStyleAttribute_BorderColor:  return "Border Color";
+    case UIStyleAttribute_BorderWidth:  return "Border Width";
+    case UIStyleAttribute_CornerRadius: return "Corner Radius";
     default:                            return "Unknown";
 
     }
 }
+
+// TODO: This is still wrong, these aren't all parsing errors.
 
 internal void
 WriteStyleErrorMessage(u32 LineInFile, OSMessage_Severity Severity, byte_string Format, ...)

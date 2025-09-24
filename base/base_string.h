@@ -1,5 +1,13 @@
 #pragma once
 
+// [CONSTANTS]
+
+typedef enum StringMatch_Flag
+{
+    StringMatch_NoFlag        = 0,
+    StringMatch_CaseSensitive = 1,
+} StringMatch_Flag;
+
 // [CORE TYPES]
 
 typedef struct byte_string
@@ -40,7 +48,7 @@ internal b32  IsAlpha            (u8 Char);
 internal b32  IsDigit            (u8 Char);
 internal b32  IsWhiteSpace       (u8 Char);
 internal u8   ToLowerChar        (u8 Char);
-internal b32  ByteStringMatches  (byte_string Str1, byte_string Str2);
+internal b32  ByteStringMatches  (byte_string Str1, byte_string Str2, bit_field Flags);
 
 // [Encoding/Decoding]
 

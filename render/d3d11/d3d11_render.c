@@ -60,6 +60,7 @@ InitializeRenderer(memory_arena *Arena)
     d3d11_backend *Backend = PushArray(Arena, d3d11_backend, 1); 
     HRESULT        Error   = S_OK;
 
+    // BUG: Causing some weird debug messages.
     {
         UINT CreateFlags = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
         #ifndef NDEBUG

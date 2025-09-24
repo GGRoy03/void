@@ -19,16 +19,6 @@ typedef struct direct_glyph_table direct_glyph_table;
 
 // [CORE TYPES]
 
-// NOTE: Must be padded to 16 bytes alignment.
-typedef struct render_rect
-{
-    rect_f32 RectBounds;
-    rect_f32 AtlasSampleSource;
-    vec4_f32 Color;
-    vec4_f32 CornerRadii;
-    f32      BorderWidth, Softness, SampleAtlas, _P0; // Style Params
-} render_rect;
-
 // Batch types
 // A batch is a linked list of raw byte data
 
@@ -141,7 +131,7 @@ read_only global u32 UIPassDefaultPaddingSize      = Kilobyte(25);
 
 read_only global u64 RenderPassDataSizeTable[] =
 {
-    {sizeof(render_rect)}, // Inputs to UI pass.
+    {80}, // Inputs to UI pass (ui_rect)
 };
 
 // [FORWARD DECLARATIONS]

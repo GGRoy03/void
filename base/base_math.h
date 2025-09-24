@@ -17,7 +17,7 @@ typedef struct vec4_f32
 {
 	union
 	{
-		struct {f32 X; f32 Y; f32 Z; f32 W;};
+		struct { f32 X; f32 Y; f32 Z; f32 W; };
 		f32 Values[4];
 	};
 } vec4_f32;
@@ -68,11 +68,13 @@ internal b32      IsPointInRect     (rect_f32 Target, vec2_f32 Point);
 
 // [Helpers]
 
-internal b32 Vec2I32IsEqual  (vec2_i32 Vec1, vec2_i32 Vec2);
-internal b32 Vec2I32IsEmpty  (vec2_i32 Vec);
-internal b32 Vec2F32IsEqual  (vec2_f32 Vec1, vec2_f32 Vec2);
-internal b32 Vec2F32IsEmpty  (vec2_f32 Vec);
-internal b32 Mat3x3AreEqual  (matrix_3x3 *m1, matrix_3x3 *m2);
+#define IterateVec4() for(u32 Index = 0; Index < 4; Index++)
+
+internal b32 Vec2I32IsEqual    (vec2_i32 Vec1, vec2_i32 Vec2);
+internal b32 Vec2I32IsEmpty    (vec2_i32 Vec);
+internal b32 Vec2F32IsEqual    (vec2_f32 Vec1, vec2_f32 Vec2);
+internal b32 Vec2F32IsEmpty    (vec2_f32 Vec);
+internal b32 Mat3x3AreEqual    (matrix_3x3 *m1, matrix_3x3 *m2);
 
 // [Misc]
 

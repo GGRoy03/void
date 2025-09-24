@@ -33,7 +33,7 @@ typedef struct file_browser_ui
     // UI_STORAGE
     directory_entry Entries[FileBrowser_EntryCount];
     uint32_t        EntryCount;
-    
+ 
     // UI_LOGIC
     uint32_t               ActiveFolderIndex;
     browsing_history_stack Forward;
@@ -133,7 +133,7 @@ BuildFileTree(const char *RootFolderPath, file_browser_ui *FileBrowser)
         {
             continue;
         }
-        
+
         do
         {
             if (wcscmp(FindData.cFileName, L".") == 0 || wcscmp(FindData.cFileName, L"..") == 0)

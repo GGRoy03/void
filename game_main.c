@@ -13,6 +13,7 @@
 #include "render/render_inc.h"
 #include "ui/ui_inc.h"
 #include "game/game_inc.h"
+#include "editor/editor_inc.h"
 
 // [Source Files]
 #include "base/base_inc.c"
@@ -20,3 +21,4 @@
 #include "render/render_inc.c"
 #include "ui/ui_inc.c"
 #include "game/game_inc.c"
+#include "editor/editor_inc.c"

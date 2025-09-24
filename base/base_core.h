@@ -65,7 +65,8 @@
 
 // [Loop Macros]
 
-#define ForEachEnum(Type, It) for(Type It = (Type)0; It < Type##_Count; It = (Type)(It + 1))
+#define ForEachEnum(Type, It)  for(Type It = (Type)0; It < Type##_Count; It = (Type)(It + 1))
+#define DeferLoop(Begin, End)  for(i32 _i = ((Begin), 0); !_i; _i++, (End))
 
 // [Compiler Warnings]
 

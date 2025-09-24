@@ -134,8 +134,7 @@ OSAcquireFontObjects(byte_string Name, f32 Size, gpu_font_objects *GPUObjects, o
                 OSLogMessage(byte_string_literal("Win32: Failed to create DXGI Transfer Surface."), OSMessage_Error);
             }
 
-            // BUG: Releasing the factory causes an infinite loop.
-            // D2DFactory->Release();
+            D2DFactory->Release();
         }
         else
         {

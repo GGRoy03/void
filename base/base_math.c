@@ -156,11 +156,3 @@ Mat3x3AreEqual(matrix_3x3 *m1, matrix_3x3 *m2)
 }
 
 // [Misc]
-
-internal vec4_f32 
-NormalizedColor(vec4_f32 Vector)
-{
-	f32      Inverse = 1.f / 255;
-	vec4_f32 Result  = Vec4F32(Vector.X * Inverse, Vector.Y * Inverse, Vector.Z * Inverse, Vector.W * Inverse);
-	return Result;
-}

@@ -30,7 +30,15 @@ typedef enum UINode_Type
     UINode_Window = 1,
     UINode_Button = 2,
     UINode_Label  = 3,
+    UINode_Header = 4,
 } UINode_Type;
+
+typedef enum UIUnit_Type
+{
+    UIUnit_None    = 0,
+    UIUnit_Float32 = 1,
+    UIUnit_Percent = 2,
+} UIUnit_Type;
 
 // [FORWARD DECLARATIONS]
 
@@ -48,6 +56,74 @@ DEFINE_TYPED_QUEUE(Node, node, ui_node *);
 
 typedef void ui_click_callback(ui_node *Node, ui_pipeline *Pipeline);
 
+typedef struct ui_unit
+{
+    UIUnit_Type Type;
+    union
+    {
+        f32 Float32;
+        f32 Percent;
+    };
+} ui_unit;
+
+typedef struct ui_color
+{
+    f32 R;
+    f32 G;
+    f32 B;
+    f32 A;
+} ui_color;
+
+typedef struct ui_spacing
+{
+    f32 Horizontal;
+    f32 Vertical;
+} ui_spacing;
+
+typedef struct ui_padding
+{
+    f32 Left;
+    f32 Top;
+    f32 Right;
+    f32 Bot;
+} ui_padding;
+
+typedef struct ui_corner_radius
+{
+    f32 TopLeft;
+    f32 TopRight;
+    f32 BotLeft;
+    f32 BotRight;
+} ui_corner_radius;
+
+typedef struct vec2_unit
+{
+    union
+    {
+        struct { ui_unit X; ui_unit Y; };
+        ui_unit Values[2];
+    };
+} vec2_unit;
+
+typedef struct vec4_unit
+{
+    union
+    {
+        struct { ui_unit X; ui_unit Y; ui_unit Z; ui_unit W; };
+        ui_unit Values[4];
+    };
+} vec4_unit;
+
+// NOTE: Must be padded to 16 bytes alignment.
+typedef struct ui_rect
+{
+    rect_f32         RectBounds;
+    rect_f32         AtlasSampleSource;
+    ui_color         Color;
+    ui_corner_radius CornerRadii;
+    f32              BorderWidth, Softness, SampleAtlas, _P0; // Style Params
+} ui_rect;
+
 typedef struct ui_layout_box
 {
     // Output
@@ -55,10 +131,10 @@ typedef struct ui_layout_box
     f32 ClientY;
 
     // Layout Info
-    f32       Width;
-    f32       Height;
-    vec2_f32  Spacing;
-    vec4_f32  Padding;
+    ui_unit    Width;
+    ui_unit    Height;
+    ui_spacing Spacing;
+    ui_padding Padding;
 
     // Params
     rect_f32   Clip;
@@ -75,19 +151,19 @@ typedef struct ui_layout_box
 typedef struct ui_style
 {
     // Color
-    vec4_f32 Color;
+    ui_color Color;
     f32      Opacity;
 
     // Layout
-    vec4_f32 Padding;
-    vec2_f32 Size;
-    vec2_f32 Spacing;
+    vec2_unit  Size;
+    ui_padding Padding;
+    ui_spacing Spacing;
 
     // Borders/Corners
-    vec4_f32 BorderColor;
-    vec4_f32 CornerRadius;
-    f32      Softness;
-    u32      BorderWidth;
+    ui_color         BorderColor;
+    ui_corner_radius CornerRadius;
+    f32              Softness;
+    f32              BorderWidth;
 
     // Font
     f32 FontSize;
@@ -171,7 +247,6 @@ typedef struct ui_pipeline_params
     u32           ThemeCount;
     u32           TreeDepth;
     u32           TreeNodeCount;
-    u32           FontCount;
     render_handle RendererHandle;
 } ui_pipeline_params;
 
@@ -198,24 +273,35 @@ read_only global u32 LayoutTreeDefaultDepth    = 16;
 
 // [API]
 
+// [Helpers]
+
+internal ui_color         UIColor         (f32 R, f32 G, f32 B, f32 A);
+internal ui_spacing       UISpacing       (f32 Horizontal, f32 Vertical);
+internal ui_padding       UIPadding       (f32 Left, f32 Top, f32 Right, f32 Bot);
+internal ui_corner_radius UICornerRadius  (f32 TopLeft, f32 TopRight, f32 BotLeft, f32 BotRight);
+internal vec2_unit        Vec2Unit        (ui_unit U0, ui_unit U1);
+
 // [Components]
 
 internal void UIWindow  (ui_style_name StyleName, ui_pipeline *Pipeline);
 internal void UIButton  (ui_style_name StyleName, ui_click_callback *Callback, ui_pipeline *Pipeline);
 internal void UILabel   (ui_style_name StyleName, byte_string Text, ui_pipeline *Pipeline);
+internal void UIHeader  (ui_style_name StyleName, ui_pipeline *Pipeline);
+
+#define UIHeaderEx(StyleName, Pipeline) DeferLoop(UIHeader(StyleName, Pipeline), UIPopParentNode(Pipeline.StyleTree));
 
 // [Style]
 
-internal ui_cached_style * UIGetStyleSentinel            (byte_string   Name, ui_style_registery *Registery);
-internal ui_style_name     UIGetCachedNameFromStyleName  (byte_string   Name, ui_style_registery *Registery);
-internal ui_style          UIGetStyleFromCachedName      (ui_style_name Name, ui_style_registery *Registery);
+internal ui_cached_style * UIGetStyleSentinel  (byte_string   Name, ui_style_registery *Registery);
+internal ui_style_name     UIGetCachedName     (byte_string   Name, ui_style_registery *Registery);
+internal ui_style          UIGetStyle          (ui_style_name Name, ui_style_registery *Registery);
 
 // [Tree]
 
 internal ui_tree   UIAllocateTree                (ui_tree_params Params);
-internal void      UIPopParentNodeFromTree       (ui_tree *Tree);
-internal void      UIPushParentNodeInTree        (void *Node, ui_tree *Tree);
-internal void    * UIGetParentNodeFromTree       (ui_tree *Tree);
+internal void      UIPopParentNode               (ui_tree *Tree);
+internal void      UIPushParentNode              (void *Node, ui_tree *Tree);
+internal void    * UIGetParentNode               (ui_tree *Tree);
 internal ui_node * UIGetNextNode                 (ui_tree *Tree, UINode_Type Type);
 internal ui_node * UIGetLayoutNodeFromStyleNode  (ui_node *Node, ui_pipeline *Pipeline);
 

@@ -3,10 +3,9 @@
 // TO ADD NEW STYLES, FOLLOW THIS GUIDE.
 // 1) Add the attribute flag in UIStyleAttribute_Flag.
 // 2) Add the valid style types which may have this new attribute in this table: StyleTypeValidAttributesTable.
-// 3) Add the check for the new attribute in GetStyleAttributeFlagFromIdentifier and return the correct value.
-// 4) Add the appropriate fields in ui_style.
-// 5) Add the format check in IsAttributeFormattedCorrectly
-// 6) Add the WriteStyleAttribute implementation for the new type (must convert to the correct format if needed)
+// 3) Add the check for the new attribute in GetStyleAttributeFlag.
+// 4) Add the format check in IsAttributeFormattedCorrectly
+// 5) Add the SaveStyleAttribute implementation for the new type.
 
 // NOTE: Is there no way to make this way simpler? With a single 'key' per type, the type itself?
 
@@ -29,7 +28,7 @@ typedef enum UIStyleAttribute_Flag
     UIStyleAttribute_Softness     = 1 << 6,
     UIStyleAttribute_BorderColor  = 1 << 7,
     UIStyleAttribute_BorderWidth  = 1 << 8,
-    UIStyleAttribute_BorderRadius = 1 << 9,
+    UIStyleAttribute_CornerRadius = 1 << 9,
 } UIStyleAttribute_Flag;
 
 typedef enum UIStyleToken_Type
@@ -47,14 +46,6 @@ typedef enum UIStyleToken_Type
     UIStyleToken_EndOfFile   = 1 << 15,
 } UIStyleToken_Type;
 
-typedef enum UIStyle_Type
-{
-    UIStyle_None   = 0,
-    UIStyle_Window = 1,
-    UIStyle_Button = 2,
-    UIStyle_Label  = 3,
-} UIStyle_Type;
-
 // [Types]
 
 typedef struct style_token
@@ -64,10 +55,9 @@ typedef struct style_token
     UIStyleToken_Type Type;
     union
     {
-        f32         Float32;
-        u32         UInt32;
+        ui_unit     Unit;
         byte_string Identifier;
-        vec4_f32    Vector;
+        vec4_unit   Vector;
     };
 } style_token;
 
@@ -87,7 +77,7 @@ typedef struct style_parser
     ui_style_registery *Registery;
     u32                 TokenIndex;
     byte_string         StyleName;
-    UIStyle_Type        StyleType;
+    UINode_Type         StyleType;
     ui_style            Style;
 } style_parser;
 
@@ -103,20 +93,28 @@ read_only global bit_field StyleTypeValidAttributesTable[] =
     {
         UIStyleAttribute_Size       |UIStyleAttribute_Padding     |UIStyleAttribute_Spacing |
         UIStyleAttribute_BorderColor|UIStyleAttribute_BorderWidth |UIStyleAttribute_Color   |
-        UIStyleAttribute_Softness   |UIStyleAttribute_BorderRadius|UIStyleAttribute_FontName|
+        UIStyleAttribute_Softness   |UIStyleAttribute_CornerRadius|UIStyleAttribute_FontName|
         UIStyleAttribute_FontSize                                                           
     },
 
     // Button
     {
         UIStyleAttribute_Size    |UIStyleAttribute_BorderColor|UIStyleAttribute_BorderWidth |
-        UIStyleAttribute_Color   |UIStyleAttribute_Softness   |UIStyleAttribute_BorderRadius|
+        UIStyleAttribute_Color   |UIStyleAttribute_Softness   |UIStyleAttribute_CornerRadius|
         UIStyleAttribute_FontName|UIStyleAttribute_FontSize
     },
 
     // Label
     {
         UIStyleAttribute_FontSize | UIStyleAttribute_FontName
+    },
+
+    // Header
+    {
+        UIStyleAttribute_Size    | UIStyleAttribute_BorderColor | UIStyleAttribute_BorderWidth  |
+        UIStyleAttribute_Color   | UIStyleAttribute_Softness    | UIStyleAttribute_CornerRadius |
+        UIStyleAttribute_FontName| UIStyleAttribute_FontSize    | UIStyleAttribute_Padding      |
+        UIStyleAttribute_Spacing
     },
 };
 
@@ -128,9 +126,9 @@ internal void LoadThemeFiles  (byte_string *Files, u32 FileCount, ui_style_regis
 
 internal style_token *CreateStyleToken   (UIStyleToken_Type Type, style_tokenizer *Tokenizer);
 internal b32          TokenizeStyleFile  (os_file *File, style_tokenizer *Tokenizer);
-internal u32          ReadNumber         (os_file *File);
 internal b32          ReadString         (os_file *File, byte_string *OutString);
 internal b32          ReadVector         (os_file *File, u32 MinimumSize, u32 MaximumSize, style_token *Result);
+internal b32          ReadUnit           (os_file *File, ui_unit *Result);
 
 // [Parsing]
 
@@ -140,6 +138,9 @@ internal style_token * PeekStyleToken      (style_token *Tokens, u32 TokenBuffer
 internal b32 ParseStyleFile        (style_parser *Parser, style_token *Tokens, u32 TokenBufferSize);
 internal b32 ParseStyleAttribute   (style_parser *Parser, style_token *Tokens, u32 TokenBufferSize);
 internal b32 ParseStyleHeader      (style_parser *Parser, style_token *Tokens, u32 TokenBufferSize);
+
+internal b32      ValidateColor      (vec4_unit Vec);
+internal ui_color ToNormalizedColor  (vec4_unit Vec);
 
 internal b32                   SaveStyleAttribute             (UIStyleAttribute_Flag Attribute, style_token *Value, style_parser *Parser);
 internal UIStyleAttribute_Flag GetStyleAttributeFlag          (byte_string Identifier);

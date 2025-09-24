@@ -1,3 +1,40 @@
+// [Helpers]
+
+internal ui_color
+UIColor(f32 R, f32 G, f32 B, f32 A)
+{
+    ui_color Result = { R, G, B, A };
+    return Result;
+}
+
+internal ui_spacing
+UISpacing(f32 Horizontal, f32 Vertical)
+{
+    ui_spacing Result = { Horizontal, Vertical };
+    return Result;
+}
+
+internal ui_padding
+UIPadding(f32 Left, f32 Top, f32 Right, f32 Bot)
+{
+    ui_padding Result = { Left, Top, Right, Bot };
+    return Result;
+}
+
+internal ui_corner_radius
+UICornerRadius(f32 TopLeft, f32 TopRight, f32 BotLeft, f32 BotRight)
+{
+    ui_corner_radius Result = { TopLeft, TopRight, BotLeft, BotRight };
+    return Result;
+}
+
+internal vec2_unit
+Vec2Unit(ui_unit U0, ui_unit U1)
+{
+    vec2_unit Result = { U0, U1 };
+    return Result;
+}
+
 // [Components]
 
 // NOTE: Temporary global ID tracker. Obviously, this is not good.
@@ -7,14 +44,16 @@ global i32 NextId;
 internal void
 UIWindow(ui_style_name StyleName, ui_pipeline *Pipeline)
 {
-    ui_style Style = UIGetStyleFromCachedName(StyleName, &Pipeline->StyleRegistery);
+    ui_style Style = UIGetStyle(StyleName, &Pipeline->StyleRegistery);
     ui_node *Node = UIGetNextNode(&Pipeline->StyleTree, UINode_Window);
 
     if (Node)
     {
         Node->Style = Style;
         Node->Id    = NextId++;
-        UILinkNodes(Node, UIGetParentNodeFromTree(&Pipeline->StyleTree));
+
+        UILinkNodes(Node, UIGetParentNode(&Pipeline->StyleTree));
+        UIPushParentNode(Node, &Pipeline->StyleTree);
 
         if(Node->Style.BorderWidth > 0)
         {
@@ -23,22 +62,20 @@ UIWindow(ui_style_name StyleName, ui_pipeline *Pipeline)
 
         UISetFlagBinding(Node, 1, UILayoutBox_DrawBackground         , Pipeline);
         UISetFlagBinding(Node, 1, UILayoutBox_PlaceChildrenVertically, Pipeline);
-
-        UIPushParentNodeInTree(Node, &Pipeline->StyleTree);
     }
 }
 
 internal void
 UIButton(ui_style_name StyleName, ui_click_callback *Callback, ui_pipeline *Pipeline)
 {
-    ui_style Style = UIGetStyleFromCachedName(StyleName, &Pipeline->StyleRegistery);
+    ui_style Style = UIGetStyle(StyleName, &Pipeline->StyleRegistery);
     ui_node *Node  = UIGetNextNode(&Pipeline->StyleTree, UINode_Button);
 
     if (Node)
     {
         Node->Style = Style;
         Node->Id    = NextId++;
-        UILinkNodes(Node, UIGetParentNodeFromTree(&Pipeline->StyleTree));
+        UILinkNodes(Node, UIGetParentNode(&Pipeline->StyleTree));
 
         // Draw Flags
         {
@@ -63,13 +100,13 @@ UIButton(ui_style_name StyleName, ui_click_callback *Callback, ui_pipeline *Pipe
 internal void
 UILabel(ui_style_name StyleName, byte_string Text, ui_pipeline *Pipeline)
 {
-    ui_style Style = UIGetStyleFromCachedName(StyleName, &Pipeline->StyleRegistery);
+    ui_style Style = UIGetStyle(StyleName, &Pipeline->StyleRegistery);
     ui_node *Node  = UIGetNextNode(&Pipeline->StyleTree, UINode_Label);
     if (Node)
     {
         Node->Style = Style;
         Node->Id    = NextId++;
-        UILinkNodes(Node, UIGetParentNodeFromTree(&Pipeline->StyleTree));
+        UILinkNodes(Node, UIGetParentNode(&Pipeline->StyleTree));
 
         // Draw Binds
         {
@@ -84,8 +121,8 @@ UILabel(ui_style_name StyleName, byte_string Text, ui_pipeline *Pipeline)
             }
         }
 
-        f32 TextWidth  = 0;
-        f32 TextHeight = 0;
+        ui_unit TextWidth  = {UIUnit_Float32, 0};
+        ui_unit TextHeight = {UIUnit_Float32, 0};
 
         ui_font      *Font           = Node->Style.Font.Ref;
         ui_character *Characters     = PushArray(Pipeline->StaticArena, ui_character, Text.Size);
@@ -126,16 +163,39 @@ UILabel(ui_style_name StyleName, byte_string Text, ui_pipeline *Pipeline)
                     }
                 }
 
-                TextWidth += Layout.AdvanceX;
-                TextHeight = Layout.Size.Y > TextHeight ? Layout.Size.Y : TextHeight;
+                TextWidth.Float32 += Layout.AdvanceX;
+                TextHeight.Float32 = Layout.Size.Y > TextHeight.Float32 ? Layout.Size.Y : TextHeight.Float32;
 
                 Characters[Idx].Layout       = Layout;
                 Characters[Idx].SampleSource = RasterInfo.SampleSource;
             }
         }
 
-        Node->Style.Size = Vec2F32(TextWidth, TextHeight);
+        Node->Style.Size = Vec2Unit(TextWidth, TextHeight);
         UISetTextBinding(Pipeline, Characters, CharacterCount, Font, Node);
+    }
+}
+
+// BUG: Doesn't act as the parent?
+
+internal void
+UIHeader(ui_style_name StyleName, ui_pipeline *Pipeline)
+{
+    ui_style Style = UIGetStyle(StyleName, &Pipeline->StyleRegistery);
+    ui_node *Node  = UIGetNextNode(&Pipeline->StyleTree, UINode_None);
+
+    if (Node)
+    {
+        Node->Style = Style;
+        Node->Id    = NextId++;
+
+        UILinkNodes(Node, UIGetParentNode(&Pipeline->StyleTree));
+        UIPushParentNode(Node, &Pipeline->StyleTree);
+
+        if (Node->Style.BorderWidth > 0)
+        {
+            UISetFlagBinding(Node, 1, UILayoutBox_DrawBorders, Pipeline);
+        }
     }
 }
 
@@ -155,7 +215,7 @@ UIGetStyleSentinel(byte_string Name, ui_style_registery *Registery)
 }
 
 internal ui_style_name
-UIGetCachedNameFromStyleName(byte_string Name, ui_style_registery *Registery)
+UIGetCachedName(byte_string Name, ui_style_registery *Registery)
 {
     ui_style_name Result = {0};
 
@@ -167,7 +227,7 @@ UIGetCachedNameFromStyleName(byte_string Name, ui_style_registery *Registery)
         for (CachedStyle = Sentinel->Next; CachedStyle != 0; CachedStyle = CachedStyle->Next)
         {
             byte_string CachedString = Registery->CachedName[CachedStyle->Index].Value;
-            if (ByteStringMatches(Name, CachedString))
+            if (ByteStringMatches(Name, CachedString, StringMatch_CaseSensitive))
             {
                 Result = Registery->CachedName[CachedStyle->Index];
                 break;
@@ -179,7 +239,7 @@ UIGetCachedNameFromStyleName(byte_string Name, ui_style_registery *Registery)
 }
 
 internal ui_style
-UIGetStyleFromCachedName(ui_style_name Name, ui_style_registery *Registery)
+UIGetStyle(ui_style_name Name, ui_style_registery *Registery)
 {
     ui_style Result = { 0 };
 
@@ -203,7 +263,7 @@ UIGetStyleFromCachedName(ui_style_name Name, ui_style_registery *Registery)
 // [Tree]
 
 internal void *
-UIGetParentNodeFromTree(ui_tree *Tree)
+UIGetParentNode(ui_tree *Tree)
 {   Assert(Tree);
 
     void *Result = 0;
@@ -217,7 +277,7 @@ UIGetParentNodeFromTree(ui_tree *Tree)
 }
 
 internal void
-UIPushParentNodeInTree(void *Node, ui_tree *Tree)
+UIPushParentNode(void *Node, ui_tree *Tree)
 {   Assert(Node && Tree);
 
     if(Tree->ParentTop < Tree->MaximumDepth)
@@ -227,7 +287,7 @@ UIPushParentNodeInTree(void *Node, ui_tree *Tree)
 }
 
 internal void
-UIPopParentNodeFromTree(ui_tree *Tree)
+UIPopParentNode(ui_tree *Tree)
 {   Assert(Tree);
 
     if (Tree->ParentTop > 0)
@@ -599,12 +659,12 @@ UIPipelineTopDownLayout(ui_pipeline *Pipeline)
                 ui_node        *Current = PopNodeQueue(&Queue);
                 ui_layout_box  *Box     = &Current->Layout;
 
-                f32 AvailableWidth  = Box->Width  - (Box->Padding.X + Box->Padding.Z);
-                f32 AvailableHeight = Box->Height - (Box->Padding.Y + Box->Padding.W);
+                f32 AvailableWidth  = Box->Width.Float32  - (Box->Padding.Left + Box->Padding.Right);
+                f32 AvailableHeight = Box->Height.Float32 - (Box->Padding.Top  + Box->Padding.Bot);
                 f32 UsedWidth       = 0;
                 f32 UsedHeight      = 0;
-                f32 BasePosX        = Box->ClientX + Box->Padding.X;
-                f32 BasePosY        = Box->ClientY + Box->Padding.Y;
+                f32 BasePosX        = Box->ClientX + Box->Padding.Left;
+                f32 BasePosY        = Box->ClientY + Box->Padding.Top;
 
                 {
                     for (ui_node *ChildNode = Current->First; (ChildNode != 0 && UsedWidth <= AvailableWidth); ChildNode = ChildNode->Next)
@@ -613,21 +673,21 @@ UIPipelineTopDownLayout(ui_pipeline *Pipeline)
                         ChildNode->Layout.ClientY = BasePosY + UsedHeight;
 
                         ui_layout_box *ChildBox = &ChildNode->Layout;
-                        ChildBox->Width  = ChildBox->Width  <= AvailableWidth  ? ChildBox->Width  : AvailableWidth;
-                        ChildBox->Height = ChildBox->Height <= AvailableHeight ? ChildBox->Height : AvailableHeight;
+                        ChildBox->Width.Float32  = ChildBox->Width.Float32  <= AvailableWidth  ? ChildBox->Width.Float32  : AvailableWidth;
+                        ChildBox->Height.Float32 = ChildBox->Height.Float32 <= AvailableHeight ? ChildBox->Height.Float32 : AvailableHeight;
 
                         if (Box->Flags & UILayoutBox_PlaceChildrenVertically)
                         {
-                            UsedHeight += ChildBox->Height + Box->Spacing.Y;
+                            UsedHeight += ChildBox->Height.Float32 + Box->Spacing.Vertical;
                         }
                         else
                         {
-                            UsedWidth += ChildBox->Width + Box->Spacing.X;
+                            UsedWidth += ChildBox->Width.Float32 + Box->Spacing.Horizontal;
                         }
 
                         PushNodeQueue(&Queue, ChildNode);
                     }
-                }
+    }
 
                 // Text Position
                 // TODO: Text wrapping and stuff.
@@ -672,7 +732,7 @@ UIPipelineHitTest(ui_pipeline *Pipeline, vec2_f32 MousePosition, ui_node *LRoot)
 {
     ui_layout_box *Box = &LRoot->Layout;
 
-    rect_f32 BoundingBox = RectF32(Box->ClientX, Box->ClientY, Box->Width, Box->Height);
+    rect_f32 BoundingBox = RectF32(Box->ClientX, Box->ClientY, Box->Width.Float32, Box->Height.Float32);
     if (IsPointInRect(BoundingBox, MousePosition))
     {
         for (ui_node *Child = LRoot->Last; Child != 0; Child = Child->Prev)
@@ -719,7 +779,7 @@ UIPipelineBuildDrawList(ui_pipeline *Pipeline, render_pass *Pass, ui_node *SRoot
         if (!Node || !CanMerge)
         {
             Node = PushArray(Pipeline->FrameArena, rect_group_node, 1);
-            Node->BatchList.BytesPerInstance = sizeof(render_rect);
+            Node->BatchList.BytesPerInstance = sizeof(ui_rect);
 
             if (!UIParams->First)
             {
@@ -740,8 +800,8 @@ UIPipelineBuildDrawList(ui_pipeline *Pipeline, render_pass *Pass, ui_node *SRoot
 
     if (HasFlag(Box->Flags, UILayoutBox_DrawBackground))
     {
-        render_rect *Rect = PushDataInBatchList(Pipeline->FrameArena, List);  
-        Rect->RectBounds  = RectF32(Box->ClientX, Box->ClientY, Box->Width, Box->Height);
+        ui_rect *Rect = PushDataInBatchList(Pipeline->FrameArena, List);  
+        Rect->RectBounds  = RectF32(Box->ClientX, Box->ClientY, Box->Width.Float32, Box->Height.Float32);
         Rect->Color       = Style->Color;
         Rect->CornerRadii = Style->CornerRadius;
         Rect->Softness    = Style->Softness;
@@ -750,11 +810,11 @@ UIPipelineBuildDrawList(ui_pipeline *Pipeline, render_pass *Pass, ui_node *SRoot
 
     if (HasFlag(Box->Flags, UILayoutBox_DrawBorders))
     {
-        render_rect *Rect = PushDataInBatchList(Pipeline->FrameArena, List);
-        Rect->RectBounds  = RectF32(Box->ClientX, Box->ClientY, Box->Width, Box->Height);
+        ui_rect *Rect = PushDataInBatchList(Pipeline->FrameArena, List);
+        Rect->RectBounds  = RectF32(Box->ClientX, Box->ClientY, Box->Width.Float32, Box->Height.Float32);
         Rect->Color       = Style->BorderColor;
-        Rect->BorderWidth = (f32)Style->BorderWidth;
         Rect->CornerRadii = Style->CornerRadius;
+        Rect->BorderWidth = (f32)Style->BorderWidth;
         Rect->Softness    = Style->Softness;
     }
 
@@ -762,11 +822,11 @@ UIPipelineBuildDrawList(ui_pipeline *Pipeline, render_pass *Pass, ui_node *SRoot
     {
         for (u32 Idx = 0; Idx < Box->Text->Size; Idx++)
         {
-            render_rect *Rect = PushDataInBatchList(Pipeline->FrameArena, List);
+            ui_rect *Rect = PushDataInBatchList(Pipeline->FrameArena, List);
             Rect->SampleAtlas       = 1.f;
             Rect->AtlasSampleSource = Box->Text->Characters[Idx].SampleSource;
             Rect->RectBounds        = Box->Text->Characters[Idx].Position;
-            Rect->Color             = Vec4F32(1.f, 1.f, 1.f, 1.f);
+            Rect->Color             = UIColor(1.f, 1.f, 1.f, 1.f);
         }
     }
 

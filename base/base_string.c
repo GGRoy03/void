@@ -66,8 +66,9 @@ ToLowerChar(u8 Char)
 }
 
 internal b32 
-ByteStringMatches(byte_string Str1, byte_string Str2)
-{
+ByteStringMatches(byte_string Str1, byte_string Str2, bit_field Flags)
+{   Assert(Flags >= StringMatch_NoFlag && Flags <= StringMatch_CaseSensitive);
+
     b32 Result = 0;
 
     if (Str1.Size == Str2.Size)
@@ -76,7 +77,15 @@ ByteStringMatches(byte_string Str1, byte_string Str2)
         u8 *Pointer2 = Str2.String;
         u8 *End      = Str1.String + Str1.Size;
 
-        while (Pointer1 < End && ToLowerChar(*Pointer1++) == ToLowerChar(*Pointer2++)) {};
+        if (Flags & StringMatch_CaseSensitive)
+        {
+            while (Pointer1 < End && *Pointer1++ == *Pointer2++) {};
+        }
+        else
+        {
+            // BUG: Will try to call ToLowerChar on things that aren't alpha characters.
+            while (Pointer1 < End && ToLowerChar(*Pointer1++) == ToLowerChar(*Pointer2++)) {};
+        }
 
         Result = (Pointer1 == End);
     }
