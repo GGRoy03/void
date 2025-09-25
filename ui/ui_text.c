@@ -1,83 +1,78 @@
 // [Fonts]
 
 internal ui_font *
-UILoadFont(byte_string Name, f32 Size, render_handle BackendHandle, UIFontCoverage_Type Coverage)
+UILoadFont(byte_string Name, f32 Size, render_handle Renderer, UIFontCoverage_Type Coverage, ui_state *UIState)
 {
-    ui_font *Result = 0;
+    ui_font *Result      = 0;
+    vec2_i32 TextureSize = Vec2I32(1024, 1024);
 
-    glyph_table_params TableParams = {0};
+    u8                *HeapBase       = 0;
+    size_t             TableFootprint = 0;
+    glyph_table_params TableParams    = { 0 };
     {
-        TableParams.EntryCount = Coverage == UIFontCoverage_ASCIIOnly ? 255 : 0;
-    }
-
-    vec2_i32 TextureSize    = Vec2I32(1024, 1024);
-    size_t   Footprint      = sizeof(ui_font);
-    size_t   TableFootprint = 0;
-    {
-        if (Coverage == UIFontCoverage_ASCIIOnly)
         {
-            TableFootprint = GetDirectGlyphTableFootprint(TableParams);
+            TableParams.EntryCount = Coverage == UIFontCoverage_ASCIIOnly ? 255 : 0;
         }
 
-        Footprint += TableFootprint;
-        Footprint += TextureSize.X * sizeof(stbrp_node);
-    }
-
-    memory_arena *Arena = 0;
-    {
-        memory_arena_params Params = {0};
-        Params.AllocatedFromFile = __FILE__;
-        Params.AllocatedFromLine = __LINE__;
-        Params.CommitSize        = Footprint;
-        Params.ReserveSize       = Footprint;
-
-        Arena = AllocateArena(Params);
-    }
-
-    if(Arena)
-    {
-        b32 IsValid  = 1;
-        u8 *HeapBase = PushArena(Arena, Footprint, AlignOf(ui_font));
-
-        if (HeapBase)
+        size_t Footprint = sizeof(ui_font);
         {
-            direct_glyph_table *Table = PlaceDirectGlyphTableInMemory(TableParams, HeapBase);
+            TableParams.EntryCount = Coverage == UIFontCoverage_ASCIIOnly ? 255 : 0;
 
-            Result              = (ui_font*)(HeapBase + TableFootprint);
-            Result->GlyphTable  = Table;
-            Result->TextureSize = Vec2I32ToVec2F32(TextureSize);
-            Result->Size        = Size;
-            Result->Coverage    = Coverage;
-            Result->Arena       = Arena;
-            Result->AtlasNodes  = (stbrp_node *)(Result + 1);
+            if (Coverage == UIFontCoverage_ASCIIOnly)
+            {
+                TableFootprint = GetDirectGlyphTableFootprint(TableParams);
+            }
 
-            stbrp_init_target(&Result->AtlasContext, TextureSize.X, TextureSize.Y, Result->AtlasNodes, TextureSize.X);
-            
-            IsValid = CreateGlyphCache(BackendHandle, Result->TextureSize, &Result->GPUFontObjects);
+            Footprint += TableFootprint;
+            Footprint += TextureSize.X * sizeof(stbrp_node);
+        }
+
+        if(UIState->StaticData)
+        {
+            HeapBase = PushArena(UIState->StaticData, Footprint, AlignOf(ui_font));
+        }
+    }
+
+    if(HeapBase)
+    {
+        direct_glyph_table *Table = PlaceDirectGlyphTableInMemory(TableParams, HeapBase);
+
+        Result              = (ui_font*)(HeapBase + TableFootprint);
+        Result->GlyphTable  = Table;
+        Result->TextureSize = Vec2I32ToVec2F32(TextureSize);
+        Result->Size        = Size;
+        Result->Coverage    = Coverage;
+        Result->Name        = ByteString(PushArray(UIState->StaticData, u8, Name.Size), Name.Size);
+        Result->AtlasNodes  = (stbrp_node *)(Result + 1);
+
+        memcpy(Result->Name.String, Name.String, Name.Size);
+
+        stbrp_init_target(&Result->AtlasContext, TextureSize.X, TextureSize.Y, Result->AtlasNodes, TextureSize.X);
+
+        b32 IsValid = CreateGlyphCache(Renderer, Result->TextureSize, &Result->GPUFontObjects);
+        if (IsValid)
+        {
+            IsValid = CreateGlyphTransfer(Renderer, Result->TextureSize, &Result->GPUFontObjects);
             if (IsValid)
             {
-                IsValid = CreateGlyphTransfer(BackendHandle, Result->TextureSize, &Result->GPUFontObjects);
+                IsValid = OSAcquireFontObjects(Name, Size, &Result->GPUFontObjects, &Result->OSFontObjects);
                 if (IsValid)
                 {
-                    IsValid = OSAcquireFontObjects(Name, Size, &Result->GPUFontObjects, &Result->OSFontObjects);
-                    if (IsValid)
-                    {
-                        Result->LineHeight = OSGetLineHeight(Size, &Result->OSFontObjects);
-                    }
-                    else
-                    {
-                        OSLogMessage(byte_string_literal("Failed to acquire OS font objects: See error(s) above."), OSMessage_Warn);
-                    }
+                    Result->LineHeight = OSGetLineHeight(Size, &Result->OSFontObjects);
                 }
                 else
                 {
-                    OSLogMessage(byte_string_literal("Failed to create glyph transfer: See error(s) above."), OSMessage_Warn);
+                    OSLogMessage(byte_string_literal("Failed to acquire OS font objects: See error(s) above."), OSMessage_Warn);
                 }
             }
             else
             {
-                OSLogMessage(byte_string_literal("Failed to create glyph cache: See error(s) above."), OSMessage_Warn);
+                OSLogMessage(byte_string_literal("Failed to create glyph transfer: See error(s) above."), OSMessage_Warn);
             }
+        }
+        else
+        {
+            OSLogMessage(byte_string_literal("Failed to create glyph cache: See error(s) above."), OSMessage_Warn);
         }
 
         if (!IsValid)
@@ -88,9 +83,39 @@ UILoadFont(byte_string Name, f32 Size, render_handle BackendHandle, UIFontCovera
 
             Result = 0;
         }
+        else
+        {
+            if (!UIState->First)
+            {
+                UIState->First = Result;
+            }
+
+            if (UIState->Last)
+            {
+                UIState->Last->Next = Result;
+            }
+
+            UIState->Last       = Result;
+            UIState->FontCount += 1;
+        }
+
     }
 
     return Result;
+}
+
+internal ui_font *
+UIFindFont(byte_string Name, f32 Size, ui_state *UIState)
+{
+    for (ui_font *Font = UIState->First; Font != 0; Font = Font->Next)
+    {
+        if (Font->Size == Size && ByteStringMatches(Font->Name, Name, StringMatch_NoFlag))
+        {
+            return Font;
+        }
+    }
+
+    return 0;
 }
 
 // [Glyphs]

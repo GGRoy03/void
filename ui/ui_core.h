@@ -266,6 +266,17 @@ typedef struct ui_pipeline
     memory_arena *StaticArena;
 } ui_pipeline;
 
+// [State]
+
+typedef struct ui_state
+{
+    ui_font *First;
+    ui_font *Last;
+    u32      FontCount;
+
+    memory_arena *StaticData;
+} ui_state;
+
 // [GLOBALS]
 
 read_only global u32 InvalidNodeId = 0xFFFFFFFF;
@@ -319,7 +330,7 @@ internal b32         UIIsParallelNode         (ui_node *Node1, ui_node *Node2);
 internal b32         UIIsNodeALeaf            (UINode_Type Type);
 internal void        UILinkNodes              (ui_node *Node, ui_node *Parent);
 
-internal ui_pipeline UICreatePipeline         (ui_pipeline_params Params);
+internal ui_pipeline UICreatePipeline         (ui_pipeline_params Params, ui_state *UIState);
 internal void        UIPipelineBegin          (ui_pipeline *Pipeline);
 internal void        UIPipelineExecute        (ui_pipeline *Pipeline, render_pass_list *PassList);
 

@@ -46,4 +46,4 @@ internal void FileBrowserBackwardHistory  (ui_node *Node, ui_pipeline *Pipeline)
 
 // [UI]
 
-internal void FileBrowserUI               (file_browser_ui *UI, render_pass_list *PassList, render_handle Renderer);
+internal void FileBrowserUI               (file_browser_ui *UI, render_pass_list *PassList, render_handle Renderer, ui_state *UIState);

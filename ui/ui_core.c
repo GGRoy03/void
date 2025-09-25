@@ -475,7 +475,7 @@ UILinkNodes(ui_node *Node, ui_node *Parent)
 // [Pipeline]
 
 internal ui_pipeline
-UICreatePipeline(ui_pipeline_params Params)
+UICreatePipeline(ui_pipeline_params Params, ui_state *UIState)
 {
     ui_pipeline Result = {0};
 
@@ -533,13 +533,9 @@ UICreatePipeline(ui_pipeline_params Params)
         }
     }
 
-    // Registery
+    // Others
     {
-        LoadThemeFiles(Params.ThemeFiles, Params.ThemeCount, &Result.StyleRegistery, Params.RendererHandle);
-    }
-
-    // Handles
-    {
+        LoadThemeFiles(Params.ThemeFiles, Params.ThemeCount, &Result.StyleRegistery, Params.RendererHandle, UIState);
         Result.RendererHandle = Params.RendererHandle;
     }
 

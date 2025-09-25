@@ -6,4 +6,4 @@ typedef struct editor_ui
 	b32             ShowFileBrowser;
 } editor_ui;
 
-internal void ShowEditorUI  (render_pass_list *PassList, render_handle Renderer);
+internal void ShowEditorUI  (render_pass_list *PassList, render_handle Renderer, ui_state *UIState);

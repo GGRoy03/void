@@ -51,17 +51,21 @@ typedef struct ui_text
 
 // NOTE: Should we just hold on to handles?
 
-typedef struct ui_font
+typedef struct ui_font ui_font;
+struct ui_font
 {
+    // LLC
+    ui_font *Next;
+
     // Backend
     gpu_font_objects GPUFontObjects;
     os_font_objects  OSFontObjects;
-    memory_arena    *Arena;
 
     // Info
     vec2_f32            TextureSize;
     f32                 LineHeight;
     f32                 Size;
+    byte_string         Name;
     UIFontCoverage_Type Coverage;
 
     // 2D Allocator
@@ -70,13 +74,14 @@ typedef struct ui_font
 
     // Tables
     direct_glyph_table *GlyphTable;
-} ui_font;
+};
 
 // [API]
 
 // [Fonts]
 
-internal ui_font * UILoadFont  (byte_string Name, f32 Size, render_handle BackendHandle, UIFontCoverage_Type Coverage);
+internal ui_font * UILoadFont  (byte_string Name, f32 Size, render_handle Renderer, UIFontCoverage_Type Coverage, ui_state *UIState);
+internal ui_font * UIFindFont  (byte_string Name, f32 Size, ui_state *UIState);
 
 // [Glyphs]
 

@@ -15,7 +15,7 @@ FileBrowserBackwardHistory(ui_node *Node, ui_pipeline *Pipeline)
 // [UI]
 
 internal void
-FileBrowserUI(file_browser_ui *UI, render_pass_list *PassList, render_handle Renderer)
+FileBrowserUI(file_browser_ui *UI, render_pass_list *PassList, render_handle Renderer, ui_state *UIState)
 {
     if(!UI->IsInitialized)
     {
@@ -34,7 +34,7 @@ FileBrowserUI(file_browser_ui *UI, render_pass_list *PassList, render_handle Ren
             PipelineParams.RendererHandle = Renderer;
         }
 
-        UI->Pipeline = UICreatePipeline(PipelineParams);
+        UI->Pipeline = UICreatePipeline(PipelineParams, UIState);
 
         memory_arena_params ArenaParams = {0};
         {

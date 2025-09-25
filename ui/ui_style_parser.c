@@ -1,7 +1,7 @@
 // [Public API Implementation]
 
 internal void
-LoadThemeFiles(byte_string *Files, u32 FileCount, ui_style_registery *Registery, render_handle Renderer)
+LoadThemeFiles(byte_string *Files, u32 FileCount, ui_style_registery *Registery, render_handle Renderer, ui_state *UIState)
 {
     if (!Files)
     {
@@ -23,9 +23,6 @@ LoadThemeFiles(byte_string *Files, u32 FileCount, ui_style_registery *Registery,
         Tokenizer.Capacity = 10'000;
         Tokenizer.Buffer   = PushArray(Tokenizer.Arena, style_token, Tokenizer.Capacity);
         Tokenizer.AtLine   = 1;
-
-        Parser.Registery = Registery;
-        Parser.Renderer  = Renderer;
     }
 
     // NOTE: Basically an initialization routine... Probably move this?
@@ -76,7 +73,7 @@ LoadThemeFiles(byte_string *Files, u32 FileCount, ui_style_registery *Registery,
             continue;
         }
 
-        b32 ParseSuccess = ParseStyleFile(&Parser, Tokenizer.Buffer, Tokenizer.Count);
+        b32 ParseSuccess = ParseStyleFile(&Parser, Tokenizer.Buffer, Tokenizer.Count, Renderer, UIState, Registery);
         if (!ParseSuccess)
         {
             WriteStyleErrorMessage(0, OSMessage_Warn, byte_string_literal("Failed to parse file. See error(s) above."));
@@ -84,7 +81,7 @@ LoadThemeFiles(byte_string *Files, u32 FileCount, ui_style_registery *Registery,
         }
 
         Tokenizer.AtLine = 1;
-        Tokenizer.Count = 0;
+        Tokenizer.Count  = 0;
         PopArenaTo(Tokenizer.Arena, 0); // BUG: Wrong pop?
     }
 
@@ -680,49 +677,57 @@ SaveStyleAttribute(UIStyleAttribute_Flag Attribute, style_token *Value, style_pa
 }
 
 internal void
-CacheStyle(ui_style Style, byte_string Name, ui_style_registery *Registery, render_handle RendererHandle)
+CacheStyle(ui_style Style, byte_string Name, render_handle Renderer, ui_state *UIState, ui_style_registery *Registery)
 {
     if (Name.Size <= ThemeNameLength)
     {
-        // NOTE: I believe this check is now useless since it is caught way earlier?
-        ui_style_name CachedName = UIGetCachedName(Name, Registery);
-
-        if (!IsValidByteString(CachedName.Value))
+        if (IsValidByteString(Style.Font.Name))
         {
-            // BUG: Doesn't check if it's an already referenced font.
-            // TODO: Centralize the fonts.
-
-            // Load deferred data
-            if(IsValidByteString(Style.Font.Name))
+            if (Style.FontSize)
             {
-                Style.Font.Ref = UILoadFont(Style.Font.Name, Style.FontSize, RendererHandle, UIFontCoverage_ASCIIOnly);
+                ui_font *Font = UIFindFont(Style.Font.Name, Style.FontSize, UIState);
+                if (Font)
+                {
+                    Style.Font.Ref = Font;
+                }
+                else
+                {
+                    Style.Font.Ref = UILoadFont(Style.Font.Name, Style.FontSize, Renderer, UIFontCoverage_ASCIIOnly, UIState);
+                }
+
+                if (!Style.Font.Ref)
+                {
+                    WriteStyleErrorMessage(0, OSMessage_Warn, byte_string_literal("Could not load font. Font does not exist on the system or the size is ridiculous."));
+                }
             }
-
-            ui_cached_style *Sentinel = UIGetStyleSentinel(Name, Registery);
-
-            ui_cached_style *CachedStyle = Registery->CachedStyles + Registery->Count;
-            CachedStyle->Style = Style;
-            CachedStyle->Index = Registery->Count;
-            CachedStyle->Next  = Sentinel->Next;
-
-            ui_style_name *NewName = Registery->CachedName + CachedStyle->Index;
-            NewName->Value.String = PushArena(Registery->Arena, Name.Size + 1, AlignOf(u8));
-            NewName->Value.Size   = Name.Size;
-            memcpy(NewName->Value.String, Name.String, Name.Size);
-
-            // WARN: Reverse iteration?
+            else
+            {
+                WriteStyleErrorMessage(0, OSMessage_Warn, byte_string_literal("When specifying a font name, you must also speicify a font size."));
+            }
+        }
+        
+        ui_cached_style *Sentinel = UIGetStyleSentinel(Name, Registery);
+        
+        ui_cached_style *CachedStyle = Registery->CachedStyles + Registery->Count;
+        CachedStyle->Style = Style;
+        CachedStyle->Index = Registery->Count;
+        CachedStyle->Next  = Sentinel->Next;
+        
+        ui_style_name *NewName = Registery->CachedName + CachedStyle->Index;
+        NewName->Value.String = PushArena(Registery->Arena, Name.Size + 1, AlignOf(u8));
+        NewName->Value.Size   = Name.Size;
+        memcpy(NewName->Value.String, Name.String, Name.Size);
+        
+        // WARN: Reverse iteration? Do we care?
+        {
             if (Sentinel->Next)
             {
                 Sentinel->Next->Next = CachedStyle;
             }
             Sentinel->Next = CachedStyle;
-
-            Registery->Count += 1;
         }
-        else
-        {
-            WriteStyleErrorMessage(0, OSMessage_Error, byte_string_literal("Two different styles cannot have the same name."));
-        }
+        
+        Registery->Count += 1;  
     }
     else
     {
@@ -827,7 +832,7 @@ ParseStyleAttribute(style_parser *Parser, style_token *Tokens, u32 TokenBufferSi
 }
 
 internal b32
-ParseStyleHeader(style_parser *Parser, style_token *Tokens, u32 TokenBufferSize)
+ParseStyleHeader(style_parser *Parser, style_token *Tokens, u32 TokenBufferSize, ui_style_registery *Registery)
 {
     {
         style_token *Style = PeekStyleToken(Tokens, TokenBufferSize, Parser->TokenIndex, 0);
@@ -848,7 +853,7 @@ ParseStyleHeader(style_parser *Parser, style_token *Tokens, u32 TokenBufferSize)
             return 0;
         }
 
-        ui_style_name CachedName = UIGetCachedName(Name->Identifier, Parser->Registery);
+        ui_style_name CachedName = UIGetCachedName(Name->Identifier, Registery);
         if (IsValidByteString(CachedName.Value))
         {
             WriteStyleErrorMessage(Name->LineInFile, OSMessage_Error, byte_string_literal("A style with the same name already exists."));
@@ -943,16 +948,16 @@ ParseStyleHeader(style_parser *Parser, style_token *Tokens, u32 TokenBufferSize)
 }
 
 internal b32
-ParseStyleFile(style_parser *Parser, style_token *Tokens, u32 TokenBufferSize)
+ParseStyleFile(style_parser *Parser, style_token *Tokens, u32 TokenBufferSize, render_handle Renderer, ui_state *UIState, ui_style_registery *Registery)
 {
     while (PeekStyleToken(Tokens, TokenBufferSize, Parser->TokenIndex, 0)->Type != UIStyleToken_EndOfFile)
     {
-        if (!ParseStyleHeader(Parser, Tokens, TokenBufferSize))
+        if (!ParseStyleHeader(Parser, Tokens, TokenBufferSize, Registery))
         {
             return 0;
         }
 
-        CacheStyle(Parser->Style, Parser->StyleName, Parser->Registery, Parser->Renderer);
+        CacheStyle(Parser->Style, Parser->StyleName, Renderer, UIState, Registery);
 
         Parser->StyleName = ByteString(0, 0);
         Parser->Style     = (ui_style){ 0 };

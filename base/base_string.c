@@ -83,8 +83,24 @@ ByteStringMatches(byte_string Str1, byte_string Str2, bit_field Flags)
         }
         else
         {
-            // BUG: Will try to call ToLowerChar on things that aren't alpha characters.
-            while (Pointer1 < End && ToLowerChar(*Pointer1++) == ToLowerChar(*Pointer2++)) {};
+            while (Pointer1 < End)
+            {
+                u8 Char1 = *Pointer1;
+                u8 Char2 = *Pointer2;
+
+                if (IsAlpha(Char1)) Char1 = ToLowerChar(Char1);
+                if (IsAlpha(Char2)) Char2 = ToLowerChar(Char2);
+
+                if (Char1 == Char2)
+                {
+                    ++Pointer1;
+                    ++Pointer2;
+                }
+                else
+                {
+                    break;
+                }
+            }
         }
 
         Result = (Pointer1 == End);

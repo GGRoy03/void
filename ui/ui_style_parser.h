@@ -76,8 +76,6 @@ typedef struct style_tokenizer
 // TODO: Maybe separate this into a tokenizer and a parser.
 typedef struct style_parser
 {
-    render_handle       Renderer;
-    ui_style_registery *Registery;
     u32                 TokenIndex;
     byte_string         StyleName;
     UINode_Type         StyleType;
@@ -97,7 +95,7 @@ read_only global bit_field StyleTypeValidAttributesTable[] =
         UIStyleAttribute_Size       |UIStyleAttribute_Padding     |UIStyleAttribute_Spacing |
         UIStyleAttribute_BorderColor|UIStyleAttribute_BorderWidth |UIStyleAttribute_Color   |
         UIStyleAttribute_Softness   |UIStyleAttribute_CornerRadius|UIStyleAttribute_FontName|
-        UIStyleAttribute_FontSize                                                           
+        UIStyleAttribute_FontSize
     },
 
     // Button
@@ -123,7 +121,7 @@ read_only global bit_field StyleTypeValidAttributesTable[] =
 
 // [API]
 
-internal void LoadThemeFiles  (byte_string *Files, u32 FileCount, ui_style_registery *Registery, render_handle RendererHandle);
+internal void LoadThemeFiles  (byte_string *Files, u32 FileCount, ui_style_registery *Registery, render_handle Renderer, ui_state *UIState);
 
 // [Tokenizer]
 
@@ -138,9 +136,9 @@ internal b32          ReadUnit           (os_file *File, ui_unit *Result);
 internal void          ConsumeStyleTokens  (style_parser *Parser, u32 Count);
 internal style_token * PeekStyleToken      (style_token *Tokens, u32 TokenBufferSize, u32 Index, u32 Offset);
 
-internal b32 ParseStyleFile        (style_parser *Parser, style_token *Tokens, u32 TokenBufferSize);
+internal b32 ParseStyleFile        (style_parser *Parser, style_token *Tokens, u32 TokenBufferSize, render_handle Renderer, ui_state *UIState, ui_style_registery *Registery);
 internal b32 ParseStyleAttribute   (style_parser *Parser, style_token *Tokens, u32 TokenBufferSize);
-internal b32 ParseStyleHeader      (style_parser *Parser, style_token *Tokens, u32 TokenBufferSize);
+internal b32 ParseStyleHeader      (style_parser *Parser, style_token *Tokens, u32 TokenBufferSize, ui_style_registery *Registery);
 
 internal b32      ValidateColor      (vec4_unit Vec);
 internal ui_color ToNormalizedColor  (vec4_unit Vec);
@@ -148,7 +146,7 @@ internal ui_color ToNormalizedColor  (vec4_unit Vec);
 internal b32                   SaveStyleAttribute             (UIStyleAttribute_Flag Attribute, style_token *Value, style_parser *Parser);
 internal UIStyleAttribute_Flag GetStyleAttributeFlag          (byte_string Identifier);
 internal b32                   IsAttributeFormattedCorrectly  (UIStyleToken_Type TokenType, UIStyleAttribute_Flag AttributeFlag);
-internal void                  CacheStyle                     (ui_style Style, byte_string Name, ui_style_registery *Registery, render_handle RendererHandle);
+internal void                  CacheStyle                     (ui_style Style, byte_string Name, render_handle Renderer, ui_state *UIState, ui_style_registery *Registery);
 
 // [Error Handling]
 
