@@ -167,6 +167,18 @@ OSReleaseFontObjects(os_font_objects *Objects)
         Objects->FontFace->Release();
         Objects->FontFace = 0;
     }
+
+    if (Objects->FillBrush)
+    {
+        Objects->FillBrush->Release();
+        Objects->FillBrush = 0;
+    }
+
+    if (Objects->RenderTarget)
+    {
+        Objects->RenderTarget->Release();
+        Objects->RenderTarget = 0;
+    }
 }
 
 // NOTE: Only handles extended ASCII right now.

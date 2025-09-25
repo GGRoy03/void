@@ -41,4 +41,12 @@ GameEntryPoint()
         OSClearInputs();
         OSSleep(5);
     }
+
+    // NOTE: This shouldn't be needed but the debug layer for D3D is triggering
+    // an error if the resources aren't released. So this is for convenience.
+    // There are warnings still, but at least it doesn't crash.
+    for (ui_font *Font = UIState.First; Font != 0; Font = Font->Next)
+    {
+        OSReleaseFontObjects(&Font->OSFontObjects);
+    }
 }
