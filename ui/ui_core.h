@@ -28,6 +28,7 @@ typedef enum UILayoutNode_Flag
     UILayoutNode_HasClip                 = 1 << 4,
     UILayoutNode_IsHovered               = 1 << 5,
     UILayoutNode_IsClicked               = 1 << 6,
+    UILayoutNode_IsDraggable             = 1 << 7,
 } UILayoutNode_Flag;
 
 typedef enum UITree_Type
@@ -156,12 +157,12 @@ typedef struct ui_layout_box
     rect_f32   Clip;
     matrix_3x3 Transform;
 
+    // Misc
+    bit_field Flags;
+
     // Misc (Should text be callback based?)
     ui_text           *Text;
     ui_click_callback *ClickCallback;
-
-    // Misc
-    bit_field Flags;
 } ui_layout_box;
 
 typedef struct ui_style
@@ -277,6 +278,9 @@ typedef struct ui_pipeline
     ui_tree            LayoutTree;
     ui_style_registery StyleRegistery;
 
+    // State
+    ui_node *CurrentDragCaptureNode;
+
     // Handles
     render_handle RendererHandle;
 
@@ -359,6 +363,7 @@ internal void        UIPipelineBegin          (ui_pipeline *Pipeline);
 internal void        UIPipelineExecute        (ui_pipeline *Pipeline, render_pass_list *PassList);
 
 internal void      UIPipelineSynchronize    (ui_pipeline *Pipeline, ui_node *Root);
+internal void      UIPipelineDragNodes      (vec2_f32 MouseDelta, ui_pipeline *Pipeline, ui_node *LRoot);
 internal void      UIPipelineTopDownLayout  (ui_pipeline *Pipeline);
 internal ui_node * UIPipelineHitTest        (ui_pipeline *Pipeline, vec2_f32 MousePosition, ui_node *LRoot);
 internal void      UIPipelineBuildDrawList  (ui_pipeline *Pipeline, render_pass *Pass, ui_node *SRoot, ui_node *LRoot);

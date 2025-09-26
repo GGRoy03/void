@@ -56,7 +56,7 @@ internal void
 UIWindow(ui_style_name StyleName, ui_pipeline *Pipeline)
 {
     ui_style Style = UIGetStyle(StyleName, &Pipeline->StyleRegistery);
-    ui_node *Node = UIGetNextNode(&Pipeline->StyleTree, UINode_Window);
+    ui_node *Node  = UIGetNextNode(&Pipeline->StyleTree, UINode_Window);
 
     if (Node)
     {
@@ -73,6 +73,7 @@ UIWindow(ui_style_name StyleName, ui_pipeline *Pipeline)
 
         UISetFlagBinding(Node, 1, UILayoutNode_DrawBackground         , Pipeline);
         UISetFlagBinding(Node, 1, UILayoutNode_PlaceChildrenVertically, Pipeline);
+        UISetFlagBinding(Node, 1, UILayoutNode_IsDraggable            , Pipeline);
     }
 }
 
@@ -457,7 +458,7 @@ UISetTextBinding(ui_pipeline *Pipeline, ui_character *Characters, u32 Count, ui_
 
 internal void
 UISetFlagBinding(ui_node *Node, b32 Set, UILayoutNode_Flag Flag, ui_pipeline *Pipeline)
-{   Assert((Flag >= UILayoutNode_NoFlag && Flag <= UILayoutNode_HasClip));
+{   Assert((Flag >= UILayoutNode_NoFlag && Flag <= UILayoutNode_IsDraggable));
 
     ui_node *LNode = UIGetLayoutNodeFromStyleNode(Node, Pipeline);
     if(LNode)
@@ -609,12 +610,13 @@ UIPipelineExecute(ui_pipeline *Pipeline, render_pass_list *PassList)
     // Hit-Testing
     {
         vec2_f32 MousePosition = OSGetMousePosition();
+        vec2_f32 MouseDelta    = OSGetMouseDelta();
         b32      MouseClicked  = OSIsMouseClicked(OSMouseButton_Left);
+        b32      MouseReleased = OSIsMouseReleased(OSMouseButton_Left);
 
         ui_node *Node = UIPipelineHitTest(Pipeline, MousePosition, LRoot);
         if (Node)
         {
-            // TODO: Filters for this.
             if (MouseClicked && Node->Layout.ClickCallback)
             {
                 Node->Layout.ClickCallback(Node, Pipeline);
@@ -627,9 +629,43 @@ UIPipelineExecute(ui_pipeline *Pipeline, render_pass_list *PassList)
 
             SetFlag(Node->Layout.Flags, UILayoutNode_IsHovered);
         }
+
+        // Dragging Behavior (TODO: Remove the capture from the pipeline?)
+        {
+            if (MouseReleased)
+            {
+                Pipeline->CurrentDragCaptureNode = 0;
+            }
+
+            if (!Pipeline->CurrentDragCaptureNode && MouseClicked)
+            {
+                if (Node && HasFlag(Node->Layout.Flags, UILayoutNode_IsDraggable))
+                {
+                    Pipeline->CurrentDragCaptureNode = Node;
+                }
+            }
+
+            if (Pipeline->CurrentDragCaptureNode)
+            {
+                UIPipelineDragNodes(MouseDelta, Pipeline, Pipeline->CurrentDragCaptureNode);
+            }
+        }
+
     }
 
     UIPipelineBuildDrawList(Pipeline, RenderPass, SRoot, LRoot);
+}
+
+internal void
+UIPipelineDragNodes(vec2_f32 MouseDelta, ui_pipeline *Pipeline, ui_node *LRoot)
+{
+    LRoot->Layout.FinalX += MouseDelta.X;
+    LRoot->Layout.FinalY += MouseDelta.Y;
+
+    for (ui_node *Child = LRoot->First; Child != 0; Child = Child->Next)
+    {
+        UIPipelineDragNodes(MouseDelta, Pipeline, Child);
+    }
 }
 
 internal void
@@ -716,7 +752,6 @@ UIPipelineTopDownLayout(ui_pipeline *Pipeline)
                 f32 BasePosY   = Box->FinalY + Box->Padding.Top;
 
                 {
-
                     for (ui_node *ChildNode = Current->First; (ChildNode != 0 && UsedWidth <= AvWidth); ChildNode = ChildNode->Next)
                     {
                         ChildNode->Layout.FinalX = BasePosX + UsedWidth;
@@ -881,27 +916,33 @@ UIPipelineBuildDrawList(ui_pipeline *Pipeline, render_pass *Pass, ui_node *SRoot
     ui_style *BaseStyle = &SRoot->Style;
     ui_style *Style     = BaseStyle;
     {
+        b32 Overriden = 0;
+
         if (HasFlag(Box->Flags, UILayoutNode_IsClicked))
         {
-            if(Style->ClickOverride) Style = Style->ClickOverride;
+            if (Style->ClickOverride)
+            {
+                Style     = Style->ClickOverride;
+                Overriden = 1;
+            }
+
             ClearFlag(Box->Flags, UILayoutNode_IsClicked);
         }
         else if (HasFlag(Box->Flags, UILayoutNode_IsHovered))
         {
-            if(Style->HoverOverride) Style = Style->HoverOverride;
+            if (Style->HoverOverride)
+            {
+                Style     = Style->HoverOverride;
+                Overriden = 1;
+            }
+
             ClearFlag(Box->Flags, UILayoutNode_IsHovered);
         }
-        else
-        {
-            goto BeginDraw;
-        }
 
-        if (Style && Style->Version != BaseStyle->Version)
+        if (Overriden && Style && Style->Version != BaseStyle->Version)
         {
             if (!HasFlag(Style->Flags, UIStyleNode_HasColor))        Style->Color        = BaseStyle->Color;
             if (!HasFlag(Style->Flags, UIStyleNode_HasBorderColor))  Style->BorderColor  = BaseStyle->BorderColor;
-            if (!HasFlag(Style->Flags, UIStyleNode_HasPadding))      Style->Padding      = BaseStyle->Padding;
-            if (!HasFlag(Style->Flags, UIStyleNode_HasSpacing))      Style->Spacing      = BaseStyle->Spacing;
             if (!HasFlag(Style->Flags, UIStyleNode_HasSoftness))     Style->Softness     = BaseStyle->Softness;
             if (!HasFlag(Style->Flags, UIStyleNode_HasBorderColor))  Style->BorderColor  = BaseStyle->BorderColor;
             if (!HasFlag(Style->Flags, UIStyleNode_HasBorderWidth))  Style->BorderWidth  = BaseStyle->BorderWidth;
@@ -910,8 +951,6 @@ UIPipelineBuildDrawList(ui_pipeline *Pipeline, render_pass *Pass, ui_node *SRoot
             Style->Version = BaseStyle->Version;
         }
     }
-
-    BeginDraw:
 
     if (HasFlag(Box->Flags, UILayoutNode_DrawBackground))
     {

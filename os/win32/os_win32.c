@@ -396,12 +396,37 @@ OSGetMousePosition(void)
     return Result;
 }
 
+internal vec2_f32
+OSGetMouseDelta(void)
+{
+    vec2_f32 Result = OSWin32State.Inputs.MouseDelta;
+    return Result;
+}
+
 internal b32
 OSIsMouseClicked(OSMouseButton_Type Button)
 {
     os_button_state *State = &OSWin32State.Inputs.MouseButtons[Button];
 
     b32 Result = (State->EndedDown && State->HalfTransitionCount > 0);
+    return Result;
+}
+
+internal b32
+OSIsMouseHeld(OSMouseButton_Type Button)
+{
+    os_button_state *State = &OSWin32State.Inputs.MouseButtons[Button];
+
+    b32 Result = (State->EndedDown && State->HalfTransitionCount == 0);
+    return Result;
+}
+
+internal b32 
+OSIsMouseReleased(OSMouseButton_Type Button)
+{
+    os_button_state *State = &OSWin32State.Inputs.MouseButtons[Button];
+
+    b32 Result = (!State->EndedDown && State->HalfTransitionCount > 0);
     return Result;
 }
 

@@ -92,8 +92,11 @@ internal os_file   OSReadFile  (os_handle Handle, memory_arena *Arena);
 internal os_system_info *OSGetSystemInfo     (void);
 internal vec2_i32        OSGetClientSize     (void);
 internal vec2_f32        OSGetMousePosition  (void);
-internal b32             OSIsMouseClicked(OSMouseButton_Type Button);
-internal void            OSClearInputs(void);
+internal vec2_f32        OSGetMouseDelta     (void);
+internal b32             OSIsMouseClicked    (OSMouseButton_Type Button);
+internal b32             OSIsMouseHeld       (OSMouseButton_Type Button);
+internal b32             OSIsMouseReleased   (OSMouseButton_Type Button);
+internal void            OSClearInputs       (void);
 
 // [Memory]
 
