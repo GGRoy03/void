@@ -56,7 +56,7 @@ FileBrowserUI(file_browser_ui *UI, render_pass_list *PassList, render_handle Ren
         // Layout
         UIWindow(UI->MainWindowStyle, &UI->Pipeline);
         {
-            UIHeaderEx(UI->MainHeaderStyle, &UI->Pipeline)
+            UIHeaderEx(UI->MainHeaderStyle, (&UI->Pipeline))
             {
                 UIButton(UI->HeaderButtonStyle, FileBrowserForwardHistory , &UI->Pipeline);
                 UIButton(UI->HeaderButtonStyle, FileBrowserBackwardHistory, &UI->Pipeline);

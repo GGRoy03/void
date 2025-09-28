@@ -21,6 +21,20 @@ typedef enum OSMessage_Severity
     OSMessage_Fatal = 4,
 } OSMessage_Severity;
 
+typedef enum OSCursor_Type
+{
+    OSCursor_None                      = 0,
+    OSCursor_Default                   = 1,
+    OSCursor_EditText                  = 2,
+    OSCursor_Waiting                   = 3,
+    OSCursor_Loading                   = 4,
+    OSCursor_ResizeVertical            = 5,
+    OSCursor_ResizeHorizontal          = 6,
+    OSCursor_ResizeDiagonalLeftToRight = 7,
+    OSCursor_ResizeDiagonalRightToLeft = 8,
+    OSCursor_GrabHand                  = 9,
+} OSCursor_Type;
+
 // [Core Types]
 
 typedef struct os_system_info
@@ -104,12 +118,17 @@ internal void *OSReserveMemory  (u64 Size);
 internal b32   OSCommitMemory   (void *Memory, u64 Size);
 internal void  OSRelease        (void *Memory);
 
+// [Windowing]
+
+internal b32  OSUpdateWindow  (void);
+internal void OSSetCursor     (OSCursor_Type Type);
+
+
 // [Misc]
 
-internal b32   OSUpdateWindow  (void);
-internal void  OSSleep         (u32 Milliseconds);
-external void  OSLogMessage    (byte_string ANSISequence, OSMessage_Severity Severity);
-internal void  OSAbort         (i32 ExitCode);
+internal void  OSSleep       (u32 Milliseconds);
+external void  OSLogMessage  (byte_string ANSISequence, OSMessage_Severity Severity);
+internal void  OSAbort       (i32 ExitCode);
 
 // [Text]
 

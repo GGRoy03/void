@@ -56,24 +56,25 @@ internal void
 UIWindow(ui_style_name StyleName, ui_pipeline *Pipeline)
 {
     ui_style Style = UIGetStyle(StyleName, &Pipeline->StyleRegistery);
-    ui_node *Node  = UIGetNextNode(&Pipeline->StyleTree, UINode_Window);
+    ui_node *Node  = UITree_GetFreeNode(Pipeline->StyleTree, UINode_Window);
 
     if (Node)
     {
         Node->Style = Style;
         Node->Id    = NextId++;
 
-        UILinkNodes(Node, UIGetParentNode(&Pipeline->StyleTree));
-        UIPushParentNode(Node, &Pipeline->StyleTree);
+        UITree_LinkNodes(Node, UITree_GetParent(Pipeline->StyleTree));
+        UITree_PushParent(Node, Pipeline->StyleTree);
 
         if(Node->Style.BorderWidth > 0)
         {
-            UISetFlagBinding(Node, 1, UILayoutNode_DrawBorders, Pipeline);
+            UITree_BindFlag(Node, 1, UILayoutNode_DrawBorders, Pipeline);
         }
 
-        UISetFlagBinding(Node, 1, UILayoutNode_DrawBackground         , Pipeline);
-        UISetFlagBinding(Node, 1, UILayoutNode_PlaceChildrenVertically, Pipeline);
-        UISetFlagBinding(Node, 1, UILayoutNode_IsDraggable            , Pipeline);
+        UITree_BindFlag(Node, 1, UILayoutNode_DrawBackground         , Pipeline);
+        UITree_BindFlag(Node, 1, UILayoutNode_PlaceChildrenVertically, Pipeline);
+        UITree_BindFlag(Node, 1, UILayoutNode_IsDraggable            , Pipeline);
+        UITree_BindFlag(Node, 1, UILayoutNode_IsResizable            , Pipeline);
     }
 }
 
@@ -81,27 +82,28 @@ internal void
 UIButton(ui_style_name StyleName, ui_click_callback *Callback, ui_pipeline *Pipeline)
 {
     ui_style Style = UIGetStyle(StyleName, &Pipeline->StyleRegistery);
-    ui_node *Node  = UIGetNextNode(&Pipeline->StyleTree, UINode_Button);
+    ui_node *Node  = UITree_GetFreeNode(Pipeline->StyleTree, UINode_Button);
 
     if (Node)
     {
         Node->Style = Style;
         Node->Id    = NextId++;
-        UILinkNodes(Node, UIGetParentNode(&Pipeline->StyleTree));
+
+        UITree_LinkNodes(Node, UITree_GetParent(Pipeline->StyleTree));
 
         // Draw Flags
         {
             if (Node->Style.BorderWidth > 0)
             {
-                UISetFlagBinding(Node, 1, UILayoutNode_DrawBorders, Pipeline);
+                UITree_BindFlag(Node, 1, UILayoutNode_DrawBorders, Pipeline);
             }
-            UISetFlagBinding(Node, 1, UILayoutNode_DrawBackground, Pipeline);
+            UITree_BindFlag(Node, 1, UILayoutNode_DrawBackground, Pipeline);
         }
 
         // Callbacks (What about hovers?)
         if (Callback)
         {
-            UISetClickCallbackBinding(Node, Callback, Pipeline);
+            UITree_BindClickCallback(Node, Callback, Pipeline);
         }
     }
 }
@@ -113,23 +115,24 @@ internal void
 UILabel(ui_style_name StyleName, byte_string Text, ui_pipeline *Pipeline)
 {
     ui_style Style = UIGetStyle(StyleName, &Pipeline->StyleRegistery);
-    ui_node *Node  = UIGetNextNode(&Pipeline->StyleTree, UINode_Label);
+    ui_node *Node  = UITree_GetFreeNode(Pipeline->StyleTree, UINode_Label);
     if (Node)
     {
         Node->Style = Style;
         Node->Id    = NextId++;
-        UILinkNodes(Node, UIGetParentNode(&Pipeline->StyleTree));
+
+        UITree_LinkNodes(Node, UITree_GetParent(Pipeline->StyleTree));
 
         // Draw Binds
         {
             if (Node->Style.BorderWidth > 0)
             {
-                UISetFlagBinding(Node, 1, UILayoutNode_DrawBorders, Pipeline);
+                UITree_BindFlag(Node, 1, UILayoutNode_DrawBorders, Pipeline);
             }
 
             if (Text.Size > 0)
             {
-                UISetFlagBinding(Node, 1, UILayoutNode_DrawText, Pipeline);
+                UITree_BindFlag(Node, 1, UILayoutNode_DrawText, Pipeline);
             }
         }
 
@@ -184,7 +187,7 @@ UILabel(ui_style_name StyleName, byte_string Text, ui_pipeline *Pipeline)
         }
 
         Node->Style.Size = Vec2Unit(TextWidth, TextHeight);
-        UISetTextBinding(Pipeline, Characters, CharacterCount, Font, Node);
+        UITree_BindText(Pipeline, Characters, CharacterCount, Font, Node);
     }
 }
 
@@ -192,19 +195,19 @@ internal void
 UIHeader(ui_style_name StyleName, ui_pipeline *Pipeline)
 {
     ui_style Style = UIGetStyle(StyleName, &Pipeline->StyleRegistery);
-    ui_node *Node  = UIGetNextNode(&Pipeline->StyleTree, UINode_Header);
+    ui_node *Node  = UITree_GetFreeNode(Pipeline->StyleTree, UINode_Header);
 
     if (Node)
     {
         Node->Style = Style;
         Node->Id    = NextId++;
 
-        UILinkNodes(Node, UIGetParentNode(&Pipeline->StyleTree));
-        UIPushParentNode(Node, &Pipeline->StyleTree);
+        UITree_LinkNodes(Node, UITree_GetParent(Pipeline->StyleTree));
+        UITree_PushParent(Node, Pipeline->StyleTree);
 
         if (Node->Style.BorderWidth > 0)
         {
-            UISetFlagBinding(Node, 1, UILayoutNode_DrawBorders, Pipeline);
+            UITree_BindFlag(Node, 1, UILayoutNode_DrawBorders, Pipeline);
         }
     }
 }
@@ -293,230 +296,6 @@ UISetColor(ui_node *Node, ui_color Color)
     }
 }
 
-// [Tree]
-
-internal ui_node *
-UIGetParentNode(ui_tree *Tree)
-{   Assert(Tree);
-
-    ui_node *Result = 0;
-
-    if(Tree->ParentTop)
-    {
-        Result = Tree->ParentStack[Tree->ParentTop - 1];
-    }
-
-    return Result;
-}
-
-internal void
-UIPushParentNode(void *Node, ui_tree *Tree)
-{   Assert(Node && Tree);
-
-    if(Tree->ParentTop < Tree->MaximumDepth)
-    {
-        Tree->ParentStack[Tree->ParentTop++] = Node;
-    }
-}
-
-internal void
-UIPopParentNode(ui_tree *Tree)
-{   Assert(Tree);
-
-    if (Tree->ParentTop > 0)
-    {
-        --Tree->ParentTop;
-    }
-}
-
-internal ui_node *
-UIGetNextNode(ui_tree *Tree, UINode_Type Type)
-{
-    ui_node *Result = 0;
-
-    if (Tree->NodeCount < Tree->NodeCapacity)
-    {
-        Result = Tree->Nodes + Tree->NodeCount;
-        Result->Type = Type;
-
-        ++Tree->NodeCount;
-    }
-
-    return Result;
-}
-
-internal ui_node *
-UIGetLayoutNodeFromStyleNode(ui_node *Node, ui_pipeline *Pipeline)
-{
-    ui_node *Result = 0;
-
-    if (Node->Id < Pipeline->LayoutTree.NodeCapacity)
-    {
-        Result = Pipeline->LayoutTree.Nodes + Node->Id;
-    }
-
-    return Result;
-}
-
-internal ui_node *
-UIGetStyleNodeFromLayoutNode(ui_node *Node, ui_pipeline *Pipeline)
-{
-    ui_node *Result = 0;
-    if (Node->Id < Pipeline->StyleTree.NodeCapacity)
-    {
-        Result = Pipeline->StyleTree.Nodes + Node->Id;
-    }
-
-    return Result;
-}
-
-internal ui_tree
-UIAllocateTree(ui_tree_params Params)
-{   Assert(Params.Depth > 0 && Params.NodeCount > 0 && Params.Type != UITree_None);
-
-    ui_tree Result = {0};
-
-    memory_arena *Arena = 0;
-    {
-        size_t Footprint =  0;
-        Footprint += Params.Depth * sizeof(ui_node *);           // Parent Stack
-
-        switch(Params.Type)
-        {
-
-        case UITree_Style:
-        {
-            Footprint += Params.NodeCount * sizeof(ui_node);     // Node Array
-        } break;
-
-        case UITree_Layout:
-        {
-            Footprint += Params.NodeCount * sizeof(ui_node );    // Node Array
-            Footprint += Params.NodeCount * sizeof(ui_node*);    // Layout Queue
-        } break;
-
-        default:
-        {
-            OSLogMessage(byte_string_literal("Invalid Tree Type."), OSMessage_Error);
-        } break;
-
-        }
-
-        memory_arena_params ArenaParams = {0};
-        ArenaParams.AllocatedFromFile = __FILE__;
-        ArenaParams.AllocatedFromLine = __LINE__;
-        ArenaParams.ReserveSize       = Footprint;
-        ArenaParams.CommitSize        = Footprint;
-
-        Arena = AllocateArena(ArenaParams);
-    }
-
-    if(Arena)
-    {
-        Result.Arena        = Arena;
-        Result.Nodes        = PushArray(Arena, ui_node  , Params.NodeCount);
-        Result.ParentStack  = PushArray(Arena, ui_node *, Params.Depth    );
-        Result.MaximumDepth = Params.Depth;
-        Result.NodeCapacity = Params.NodeCount;
-        Result.Type         = Params.Type;
-    }
-
-    return Result;
-}
-
-// [Bindings]
-
-internal void
-UISetClickCallbackBinding(ui_node *Node, ui_click_callback *Callback, ui_pipeline *Pipeline)
-{
-    ui_node *LNode = UIGetLayoutNodeFromStyleNode(Node, Pipeline);
-    if (LNode)
-    {
-        LNode->Layout.ClickCallback = Callback;
-    }
-}
-
-internal void
-UISetTextBinding(ui_pipeline *Pipeline, ui_character *Characters, u32 Count, ui_font *Font, ui_node *Node)
-{   Assert(Node->Id < Pipeline->LayoutTree.NodeCapacity);
-
-    ui_node *LNode = UIGetLayoutNodeFromStyleNode(Node, Pipeline);
-    if (LNode && Font)
-    {
-        LNode->Layout.Text = PushArray(Pipeline->StaticArena, ui_text, 1);
-        LNode->Layout.Text->AtlasTexture     = RenderHandle((u64)Font->GPUFontObjects.GlyphCacheView);
-        LNode->Layout.Text->AtlasTextureSize = Font->TextureSize;
-        LNode->Layout.Text->Size             = Count;
-        LNode->Layout.Text->Characters       = Characters;
-        LNode->Layout.Text->LineHeight       = Font->LineHeight;
-    }
-    else
-    {
-        OSLogMessage(byte_string_literal("Could not set tex binding. Font is invalid."), OSMessage_Error);
-    }
-}
-
-internal void
-UISetFlagBinding(ui_node *Node, b32 Set, UILayoutNode_Flag Flag, ui_pipeline *Pipeline)
-{   Assert((Flag >= UILayoutNode_NoFlag && Flag <= UILayoutNode_IsDraggable));
-
-    ui_node *LNode = UIGetLayoutNodeFromStyleNode(Node, Pipeline);
-    if(LNode)
-    {
-        if(Set)
-        {
-            SetFlag(LNode->Layout.Flags, Flag);
-        }
-        else
-        {
-            ClearFlag(LNode->Layout.Flags, Flag);
-        }
-    }
-}
-
-// [Pipeline Helpers]
-
-internal b32
-UIIsParallelNode(ui_node *Node1, ui_node *Node2)
-{
-    b32 Result = (Node1->Id == Node2->Id);
-    return Result;
-}
-
-internal b32
-UIIsNodeALeaf(UINode_Type Type)
-{
-    b32 Result = (Type == UINode_Button);
-    return Result;
-}
-
-internal void
-UILinkNodes(ui_node *Node, ui_node *Parent)
-{
-    Node->Last   = 0;
-    Node->Next   = 0;
-    Node->First  = 0;
-    Node->Parent = Parent;
-
-    if (Parent)
-    {
-        ui_node **First = (ui_node **)&Parent->First;
-        if (!*First)
-        {
-            *First = Node;
-        }
-
-        ui_node **Last = (ui_node **)&Parent->Last;
-        if (*Last)
-        {
-            (*Last)->Next = Node;
-        }
-
-        Node->Prev   = Parent->Last;
-        Parent->Last = Node;
-    }
-}
-
 // [Pipeline]
 
 internal ui_pipeline
@@ -555,7 +334,7 @@ UICreatePipeline(ui_pipeline_params Params, ui_state *UIState)
             TreeParams.NodeCount = Params.TreeNodeCount;
             TreeParams.Type      = UITree_Style;
 
-            Result.StyleTree = UIAllocateTree(TreeParams);
+            Result.StyleTree = UITree_Allocate(TreeParams);
         }
 
         {
@@ -564,17 +343,17 @@ UICreatePipeline(ui_pipeline_params Params, ui_state *UIState)
             TreeParams.NodeCount = Params.TreeNodeCount;
             TreeParams.Type      = UITree_Layout;
 
-            Result.LayoutTree = UIAllocateTree(TreeParams);
+            Result.LayoutTree = UITree_Allocate(TreeParams);
         }
 
-        for (u32 Idx = 0; Idx < Result.StyleTree.NodeCapacity; Idx++)
+        for (u32 Idx = 0; Idx < Result.StyleTree->NodeCapacity; Idx++)
         {
-            Result.StyleTree.Nodes[Idx].Id = InvalidNodeId;
+            Result.StyleTree->Nodes[Idx].Id = InvalidNodeId;
         }
 
-        for (u32 Idx = 0; Idx < Result.LayoutTree.NodeCapacity; Idx++)
+        for (u32 Idx = 0; Idx < Result.LayoutTree->NodeCapacity; Idx++)
         {
-            Result.LayoutTree.Nodes[Idx].Id = InvalidNodeId;
+            Result.LayoutTree->Nodes[Idx].Id = InvalidNodeId;
         }
     }
 
@@ -599,82 +378,162 @@ UIPipelineExecute(ui_pipeline *Pipeline, render_pass_list *PassList)
 {   Assert(Pipeline && PassList);
 
     // Unpacking
-    ui_node     *SRoot      = &Pipeline->StyleTree.Nodes[0];
-    ui_node     *LRoot      = &Pipeline->LayoutTree.Nodes[0];
+    ui_node     *StyleRoot  = &Pipeline->StyleTree->Nodes[0];
+    ui_node     *LayoutRoot = &Pipeline->LayoutTree->Nodes[0];
     render_pass *RenderPass = GetRenderPass(Pipeline->FrameArena, PassList, RenderPass_UI);
 
-    UIPipelineSynchronize(Pipeline, SRoot);
-
-    UIPipelineTopDownLayout(Pipeline);
-
-    // Hit-Testing
     {
-        vec2_f32 MousePosition = OSGetMousePosition();
-        vec2_f32 MouseDelta    = OSGetMouseDelta();
-        b32      MouseClicked  = OSIsMouseClicked(OSMouseButton_Left);
-        b32      MouseReleased = OSIsMouseReleased(OSMouseButton_Left);
-
-        ui_node *Node = UIPipelineHitTest(Pipeline, MousePosition, LRoot);
-        if (Node)
-        {
-            if (MouseClicked && Node->Layout.ClickCallback)
-            {
-                Node->Layout.ClickCallback(Node, Pipeline);
-            }
-
-            if (MouseClicked)
-            {
-                SetFlag(Node->Layout.Flags, UILayoutNode_IsClicked);
-            }
-
-            // Border Testing
-            {
-                f32      Radius            = 0;
-                f32      BorderWidth       = UIGetStyleNodeFromLayoutNode(Node, Pipeline)->Style.BorderWidth;
-                vec2_f32 BorderWidthVector = Vec2F32(BorderWidth, BorderWidth);
-
-                vec2_f32 FullHalfSize  = Vec2F32(Node->Layout.FinalWidth * 0.5f, Node->Layout.FinalHeight * 0.5f);
-                vec2_f32 RectHalfSize  = Vec2F32Sub(FullHalfSize, BorderWidthVector);
-                vec2_f32 Origin        = Vec2F32Add(Vec2F32(Node->Layout.FinalX, Node->Layout.FinalY), FullHalfSize);
-                vec2_f32 LocalPosition = Vec2F32Sub(MousePosition, Origin);
-
-                LocalPosition.Y *= -1.f; // NOTE: Because mouse positions are top-bottom
-
-                f32 SDF = RoundedRectSDF(LocalPosition, RectHalfSize, Radius);
-                if (SDF >= 0)
-                {
-                    // TODO: And then what?
-                }
-            }
-
-
-            SetFlag(Node->Layout.Flags, UILayoutNode_IsHovered);
-        }
-
-        // Dragging Behavior (TODO: Remove the capture from the pipeline?)
-        {
-            if (MouseReleased)
-            {
-                Pipeline->CurrentDragCaptureNode = 0;
-            }
-
-            if (!Pipeline->CurrentDragCaptureNode && MouseClicked)
-            {
-                if (Node && HasFlag(Node->Layout.Flags, UILayoutNode_IsDraggable))
-                {
-                    Pipeline->CurrentDragCaptureNode = Node;
-                }
-            }
-
-            if (Pipeline->CurrentDragCaptureNode)
-            {
-                UIPipelineDragNodes(MouseDelta, Pipeline, Pipeline->CurrentDragCaptureNode);
-            }
-        }
-
+        UITree_SynchronizePipeline(StyleRoot, Pipeline);
     }
 
-    UIPipelineBuildDrawList(Pipeline, RenderPass, SRoot, LRoot);
+    {
+        UILayout_ComputeParentToChildren(LayoutRoot, Pipeline);
+    }
+
+    vec2_f32 MouseDelta     = OSGetMouseDelta();
+    b32      MouseIsClicked = OSIsMouseClicked(OSMouseButton_Left);
+    b32      MouseReleased  = OSIsMouseReleased(OSMouseButton_Left);
+
+    bit_field HitTestFlags = UIHitTest_NoFlag;
+    {
+        if(HasFlag(LayoutRoot->Layout.Flags, UILayoutNode_IsResizable))
+        {
+            SetFlag(HitTestFlags, UIHitTest_CheckForResize);
+        }
+    }
+
+    ui_hit_test_result Hit = UILayout_HitTest(OSGetMousePosition(), HitTestFlags, LayoutRoot, Pipeline);
+
+    if(Hit.Success)
+    {
+        Assert(Hit.LayoutNode);
+        Assert(Hit.HoverState != UIHover_None);
+
+        ui_layout_box *Box = &Hit.LayoutNode->Layout;
+
+        SetFlag(Box->Flags, UILayoutNode_IsHovered);
+
+        if(MouseIsClicked)
+        {
+            if(Box->ClickCallback)
+            {
+                Box->ClickCallback(Hit.LayoutNode, Pipeline);
+            }
+
+            SetFlag(Box->Flags, UILayoutNode_IsClicked);
+        }
+
+        switch(Hit.HoverState)
+        {
+
+        default: break;
+
+        case UIHover_Target:
+        {
+            if(MouseIsClicked)
+            {
+                Pipeline->DragCaptureNode = Hit.LayoutNode;
+            }
+        } break;
+
+        case UIHover_ResizeX:
+        {
+            if (MouseIsClicked)
+            {
+                Pipeline->ResizeCaptureNode = Hit.LayoutNode;
+                Pipeline->ResizeType        = UIResize_X;
+            }
+        } break;
+
+        case UIHover_ResizeY:
+        {
+            if (MouseIsClicked)
+            {
+                Pipeline->ResizeCaptureNode = Hit.LayoutNode;
+                Pipeline->ResizeType        = UIResize_Y;
+            }
+        } break;
+
+        case UIHover_ResizeCorner:
+        {
+            if (MouseIsClicked)
+            {
+                Pipeline->ResizeCaptureNode = Hit.LayoutNode;
+                Pipeline->ResizeType        = UIResize_XY;
+            }
+        } break;
+
+        }
+    }
+
+    if (MouseReleased)
+    {
+        Pipeline->DragCaptureNode   = 0;
+        Pipeline->ResizeCaptureNode = 0;
+        Pipeline->ResizeType        = UIResize_None;
+    }
+
+    if (Pipeline->ResizeCaptureNode)
+    {
+        switch (Pipeline->ResizeType)
+        {
+        default: break;
+
+        case UIResize_X:
+        {
+            vec2_f32 Delta = Vec2F32(MouseDelta.X, 0.f);
+            UILayout_ResizeSubtree(Delta, Pipeline->ResizeCaptureNode, Pipeline);
+        } break;
+
+        case UIResize_Y:
+        {
+            vec2_f32 Delta = Vec2F32(0.f, MouseDelta.Y);
+            UILayout_ResizeSubtree(Delta, Pipeline->ResizeCaptureNode, Pipeline);
+        } break;
+
+        case UIResize_XY:
+        {
+            UILayout_ResizeSubtree(MouseDelta, Pipeline->ResizeCaptureNode, Pipeline);
+        } break;
+
+        }
+
+        if (Hit.Success)
+        {
+            ClearFlag(Hit.LayoutNode->Layout.Flags, UILayoutNode_IsHovered);
+        }
+    }
+
+    if (Pipeline->DragCaptureNode && (MouseDelta.X != 0.f || MouseDelta.Y != 0.f))
+    {
+        UILayout_DragSubtree(MouseDelta, Pipeline->DragCaptureNode, Pipeline);
+    }
+
+    // Set Cursor
+    {
+        if (Pipeline->DragCaptureNode)
+        {
+            OSSetCursor(OSCursor_GrabHand);
+        }
+        else if (Hit.HoverState == UIHover_ResizeX || Pipeline->ResizeType == UIResize_X)
+        {
+            OSSetCursor(OSCursor_ResizeHorizontal);
+        }
+        else if (Hit.HoverState == UIHover_ResizeY || Pipeline->ResizeType == UIResize_Y)
+        {
+            OSSetCursor(OSCursor_ResizeVertical);
+        }
+        else if (Hit.HoverState == UIHover_ResizeCorner || Pipeline->ResizeType == UIResize_XY)
+        {
+            OSSetCursor(OSCursor_ResizeDiagonalLeftToRight);
+        }
+        else
+        {
+            OSSetCursor(OSCursor_Default);
+        }
+    }
+
+    UIPipelineBuildDrawList(Pipeline, RenderPass, StyleRoot, LayoutRoot);
 }
 
 internal void
@@ -694,198 +553,6 @@ UIPipelineCrystallizeStyles(ui_pipeline *Pipeline, ui_node *Root)
 {   UNUSED(Pipeline && Root);
 
     // TODO: Implement this....
-}
-
-internal void
-UIPipelineSynchronize(ui_pipeline *Pipeline, ui_node *Root)
-{
-    ui_node *LNode       = &Pipeline->LayoutTree.Nodes[Root->Id];
-    ui_node *SNodeParent = (ui_node *)Root->Parent;
-
-    if (!UIIsParallelNode(Root, LNode))
-    {
-        LNode = UIGetNextNode(&Pipeline->LayoutTree, Root->Type);
-        LNode->Id = Root->Id;
-
-        ui_node *LNodeParent = 0;
-        if (SNodeParent && SNodeParent->Id < Pipeline->StyleTree.NodeCount)
-        {
-            LNodeParent = Pipeline->LayoutTree.Nodes + SNodeParent->Id;
-        }
-        UILinkNodes(LNode, LNodeParent);
-    }
-
-    {
-        LNode->Layout.Width    = Root->Style.Size.X;
-        LNode->Layout.Height   = Root->Style.Size.Y;
-        LNode->Layout.Padding  = Root->Style.Padding;
-        LNode->Layout.Spacing  = Root->Style.Spacing;
-    }
-
-    for (ui_node *Child = Root->First; Child != 0; Child = Child->Next)
-    {
-        UIPipelineSynchronize(Pipeline, Child);
-    }
-}
-
-internal void
-UIPipelineTopDownLayout(ui_pipeline *Pipeline)
-{   Assert(Pipeline);
-
-    ui_tree *StyleTree  = &Pipeline->StyleTree;
-    ui_tree *LayoutTree = &Pipeline->LayoutTree;
-
-    if (StyleTree && LayoutTree)
-    {
-        node_queue Queue = { 0 };
-        {
-            typed_queue_params Params = { 0 };
-            Params.QueueSize = LayoutTree->NodeCount;
-
-            Queue = BeginNodeQueue(Params, LayoutTree->Arena);
-        }
-
-        if (Queue.Data)
-        {
-            ui_node       *RootLayout = &LayoutTree->Nodes[0];
-            ui_layout_box *RootBox    = &RootLayout->Layout;
-
-            if (RootBox->Width.Type != UIUnit_Float32)
-            {
-                return; // TODO: Error.
-            }
-
-            RootBox->FinalWidth  = RootBox->Width.Float32;
-            RootBox->FinalHeight = RootBox->Height.Float32;
-
-            PushNodeQueue(&Queue, RootLayout);
-
-            while (!IsNodeQueueEmpty(&Queue))
-            {
-                ui_node        *Current = PopNodeQueue(&Queue);
-                ui_layout_box  *Box     = &Current->Layout;
-                
-                f32 AvWidth    = Box->FinalWidth  - (Box->Padding.Left + Box->Padding.Right);
-                f32 AvHeight   = Box->FinalHeight - (Box->Padding.Top  + Box->Padding.Bot);
-                f32 UsedWidth  = 0;
-                f32 UsedHeight = 0;
-                f32 BasePosX   = Box->FinalX + Box->Padding.Left;
-                f32 BasePosY   = Box->FinalY + Box->Padding.Top;
-
-                {
-                    for (ui_node *ChildNode = Current->First; (ChildNode != 0 && UsedWidth <= AvWidth); ChildNode = ChildNode->Next)
-                    {
-                        ChildNode->Layout.FinalX = BasePosX + UsedWidth;
-                        ChildNode->Layout.FinalY = BasePosY + UsedHeight;
-
-                        ui_layout_box *ChildBox = &ChildNode->Layout;
-
-                        f32 Width  = 0;
-                        f32 Height = 0;
-                        {
-                            if (ChildBox->Width.Type == UIUnit_Percent)
-                            {
-                                Width = (ChildBox->Width.Percent / 100.f) * AvWidth;
-                            }
-                            else if (ChildBox->Width.Type == UIUnit_Float32)
-                            {
-                                Width = ChildBox->Width.Float32 <= AvWidth ? ChildBox->Width.Float32 : 0.f;
-                            }
-                            else
-                            {
-                                return;
-                            }
-
-                            if (ChildBox->Height.Type == UIUnit_Percent)
-                            {
-                                Height = (ChildBox->Height.Percent / 100.f) * AvHeight;
-                            }
-                            else if (ChildBox->Height.Type == UIUnit_Float32)
-                            {
-                                Height = ChildBox->Height.Float32 <= AvHeight ? ChildBox->Height.Float32 : 0.f;
-                            }
-                            else
-                            {
-                                return;
-                            }
-
-                            ChildBox->FinalWidth  = Width;
-                            ChildBox->FinalHeight = Height;
-                        }
-
-                        if (Box->Flags & UILayoutNode_PlaceChildrenVertically)
-                        {
-                            UsedHeight += Height + Box->Spacing.Vertical;
-                        }
-                        else
-                        {
-                            UsedWidth += Width + Box->Spacing.Horizontal;
-                        }
-
-                        PushNodeQueue(&Queue, ChildNode);
-                    }
-    }
-
-                // Text Position
-                // TODO: Text wrapping and stuff.
-                // TODO: Text Alignment.
-                {
-                    if (Box->Flags & UILayoutNode_DrawText)
-                    {
-                        ui_text *Text    = Box->Text;
-                        vec2_f32 TextPos = Vec2F32(BasePosX, BasePosY);
-
-                        for (u32 Idx = 0; Idx < Text->Size; Idx++)
-                        {
-                            ui_character *Character = &Text->Characters[Idx];
-                            Character->Position.Min.X = roundf(TextPos.X + Character->Layout.Offset.X);
-                            Character->Position.Min.Y = roundf(TextPos.Y + Character->Layout.Offset.Y);
-                            Character->Position.Max.X = roundf(Character->Position.Min.X + Character->Layout.AdvanceX);
-                            Character->Position.Max.Y = roundf(Character->Position.Min.Y + Text->LineHeight);
-
-                            TextPos.X += (Character->Position.Max.X) - (Character->Position.Min.X);
-                        }
-                    }
-                }
-
-            }
-
-            // NOTE: Not really clear that we are clearing the queue...
-            PopArena(LayoutTree->Arena, LayoutTree->NodeCount * sizeof(ui_node *));
-        }
-        else
-        {
-            OSLogMessage(byte_string_literal("Failed to allocate queue for (Top Down Layout) ."), OSMessage_Error);
-        }
-    }
-    else
-    {
-        OSLogMessage(byte_string_literal("Unable to compute (Top Down Layout), because one of the trees is invalid."), OSMessage_Error);
-    }
-}
-
-internal ui_node *
-UIPipelineHitTest(ui_pipeline *Pipeline, vec2_f32 MousePosition, ui_node *LRoot)
-{
-    ui_layout_box *Box = &LRoot->Layout;
-
-    rect_f32 BoundingBox = RectF32(Box->FinalX, Box->FinalY, Box->Width.Float32, Box->Height.Float32);
-    if (IsPointInRect(BoundingBox, MousePosition))
-    {
-        for (ui_node *Child = LRoot->Last; Child != 0; Child = Child->Prev)
-        {
-            ui_node *Hit = UIPipelineHitTest(Pipeline, MousePosition, Child);
-
-            if (Hit)
-            {
-                return Hit;
-            }
-        }
-
-        return LRoot;
-    }
-
-    return 0;
 }
 
 internal void
@@ -980,7 +647,6 @@ UIPipelineBuildDrawList(ui_pipeline *Pipeline, render_pass *Pass, ui_node *SRoot
         Rect->Color       = Style->Color;
         Rect->CornerRadii = Style->CornerRadius;
         Rect->Softness    = Style->Softness;
-        
     }
 
     if (HasFlag(Box->Flags, UILayoutNode_DrawBorders))
@@ -1007,7 +673,6 @@ UIPipelineBuildDrawList(ui_pipeline *Pipeline, render_pass *Pass, ui_node *SRoot
 
     for (ui_node *SChild = SRoot->First; SChild != 0; SChild = SChild->Next)
     {
-        ui_node *LChild = &Pipeline->LayoutTree.Nodes[SChild->Id];
-        UIPipelineBuildDrawList(Pipeline, Pass, SChild, LChild);
+        UIPipelineBuildDrawList(Pipeline, Pass, SChild, UITree_GetLayoutNode(SChild, Pipeline));
     }
 }

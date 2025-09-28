@@ -45,6 +45,11 @@ OSWin32WindowProc(HWND Handle, UINT Message, WPARAM WParam, LPARAM LParam)
     switch(Message)
     {
 
+    case WM_SETCURSOR:
+    {
+        return TRUE;
+    } break;
+
     case WM_MOUSEMOVE:
     {
         i32 MouseX = GET_X_LPARAM(LParam);
@@ -333,7 +338,33 @@ OSReadFile(os_handle Handle, memory_arena *Arena)
     return Result;
 }
 
-// [Per-OS API Frame Context Implementation]
+// [Windowing]
+
+internal void
+OSSetCursor(OSCursor_Type Type)
+{   Assert(Type >= OSCursor_Default && Type <= OSCursor_GrabHand);
+
+    HCURSOR Cursor = 0;
+
+    switch (Type)
+    {
+    case OSCursor_None:                      Cursor = LoadCursor(0, IDC_ARROW);    break;
+    case OSCursor_Default:                   Cursor = LoadCursor(0, IDC_ARROW);    break;
+    case OSCursor_EditText:                  Cursor = LoadCursor(0, IDC_IBEAM);    break;
+    case OSCursor_Waiting:                   Cursor = LoadCursor(0, IDC_WAIT);     break;
+    case OSCursor_Loading:                   Cursor = LoadCursor(0, IDC_WAIT);     break;
+    case OSCursor_ResizeVertical:            Cursor = LoadCursor(0, IDC_SIZENS);   break;
+    case OSCursor_ResizeHorizontal:          Cursor = LoadCursor(0, IDC_SIZEWE);   break;
+    case OSCursor_ResizeDiagonalLeftToRight: Cursor = LoadCursor(0, IDC_SIZENWSE); break;
+    case OSCursor_ResizeDiagonalRightToLeft: Cursor = LoadCursor(0, IDC_SIZENESW); break;
+    case OSCursor_GrabHand:                  Cursor = LoadCursor(0, IDC_HAND);     break;
+    }
+
+    if (Cursor)
+    {
+        SetCursor(Cursor);
+    }
+}
 
 internal b32
 OSUpdateWindow()
