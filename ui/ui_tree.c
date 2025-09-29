@@ -51,6 +51,11 @@ UITree_Allocate(ui_tree_params Params)
         Result->MaximumDepth = Params.Depth;
         Result->NodeCapacity = Params.NodeCount;
         Result->Type         = Params.Type;
+
+        for (u32 Idx = 0; Idx < Result->NodeCapacity; Idx++)
+        {
+            Result->Nodes[Idx].Id = InvalidNodeId;
+        }
     }
 
     return Result;

@@ -35,6 +35,12 @@ typedef enum OSCursor_Type
     OSCursor_GrabHand                  = 9,
 } OSCursor_Type;
 
+typedef enum OSResource_Type
+{
+    OSResource_None = 0,
+    OSResource_File = 1,
+} OSResource_Type;
+
 // [Core Types]
 
 typedef struct os_system_info
@@ -57,12 +63,12 @@ typedef struct os_inputs
     os_button_state MouseButtons[OS_MouseButtonCount];
 } os_inputs;
 
-typedef struct os_file
+typedef struct os_read_file
 {
     byte_string Content;
     u64         At;
     b32         FullyRead;
-} os_file;
+} os_read_file;
 
 typedef struct os_glyph_layout
 {
@@ -92,14 +98,15 @@ internal void ProcessInputMessage(os_button_state *NewState, b32 IsDown);
 
 // [Files]
 
-internal b32   IsValidFile      (os_file *File);
-internal void  SkipWhiteSpaces  (os_file *File);
-internal u8  * PeekFilePointer  (os_file *File);
-internal u8    PeekFile         (os_file *File, u32 Offset);
-internal void  AdvanceFile      (os_file *File, u32 Count);
+internal b32   IsValidFile      (os_read_file *File);
+internal void  SkipWhiteSpaces  (os_read_file *File);
+internal u8  * PeekFilePointer  (os_read_file *File);
+internal u8    PeekFile         (os_read_file *File, u32 Offset);
+internal void  AdvanceFile      (os_read_file *File, u32 Count);
 
-internal os_handle OSFindFile  (byte_string Path);
-internal os_file   OSReadFile  (os_handle Handle, memory_arena *Arena);
+internal os_handle    OSFindFile  (byte_string Path);
+internal u64          OSFileSize  (os_handle Handle);
+internal os_read_file OSReadFile  (os_handle Handle, memory_arena *Arena);
 
 // [OS State]
 

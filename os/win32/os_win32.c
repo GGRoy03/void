@@ -281,7 +281,7 @@ OSRelease(void *Memory)
     VirtualFree(Memory, 0, MEM_RELEASE);
 }
 
-// [Per-OS API File Implementation]
+// [File Implementation - OS Specific]
 
 internal os_handle
 OSFindFile(byte_string Path)
@@ -297,11 +297,34 @@ OSFindFile(byte_string Path)
     return Handle;
 }
 
-internal os_file
+internal u64
+OSFileSize(os_handle Handle)
+{
+    u64 Result = 0;
+
+    HANDLE FileHandle = (HANDLE)Handle.u64[0];
+    if (FileHandle)
+    {
+        LARGE_INTEGER NativeResult = { 0 };
+        b32 Success = GetFileSizeEx(FileHandle, &NativeResult);
+        if (Success)
+        {
+            Result = NativeResult.QuadPart;
+        }
+        else
+        {
+            OSLogMessage(byte_string_literal("Failed to query file size."), OSMessage_Warn);
+        }
+    }
+
+    return Result;
+}
+
+internal os_read_file
 OSReadFile(os_handle Handle, memory_arena *Arena)
 {
-    os_file Result     = {0};
-    HANDLE  FileHandle = (HANDLE)Handle.u64[0];
+    os_read_file Result     = {0};
+    HANDLE       FileHandle = (HANDLE)Handle.u64[0];
 
     if (FileHandle != INVALID_HANDLE_VALUE)
     {

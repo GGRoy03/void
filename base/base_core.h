@@ -27,12 +27,13 @@
 #define Assert(Cond) do { if (!(Cond)) __debugbreak(); } while (0)
 #define UNUSED(x) (void)(x)
 #define ArrayCount(Array) (sizeof(Array) / sizeof(Array[0]))
+#define IsPowerOfTwo(Value) (((Value) & ((Value) - 1)) == 0)
 
 // [Units]
 
 #define Kilobyte(n) (((u64)(n)) << 10)
 #define Megabyte(n) (((u64)(n)) << 20)
-#define Gygabyte(n) (((u64)(n)) << 30)
+#define Gigabyte(n) (((u64)(n)) << 30)
 
 // [Alignment]
 

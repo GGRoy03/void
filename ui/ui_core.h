@@ -166,20 +166,19 @@ struct ui_cached_style
 
 typedef struct ui_style_registery
 {
-    u32 Count;
-    u32 Capacity;
-
-    ui_style_name   *CachedName;
-    ui_cached_style *Sentinels;
+    u32              Count;
+    ui_style_name   *CachedNames;
     ui_cached_style *CachedStyles;
-    memory_arena    *Arena;
+    ui_cached_style *Sentinels;
+    u8              *StringBuffer;
+    u64              StringBufferOffset;
 } ui_style_registery;
 
 // [Pipeline Types]
 
 typedef struct ui_pipeline_params
 {
-    byte_string  *ThemeFiles;
+    os_handle    *ThemeFiles;
     u32           ThemeCount;
     u32           TreeDepth;
     u32           TreeNodeCount;
@@ -247,7 +246,7 @@ internal void UISetColor(ui_node *Node, ui_color Color);
 
 // [Pipeline]
 
-internal ui_pipeline UICreatePipeline         (ui_pipeline_params Params, ui_state *UIState);
+internal ui_pipeline UICreatePipeline         (ui_pipeline_params Params);
 internal void        UIPipelineBegin          (ui_pipeline *Pipeline);
 internal void        UIPipelineExecute        (ui_pipeline *Pipeline, render_pass_list *PassList);
 

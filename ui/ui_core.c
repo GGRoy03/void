@@ -239,10 +239,10 @@ UIGetCachedName(byte_string Name, ui_style_registery *Registery)
 
         for (CachedStyle = Sentinel->Next; CachedStyle != 0; CachedStyle = CachedStyle->Next)
         {
-            byte_string CachedString = Registery->CachedName[CachedStyle->Index].Value;
+            byte_string CachedString = Registery->CachedNames[CachedStyle->Index].Value;
             if (ByteStringMatches(Name, CachedString, StringMatch_CaseSensitive))
             {
-                Result = Registery->CachedName[CachedStyle->Index];
+                Result = Registery->CachedNames[CachedStyle->Index];
                 break;
             }
         }
@@ -263,7 +263,7 @@ UIGetStyle(ui_style_name Name, ui_style_registery *Registery)
         {
             for (ui_cached_style *CachedStyle = Sentinel->Next; CachedStyle != 0; CachedStyle = CachedStyle->Next)
             {
-                byte_string CachedString = Registery->CachedName[CachedStyle->Index].Value;
+                byte_string CachedString = Registery->CachedNames[CachedStyle->Index].Value;
                 if (Name.Value.String == CachedString.String)
                 {
                     Result = CachedStyle->Style;
@@ -299,7 +299,7 @@ UISetColor(ui_node *Node, ui_color Color)
 // [Pipeline]
 
 internal ui_pipeline
-UICreatePipeline(ui_pipeline_params Params, ui_state *UIState)
+UICreatePipeline(ui_pipeline_params Params)
 {
     ui_pipeline Result = {0};
 
@@ -345,21 +345,11 @@ UICreatePipeline(ui_pipeline_params Params, ui_state *UIState)
 
             Result.LayoutTree = UITree_Allocate(TreeParams);
         }
-
-        for (u32 Idx = 0; Idx < Result.StyleTree->NodeCapacity; Idx++)
-        {
-            Result.StyleTree->Nodes[Idx].Id = InvalidNodeId;
-        }
-
-        for (u32 Idx = 0; Idx < Result.LayoutTree->NodeCapacity; Idx++)
-        {
-            Result.LayoutTree->Nodes[Idx].Id = InvalidNodeId;
-        }
     }
 
     // Others
     {
-        LoadThemeFiles(Params.ThemeFiles, Params.ThemeCount, &Result.StyleRegistery, Params.RendererHandle, UIState);
+        Result.StyleRegistery = LoadStyleFromFiles(Params.ThemeFiles, Params.ThemeCount, Result.StaticArena);
         Result.RendererHandle = Params.RendererHandle;
     }
 

@@ -263,3 +263,16 @@ ByteStringToWideString(memory_arena *Arena, byte_string Input)
 
     return Result;
 }
+
+// [Hashes]
+
+#define XXH_STATIC_LINKING_ONLY
+#define XXH_IMPLEMENTATION     
+#include "third_party/xxhash.h"
+
+internal u64
+HashByteString(byte_string Input)
+{
+    u64 Result = XXH3_64bits(Input.String, Input.Size);
+    return Result;
+}

@@ -9,11 +9,6 @@
 
 // NOTE: Is there no way to make this way simpler? With a single 'key' per type, the type itself?
 
-// [Globals]
-
-#define ThemeNameLength 64
-#define ThemeMaxCount   256
-
 // [Enums]
 
 typedef enum UIStyleToken_Type
@@ -33,6 +28,7 @@ typedef enum UIStyleToken_Type
     UIStyleToken_Vector      = 260,
     UIStyleToken_Style       = 261,
     UIStyleToken_For         = 262,
+    UIStyleToken_Var         = 263,
 } UIStyleToken_Type;
 
 typedef enum UIStyleAttribute_Flag
@@ -57,6 +53,16 @@ typedef enum UICacheStyle_Flag
     UICacheStyle_BindHoverEffect = 1 << 1,
 } UICacheStyle_Flag;
 
+typedef enum UIStyle_Type
+{
+    UIStyle_Base  = 0,
+    UIStyle_Hover = 1,
+    UIStyle_Click = 2,
+    UIStyle_None  = 3,
+
+    UIStyle_Type_Count = 3,
+} UIStyle_Type;
+
 // [Types]
 
 typedef struct style_token
@@ -72,31 +78,60 @@ typedef struct style_token
     };
 } style_token;
 
-typedef struct style_tokenizer
+typedef struct tokenized_style_file
 {
-    u32           Count;
-    u32           Capacity;
-    style_token  *Buffer;
-    memory_arena *Arena;
-    u32           AtLine;
-} style_tokenizer;
+    style_token *Buffer;
+    u32          BufferSize;
+    u32          LineCount;
+    u32          AtToken;
+    b32          HasError;
+} tokenized_style_file;
+
+typedef struct style_var_hash
+{
+    u64 Value;
+} style_var_hash;
+
+typedef struct style_var_entry
+{
+    style_var_hash Hash;
+    u32            NextWithSameHash;
+
+    b32          ValueIsParsed;
+    style_token *ValueToken;
+} style_var_entry;
+
+typedef struct style_var_table_params
+{
+    u32 HashCount;
+    u32 EntryCount;
+} style_var_table_params;
+
+typedef struct style_var_table
+{
+    u32 HashMask;
+    u32 HashCount;
+    u32 EntryCount;
+
+    u32             *HashTable;
+    style_var_entry *Entries;
+} style_var_table;
 
 typedef struct style_parser
 {
-    u32         TokenIndex;
-    byte_string StyleName;
-    UINode_Type StyleType;
-
-    ui_style  BaseStyle;
-    ui_style  HoverStyle;
-    ui_style  ClickStyle;
-    ui_style *EffectPointer;
-    b32       HasBaseStyle;
-    b32       HasHoverStyle;
-    b32       HasClickStyle;
+    UIStyle_Type     StyleType;
+    ui_style         Styles[UIStyle_Type_Count];
+    b32              StyleIsSet[UIStyle_Type_Count];
+    byte_string      StyleName;
+    style_var_table *VarTable;
 } style_parser;
 
 // [GLOBALS]
+
+read_only global u32                    MAXIMUM_STYLE_NAME_LENGTH          = 64;
+read_only global u32                    MAXIMUM_STYLE_COUNT_PER_REGISTERY  = 128;
+read_only global u32                    MAXIMUM_STYLE_TOKEN_COUNT_PER_FILE = 10'000;
+read_only global style_var_table_params STYLE_VAR_TABLE_PARAMS             = {.EntryCount = 512, .HashCount = 128};
 
 read_only global bit_field StyleTypeValidAttributesTable[] =
 {
@@ -133,24 +168,33 @@ read_only global bit_field StyleTypeValidAttributesTable[] =
 
 // [API]
 
-internal void LoadThemeFiles  (byte_string *Files, u32 FileCount, ui_style_registery *Registery, render_handle Renderer, ui_state *UIState);
+internal ui_style_registery LoadStyleFromFiles(os_handle *FileHandles, u32 Count, memory_arena *OutputArena);
 
 // [Tokenizer]
 
-internal style_token *CreateStyleToken   (UIStyleToken_Type Type, style_tokenizer *Tokenizer);
-internal b32          TokenizeStyleFile  (os_file *File, style_tokenizer *Tokenizer);
-internal b32          ReadString         (os_file *File, byte_string *OutString);
-internal b32          ReadVector         (os_file *File, u32 MinimumSize, u32 MaximumSize, u32 CurrentLineInFile, style_token *Result);
-internal b32          ReadUnit           (os_file *File, u32 CurrentLineInFile, ui_unit *Result);
+internal b32                  ReadString         (os_read_file *File, byte_string *OutString);
+internal b32                  ReadVector         (os_read_file *File, u32 MinimumSize, u32 MaximumSize, u32 CurrentLineInFile, style_token *Result);
+internal b32                  ReadUnit           (os_read_file *File, u32 CurrentLineInFile, ui_unit *Result);
+internal tokenized_style_file TokenizeStyleFile  (os_read_file File, memory_arena *Arena);
 
-// [Parsing]
+// [Parsing Routines]
 
-internal void          ConsumeStyleTokens  (style_parser *Parser, u32 Count);
-internal style_token * PeekStyleToken      (style_token *Tokens, u32 TokenBufferSize, u32 Index, u32 Offset);
+internal b32 ParseTokenizedStyleFile  (tokenized_style_file *TokenizedFile, memory_arena *Arena, ui_style_registery *Registery);
+internal b32 ParseStyleVariable       (style_parser *Parser, tokenized_style_file *TokenizedFile);
+internal b32 ParseStyleHeader         (style_parser *Parser, tokenized_style_file *TokenizedFile, ui_style_registery *Registery);
+internal b32 ParseStyleAttribute      (style_parser *Parser, tokenized_style_file *TokenizedFile, UINode_Type ParsingFor);
 
-internal b32 ParseStyleFile       (style_parser *Parser, style_token *Tokens, u32 TokenBufferSize, render_handle Renderer, ui_state *UIState, ui_style_registery *Registery);
-internal b32 ParseStyleAttribute  (style_parser *Parser, style_token *Tokens, u32 TokenBufferSize);
-internal b32 ParseStyleHeader     (style_parser *Parser, style_token *Tokens, u32 TokenBufferSize, ui_style_registery *Registery);
+// [Variables]
+
+internal style_var_table * PlaceStyleVarTableInMemory  (style_var_table_params Params, void *Memory);
+internal style_var_entry * GetStyleVarSentinel         (style_var_table *Table);
+internal style_var_entry * GetStyleVarEntry            (u32 Index, style_var_table *Table);
+internal u32               PopFreeStyleVarEntry        (style_var_table *Table);
+internal style_var_entry * FindStyleVarEntry           (style_var_hash Hash, style_var_table *Table);
+internal style_var_hash    HashStyleVarIdentifier      (byte_string Identifier);
+internal size_t            GetStyleVarTableFootprint   (style_var_table_params Params);
+
+// []
 
 internal b32      ValidateColor      (vec4_unit Vec);
 internal ui_color ToNormalizedColor  (vec4_unit Vec);
@@ -158,11 +202,11 @@ internal ui_color ToNormalizedColor  (vec4_unit Vec);
 internal b32                   SaveStyleAttribute             (UIStyleAttribute_Flag Attribute, style_token *Value, style_parser *Parser);
 internal UIStyleAttribute_Flag GetStyleAttributeFlag          (byte_string Identifier);
 internal b32                   IsAttributeFormattedCorrectly  (UIStyleToken_Type TokenType, UIStyleAttribute_Flag AttributeFlag);
-internal ui_cached_style      *CacheStyle                     (ui_style Style, byte_string Name, bit_field Flags, ui_cached_style *BaseStyle, render_handle Renderer, ui_state *UIState, ui_style_registery *Registery);
+internal ui_cached_style      *CacheStyle                     (ui_style Style, byte_string Name, UIStyle_Type Type, ui_cached_style *BaseStyle, ui_style_registery *Registery);
 internal ui_cached_style      *CreateCachedStyle              (ui_style Style, ui_style_registery *Registery);
 internal ui_style_name        *CreateCachedStyleName          (byte_string Name, ui_cached_style *CachedStyle, ui_style_registery *Registery);
 
 // [Error Handling]
 
-internal read_only char *UIStyleAttributeToString  (UIStyleAttribute_Flag Flag);
-internal void            LogStyleParserMessage     (u32 LineInFile, OSMessage_Severity Severity, byte_string Format, ...);
+internal read_only char * StyleAttributeToString  (UIStyleAttribute_Flag Flag);
+internal void             LogStyleFileMessage     (u32 LineInFile, OSMessage_Severity Severity, byte_string Format, ...);

@@ -11,14 +11,14 @@ ProcessInputMessage(os_button_state *NewState, b32 IsDown)
 // [Agnostic File API]
 
 internal b32 
-IsValidFile(os_file *File)
+IsValidFile(os_read_file *File)
 {
     b32 Result = File->At < File->Content.Size;
     return Result;
 }
 
 internal void 
-SkipWhiteSpaces(os_file *File)
+SkipWhiteSpaces(os_read_file *File)
 {
     while(IsValidFile(File) && IsWhiteSpace(PeekFile(File, 0)))
     {
@@ -27,14 +27,14 @@ SkipWhiteSpaces(os_file *File)
 }
 
 internal u8 *
-PeekFilePointer(os_file *File)
+PeekFilePointer(os_read_file *File)
 {
     u8 *Result = &File->Content.String[File->At];
     return Result;
 }
 
 internal u8
-PeekFile(os_file *File, u32 Offset)
+PeekFile(os_read_file *File, u32 Offset)
 {
     u8 Result = 0;
 
@@ -47,7 +47,7 @@ PeekFile(os_file *File, u32 Offset)
 }
 
 internal void
-AdvanceFile(os_file *File, u32 Count)
+AdvanceFile(os_read_file *File, u32 Count)
 {
     File->At += Count;
 }

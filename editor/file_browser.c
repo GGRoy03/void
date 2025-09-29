@@ -17,14 +17,16 @@ FileBrowserBackwardHistory(ui_node *Node, ui_pipeline *Pipeline)
 internal void
 FileBrowserUI(file_browser_ui *UI, render_pass_list *PassList, render_handle Renderer, ui_state *UIState)
 {
+    UNUSED(UIState);
+
     if(!UI->IsInitialized)
     {
 
         ui_pipeline_params PipelineParams = {0};
         {
-            byte_string ThemeFiles[] = 
+            os_handle ThemeFiles[] = 
             {
-                byte_string_literal("D:/Work/CIM/styles/file_browser.cim"),
+                OSFindFile(byte_string_literal("D:/Work/CIM/styles/file_browser.cim")),
             };
 
             PipelineParams.ThemeFiles     = ThemeFiles;
@@ -34,7 +36,7 @@ FileBrowserUI(file_browser_ui *UI, render_pass_list *PassList, render_handle Ren
             PipelineParams.RendererHandle = Renderer;
         }
 
-        UI->Pipeline = UICreatePipeline(PipelineParams, UIState);
+        UI->Pipeline = UICreatePipeline(PipelineParams);
 
         memory_arena_params ArenaParams = {0};
         {
