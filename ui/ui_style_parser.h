@@ -128,8 +128,6 @@ typedef struct style_parser
 
 // [GLOBALS]
 
-read_only global u32                    MAXIMUM_STYLE_NAME_LENGTH          = 64;
-read_only global u32                    MAXIMUM_STYLE_COUNT_PER_REGISTERY  = 128;
 read_only global u32                    MAXIMUM_STYLE_TOKEN_COUNT_PER_FILE = 10'000;
 read_only global style_var_table_params STYLE_VAR_TABLE_PARAMS             = {.EntryCount = 512, .HashCount = 128};
 
@@ -168,7 +166,9 @@ read_only global bit_field StyleTypeValidAttributesTable[] =
 
 // [API]
 
-internal ui_style_registery LoadStyleFromFiles(os_handle *FileHandles, u32 Count, memory_arena *OutputArena);
+internal size_t                 GetSubRegistryFootprint  (void);
+internal ui_style_registry      CreateStyleRegistry      (byte_string *FileNames, u32 Count, memory_arena *OutputArena);
+internal ui_style_subregistry * CreateStyleSubregistry   (byte_string FileName, memory_arena *OutputArena);
 
 // [Tokenizer]
 
@@ -179,9 +179,9 @@ internal tokenized_style_file TokenizeStyleFile  (os_read_file File, memory_aren
 
 // [Parsing Routines]
 
-internal b32 ParseTokenizedStyleFile  (tokenized_style_file *TokenizedFile, memory_arena *Arena, ui_style_registery *Registery);
+internal b32 ParseTokenizedStyleFile  (tokenized_style_file *TokenizedFile, memory_arena *Arena, ui_style_subregistry *Registery);
 internal b32 ParseStyleVariable       (style_parser *Parser, tokenized_style_file *TokenizedFile);
-internal b32 ParseStyleHeader         (style_parser *Parser, tokenized_style_file *TokenizedFile, ui_style_registery *Registery);
+internal b32 ParseStyleHeader         (style_parser *Parser, tokenized_style_file *TokenizedFile, ui_style_subregistry *Registery);
 internal b32 ParseStyleAttribute      (style_parser *Parser, tokenized_style_file *TokenizedFile, UINode_Type ParsingFor);
 
 // [Variables]
@@ -199,12 +199,12 @@ internal size_t            GetStyleVarTableFootprint   (style_var_table_params P
 internal b32      ValidateColor      (vec4_unit Vec);
 internal ui_color ToNormalizedColor  (vec4_unit Vec);
 
-internal b32                   SaveStyleAttribute             (UIStyleAttribute_Flag Attribute, style_token *Value, style_parser *Parser);
-internal UIStyleAttribute_Flag GetStyleAttributeFlag          (byte_string Identifier);
-internal b32                   IsAttributeFormattedCorrectly  (UIStyleToken_Type TokenType, UIStyleAttribute_Flag AttributeFlag);
-internal ui_cached_style      *CacheStyle                     (ui_style Style, byte_string Name, UIStyle_Type Type, ui_cached_style *BaseStyle, ui_style_registery *Registery);
-internal ui_cached_style      *CreateCachedStyle              (ui_style Style, ui_style_registery *Registery);
-internal ui_style_name        *CreateCachedStyleName          (byte_string Name, ui_cached_style *CachedStyle, ui_style_registery *Registery);
+internal b32                    SaveStyleAttribute             (UIStyleAttribute_Flag Attribute, style_token *Value, style_parser *Parser);
+internal UIStyleAttribute_Flag  GetStyleAttributeFlag          (byte_string Identifier);
+internal b32                    IsAttributeFormattedCorrectly  (UIStyleToken_Type TokenType, UIStyleAttribute_Flag AttributeFlag);
+internal ui_cached_style      * CacheStyle                     (ui_style Style, byte_string Name, UIStyle_Type Type, ui_cached_style *BaseStyle, ui_style_subregistry *Registery);
+internal ui_cached_style      * CreateCachedStyle              (ui_style Style, ui_style_subregistry *Registery);
+internal ui_style_name        * CreateCachedStyleName          (byte_string Name, ui_cached_style *CachedStyle, ui_style_subregistry *Registery);
 
 // [Error Handling]
 
