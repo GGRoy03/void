@@ -24,50 +24,11 @@ IsValidByteString(byte_string Input)
     b32 Result = (Input.String) && (Input.Size);
     return Result;
 }
-// [Character Utilities]
-
-static b32
-IsAlpha(u8 Char)
-{
-    b32 Result = (Char >= 'A' && Char <= 'Z') || (Char >= 'a' && Char <= 'z');
-    return Result;
-}
-
-static b32
-IsDigit(u8 Char)
-{
-    b32 Result = (Char >= '0' && Char <= '9');
-    return Result;
-}
-
-static b32
-IsWhiteSpace(u8 Char)
-{
-    b32 Result = (Char == ' ') || (Char == '\t');
-    return Result;
-}
-
-static u8 
-ToLowerChar(u8 Char)
-{
-    Assert(IsAlpha(Char));
-
-    u8 Result = '\0';
-    if (Char < 'a')
-    {
-        Result = Char + ('a' - 'A');
-    }
-    else
-    {
-        Result = Char;
-    }
-
-    return Result;
-}
 
 internal b32 
 ByteStringMatches(byte_string Str1, byte_string Str2, bit_field Flags)
-{   Assert(Flags >= StringMatch_NoFlag && Flags <= StringMatch_CaseSensitive);
+{
+    Assert(Flags >= StringMatch_NoFlag && Flags <= StringMatch_CaseSensitive);
 
     b32 Result = 0;
 
@@ -104,6 +65,123 @@ ByteStringMatches(byte_string Str1, byte_string Str2, bit_field Flags)
         }
 
         Result = (Pointer1 == End);
+    }
+
+    return Result;
+}
+
+internal b32
+WideStringMatches(wide_string A, wide_string B, bit_field Flags)
+{
+    Assert(Flags >= StringMatch_NoFlag && Flags <= StringMatch_CaseSensitive);
+
+    b32 Result = 0;
+
+    if(A.Size == B.Size)
+    {
+        u16 *P1  = A.String;
+        u16 *P2  = B.String;
+        u16 *End = A.String + A.Size;
+
+        if(Flags & StringMatch_CaseSensitive)
+        {
+            while(P1 < End && *P1++ == *P2++){};
+        }
+        else
+        {
+            while (P1 < End)
+            {
+                u16 C1 = *P1;
+                u16 C2 = *P2;
+
+                if (C1 < 255)
+                {
+                    u8 C1Byte = (u8)C1;
+                    if (IsAlpha(C1Byte))
+                    {
+                        C1Byte = ToLowerChar(C1Byte);
+                    }
+
+                    C1 = (u16)C1Byte;
+                }
+
+                if (C2 < 255)
+                {
+                    u8 C2Byte = (u8)C2;
+                    if (IsAlpha(C2Byte))
+                    {
+                        C2Byte = ToLowerChar(C2Byte);
+                    }
+
+                    C2 = (u16)C2Byte;
+                }
+
+                if(C1 == C2)
+                {
+                    ++P1;
+                    ++P2;
+                }
+                else
+                {
+                    break;
+                }
+            }
+        }
+
+        Result = (P1 == End);
+    }
+
+    return Result;
+}
+
+internal void
+PopByteString(byte_string String, memory_arena *Arena)
+{
+    PopArena(Arena, String.Size * sizeof(String.String[0]));
+}
+
+internal void
+PopWideString(wide_string String, memory_arena *Arena)
+{
+    PopArena(Arena, String.Size * sizeof(String.String[0]));
+}
+
+// [Character Utilities]
+
+static b32
+IsAlpha(u8 Char)
+{
+    b32 Result = (Char >= 'A' && Char <= 'Z') || (Char >= 'a' && Char <= 'z');
+    return Result;
+}
+
+static b32
+IsDigit(u8 Char)
+{
+    b32 Result = (Char >= '0' && Char <= '9');
+    return Result;
+}
+
+static b32
+IsWhiteSpace(u8 Char)
+{
+    b32 Result = (Char == ' ') || (Char == '\t');
+    return Result;
+}
+
+static u8 
+ToLowerChar(u8 Char)
+{
+    Assert(IsAlpha(Char));
+
+    u8 Result = '\0';
+    if (Char < 'a')
+    {
+        Result = Char + ('a' - 'A');
+    }
+    else
+    {
+        Result = Char;
     }
 
     return Result;

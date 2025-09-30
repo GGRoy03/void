@@ -44,6 +44,113 @@ OSWin32WriteToConsole(byte_string ANSISequence)
     }
 }
 
+internal DWORD WINAPI
+OSWin32StyleFileWatcher(LPVOID Param)
+{
+    UNUSED(Param);
+
+    os_win32_file_watcher *Watcher = &OSWin32State.FileWatcher;
+
+    {
+        memory_arena_params Params = {0};
+        Params.AllocatedFromFile = __FILE__;
+        Params.AllocatedFromLine = __LINE__;
+        Params.ReserveSize       = Kilobyte(64) + GetSubRegistryFootprint();
+        Params.CommitSize        = Kilobyte(1);
+
+        Watcher->Arena = AllocateArena(Params);
+    }
+
+    DWORD  ShareMode = FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE;
+    DWORD  Access    = FILE_LIST_DIRECTORY;
+    DWORD  Create    = OPEN_EXISTING;
+    DWORD  Flags     = FILE_FLAG_BACKUP_SEMANTICS;
+    HANDLE DirHandle = CreateFileA("D:/Work/CIM/build/styles", Access, ShareMode, 0, Create, Flags, 0); // TODO: Fix this.
+
+    if (DirHandle != INVALID_HANDLE_VALUE)
+    {
+        DWORD BytesReturned = 0;
+        BYTE  Buffer[4096]  = {0};
+
+        while (1)
+        {
+            DWORD Filter      = FILE_NOTIFY_CHANGE_LAST_WRITE;
+            BOOL  FoundUpdate = ReadDirectoryChangesW(DirHandle, Buffer, sizeof(Buffer), FALSE, Filter, &BytesReturned, 0, 0);
+            if(FoundUpdate)
+            {
+                BYTE *Ptr = Buffer;
+
+                // Snapshot (Probably is a better way, but I've never done this)
+
+                EnterCriticalSection(&Watcher->WatchListLock);
+
+                u32                   FileCount = Watcher->WatchCount;
+                os_watched_registry **List      = PushArray(Watcher->Arena, os_watched_registry *, Watcher->WatchCount);
+                os_watched_registry  *It        = Watcher->First;
+
+                for (u32 Idx = 0; Idx < Watcher->WatchCount; Idx++)
+                {
+                    List[Idx] = It;
+                    It        = It->Next;
+                }
+
+                LeaveCriticalSection(&Watcher->WatchListLock);
+
+                do
+                {
+                    FILE_NOTIFY_INFORMATION *Info = (FILE_NOTIFY_INFORMATION *)Ptr;
+
+                    if (Info->Action == FILE_ACTION_MODIFIED)
+                    {
+                        wide_string UpdatedFileName = WideString(Info->FileName, Info->FileNameLength);
+                        for (u32 Idx = 0; Idx < FileCount; Idx++)
+                        {
+                            os_watched_registry *Watched  = List[Idx];
+                            ui_style_registry   *Registry = Watched->Registry;
+
+                            for (ui_style_subregistry *Sub = Registry->First; Sub != 0; Sub = Sub->Next)
+                            {
+                                byte_string ByteFileName = ByteString(Sub->FileName, Sub->FileNameSize);
+                                wide_string WideFileName = ByteStringToWideString(Watcher->Arena, ByteFileName);
+                                if (WideStringMatches(WideFileName, UpdatedFileName, StringMatch_NoFlag))
+                                {
+                                    ui_style_subregistry *UpdatedSub = CreateStyleSubregistry(ByteFileName, Watcher->Arena);
+                                    UpdatedSub->CachedNames;
+                                }
+
+                                PopWideString(WideFileName, Watcher->Arena);
+                            }
+                        }
+                    }
+
+                    if(Info->NextEntryOffset != 0)
+                    {
+                        Ptr += Info->NextEntryOffset;
+                    }
+                    else
+                    {
+                        break;
+                    }
+                } while(1);
+            }
+            else
+            {
+                OSLogMessage(byte_string_literal("Could not read directory changes."), OSMessage_Warn);
+            }
+        }
+    }
+    else
+    {
+        OSLogMessage(byte_string_literal("Failed to find specified directory. Hot-Reloaded Styles will not work."), OSMessage_Warn);
+    }
+
+    EnterCriticalSection(&Watcher->WatchListLock);
+    ReleaseArena(Watcher->Arena);
+    LeaveCriticalSection(&Watcher->WatchListLock);
+
+    return 1;
+}
+
 internal LRESULT CALLBACK
 OSWin32WindowProc(HWND Handle, UINT Message, WPARAM WParam, LPARAM LParam)
 {
@@ -211,6 +318,18 @@ wWinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPWSTR CmdLine, i32 ShowCmd
         OSWin32AcquireTextBackend();
     }
 
+    {
+        HANDLE ThreadHandle = CreateThread(0, 0, OSWin32StyleFileWatcher, 0, 0, 0);
+        InitializeCriticalSection(&OSWin32State.FileWatcher.WatchListLock);
+        if(!ThreadHandle)
+        {
+            OSLogMessage(byte_string_literal("Failed to launch watcher thread. Styles will not be hot-reloadable."), OSMessage_Error);
+        }
+
+        CloseHandle(ThreadHandle);
+    }
+
+
     GameEntryPoint();
 
     return 0;
@@ -290,6 +409,38 @@ OSRelease(void *Memory)
 
 // [File Implementation - OS Specific]
 
+internal byte_string
+OSAppendToLaunchDirectory(byte_string Input, memory_arena *Arena)
+{
+    byte_string Result = ByteString(0, 0);
+
+    u8    Directory[OS_MAX_PATH];
+    DWORD Size = GetModuleFileNameA(0, (LPSTR)Directory, OS_MAX_PATH);
+    if (Size)
+    { 
+        PathRemoveFileSpecA((LPSTR)Directory);
+
+        u64 FinalSize = Size + Input.Size + 1;
+        if (FinalSize <= OS_MAX_PATH)
+        {
+            Result.String = PushArray(Arena, u8, FinalSize);
+            Result.Size   = FinalSize;
+
+            snprintf((char *)Result.String, FinalSize, "%s/%s", Directory, Input.String);
+        }
+        else
+        {
+            OSLogMessage(byte_string_literal("Failed to append the current directory."), OSMessage_Error);
+        }
+    }
+    else
+    {
+        OSLogMessage(byte_string_literal("Failed to query the current directory."), OSMessage_Error);
+    }
+
+    return Result;
+}
+
 internal os_handle
 OSFindFile(byte_string Path)
 {
@@ -309,18 +460,21 @@ OSFileSize(os_handle Handle)
 {
     u64 Result = 0;
 
-    HANDLE FileHandle = OSWin32GetNativeHandle(Handle);
-    if (FileHandle)
+    if (OSIsValidHandle(Handle))
     {
-        LARGE_INTEGER NativeResult = { 0 };
-        b32 Success = GetFileSizeEx(FileHandle, &NativeResult);
-        if (Success)
+        HANDLE FileHandle = OSWin32GetNativeHandle(Handle);
+        if (FileHandle)
         {
-            Result = NativeResult.QuadPart;
-        }
-        else
-        {
-            OSLogMessage(byte_string_literal("Failed to query file size."), OSMessage_Warn);
+            LARGE_INTEGER NativeResult = { 0 };
+            b32 Success = GetFileSizeEx(FileHandle, &NativeResult);
+            if (Success)
+            {
+                Result = NativeResult.QuadPart;
+            }
+            else
+            {
+                OSLogMessage(byte_string_literal("Failed to query file size."), OSMessage_Warn);
+            }
         }
     }
 
@@ -526,6 +680,28 @@ internal void
 OSAbort(i32 ExitCode)
 {
     ExitProcess(ExitCode);
+}
+
+// [Watcher Thread: Debug Only]
+
+internal void
+OSListenToRegistry(ui_style_registry *Registry)
+{
+    os_win32_state        *State   = &OSWin32State;
+    os_win32_file_watcher *Watcher = &State->FileWatcher;
+
+    EnterCriticalSection(&Watcher->WatchListLock);
+
+    if (Watcher->Arena)
+    {
+        os_watched_registry *Watched = PushArray(Watcher->Arena, os_watched_registry, 1);
+        Watched->Next      = 0;
+        Watched->Registry  = Registry;
+
+        AppendToLinkedList(Watcher, Watched, Watcher->WatchCount);
+    }
+
+    LeaveCriticalSection(&Watcher->WatchListLock);
 }
 
 // [WIN32 SPECIFIC API]

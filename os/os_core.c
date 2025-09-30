@@ -51,3 +51,12 @@ AdvanceFile(os_read_file *File, u32 Count)
 {
     File->At += Count;
 }
+
+// [Misc]
+
+internal b32
+OSIsValidHandle(os_handle Handle)
+{
+    b32 Result = (Handle.u64[0] != 0);
+    return Result;
+}

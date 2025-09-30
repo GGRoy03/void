@@ -167,7 +167,7 @@ read_only global bit_field StyleTypeValidAttributesTable[] =
 // [API]
 
 internal size_t                 GetSubRegistryFootprint  (void);
-internal ui_style_registry      CreateStyleRegistry      (byte_string *FileNames, u32 Count, memory_arena *OutputArena);
+internal ui_style_registry    * CreateStyleRegistry      (byte_string *FileNames, u32 Count, memory_arena *OutputArena);
 internal ui_style_subregistry * CreateStyleSubregistry   (byte_string FileName, memory_arena *OutputArena);
 
 // [Tokenizer]

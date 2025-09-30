@@ -5,10 +5,12 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <windowsx.h>
+#include <shlwapi.h>
 
 #pragma comment(lib, "user32")
 #pragma comment(lib, "dwrite")
 #pragma comment(lib, "d2d1")
+#pragma comment(lib, "shlwapi.lib")
 
 // [FORWARD DECLARATIONS]
 
@@ -16,6 +18,15 @@ typedef struct os_text_backend os_text_backend;
 typedef struct IDXGISurface    IDXGISurface;
 
 // [CORE TYPES]
+
+typedef struct os_win32_file_watcher
+{
+    memory_arena        *Arena;
+    CRITICAL_SECTION     WatchListLock;
+    os_watched_registry *First;
+    os_watched_registry *Last;
+    u32                  WatchCount;
+} os_win32_file_watcher;
 
 typedef struct os_win32_state
 {
@@ -26,6 +37,9 @@ typedef struct os_win32_state
     os_text_backend *TextBackend;
     os_system_info   SystemInfo;
     os_inputs        Inputs;
+
+    // IDK ANYMORE
+    os_win32_file_watcher FileWatcher;
 
     // WIN32
     HWND WindowHandle;

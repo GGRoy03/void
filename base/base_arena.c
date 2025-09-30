@@ -128,7 +128,7 @@ PopArenaTo(memory_arena *Arena, u64 Position)
 external void
 PopArena(memory_arena *Arena, u64 Amount)
 {
-    u64 OldPosition = PositionForArena(Arena);
+    u64 OldPosition = GetArenaPosition(Arena);
     u64 NewPosition = OldPosition;
 
     if (Amount < OldPosition)
@@ -140,10 +140,26 @@ PopArena(memory_arena *Arena, u64 Amount)
 }
 
 internal u64
-PositionForArena(memory_arena *Arena)
+GetArenaPosition(memory_arena *Arena)
 {
     memory_arena *Active = Arena->Current;
 
     u64 Result = Active->BasePosition + Active->Position;
     return Result;
+}
+
+internal memory_region 
+EnterMemoryRegion(memory_arena *Arena)
+{
+    memory_region Result;
+    Result.Arena    = Arena;
+    Result.Position = GetArenaPosition(Arena);
+
+    return Result;
+}
+
+internal void         
+LeaveMemoryRegion(memory_region Region)
+{
+    PopArenaTo(Region.Arena, Region.Position);
 }

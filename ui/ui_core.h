@@ -33,6 +33,13 @@ typedef enum UIResize_Type
     UIResize_XY   = 3,
 } UIResize_Type;
 
+typedef enum UIConstant_Type
+{
+    MAXIMUM_STYLE_NAME_LENGTH            = 32,
+    MAXIMUM_STYLE_COUNT_PER_SUB_REGISTRY = 128,
+    MAXIMUM_STYLE_FILE_SIZE              = Gigabyte(1),
+} UIConstant_Type;
+
 // [FORWARD DECLARATIONS]
 
 typedef struct ui_node      ui_node;
@@ -44,8 +51,6 @@ typedef struct ui_character ui_character;
 typedef struct ui_pipeline  ui_pipeline;
 
 // [CORE TYPES]
-
-// [Callbacks Types]
 
 typedef void ui_click_callback(ui_node *Node, ui_pipeline *Pipeline);
 
@@ -117,6 +122,11 @@ typedef struct ui_rect
     f32              BorderWidth, Softness, SampleAtlas, _P0; // Style Params
 } ui_rect;
 
+typedef struct ui_style_name
+{
+    byte_string Value;
+} ui_style_name;
+
 typedef struct ui_style
 {
     // Color
@@ -147,14 +157,10 @@ typedef struct ui_style
     ui_style *HoverOverride;
 
     // Misc
-    u32       Version;
-    bit_field Flags;
+    u32           Version;
+    bit_field     Flags;
+    ui_style_name Name;
 } ui_style;
-
-typedef struct ui_style_name
-{
-    byte_string Value;
-} ui_style_name;
 
 typedef struct ui_cached_style ui_cached_style;
 struct ui_cached_style
@@ -164,21 +170,34 @@ struct ui_cached_style
     ui_style         Style;
 };
 
-typedef struct ui_style_registery
+typedef struct ui_style_subregistry ui_style_subregistry;
+typedef struct ui_style_subregistry
 {
-    u32              Count;
+    b32                   HadError;
+    u32                   Count;
+    ui_style_subregistry *Next;
+    u8                    FileName[OS_MAX_PATH];
+    u64                   FileNameSize;
+
     ui_style_name   *CachedNames;
     ui_cached_style *CachedStyles;
     ui_cached_style *Sentinels;
     u8              *StringBuffer;
     u64              StringBufferOffset;
-} ui_style_registery;
+} ui_style_subregistry;
+
+typedef struct ui_style_registry
+{
+    u32                   Count;
+    ui_style_subregistry *First;
+    ui_style_subregistry *Last;
+} ui_style_registry;
 
 // [Pipeline Types]
 
 typedef struct ui_pipeline_params
 {
-    os_handle    *ThemeFiles;
+    byte_string  *ThemeFiles;
     u32           ThemeCount;
     u32           TreeDepth;
     u32           TreeNodeCount;
@@ -187,19 +206,16 @@ typedef struct ui_pipeline_params
 
 typedef struct ui_pipeline
 {
-    ui_tree            *StyleTree;
-    ui_tree            *LayoutTree;
-    ui_style_registery  StyleRegistery;
+    ui_tree           *StyleTree;
+    ui_tree           *LayoutTree;
+    ui_style_registry *StyleRegistery;
 
-    // State
     ui_node      *DragCaptureNode;
     ui_node      *ResizeCaptureNode;
     UIResize_Type ResizeType;
 
-    // Handles
     render_handle RendererHandle;
 
-    // TODO: Make something that is able to create a static arena inside an arena.
     memory_arena *FrameArena;
     memory_arena *StaticArena;
 } ui_pipeline;
@@ -238,9 +254,10 @@ internal void UIHeader  (ui_style_name StyleName, ui_pipeline *Pipeline);
 
 // [Style]
 
-internal ui_cached_style * UIGetStyleSentinel  (byte_string   Name, ui_style_registery *Registery);
-internal ui_style_name     UIGetCachedName     (byte_string   Name, ui_style_registery *Registery);
-internal ui_style          UIGetStyle          (ui_style_name Name, ui_style_registery *Registery);
+internal ui_cached_style * UIGetStyleSentinel              (byte_string   Name, ui_style_subregistry *Registry);
+internal ui_style_name     UIGetCachedName                 (byte_string   Name, ui_style_registry    *Registry);
+internal ui_style_name     UIGetCachedNameFromSubregistry  (byte_string   Name, ui_style_subregistry *Registry);
+internal ui_style          UIGetStyle                      (ui_style_name Name, ui_style_registry    *Registry);
 
 internal void UISetColor(ui_node *Node, ui_color Color);
 

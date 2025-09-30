@@ -24,9 +24,9 @@ FileBrowserUI(file_browser_ui *UI, render_pass_list *PassList, render_handle Ren
 
         ui_pipeline_params PipelineParams = {0};
         {
-            os_handle ThemeFiles[] = 
+            byte_string ThemeFiles[] = 
             {
-                OSFindFile(byte_string_literal("D:/Work/CIM/styles/file_browser.cim")),
+                byte_string_literal("styles/file_browser.cim"),
             };
 
             PipelineParams.ThemeFiles     = ThemeFiles;
@@ -50,9 +50,9 @@ FileBrowserUI(file_browser_ui *UI, render_pass_list *PassList, render_handle Ren
 
         // Styles
         {
-            UI->MainWindowStyle   = UIGetCachedName(byte_string_literal("FileBrowser_MainWindow")  , &UI->Pipeline.StyleRegistery);
-            UI->MainHeaderStyle   = UIGetCachedName(byte_string_literal("FileBrowser_Header")      , &UI->Pipeline.StyleRegistery);
-            UI->HeaderButtonStyle = UIGetCachedName(byte_string_literal("FileBrowser_HeaderButton"), &UI->Pipeline.StyleRegistery);
+            UI->MainWindowStyle   = UIGetCachedName(byte_string_literal("FileBrowser_MainWindow")  , UI->Pipeline.StyleRegistery);
+            UI->MainHeaderStyle   = UIGetCachedName(byte_string_literal("FileBrowser_Header")      , UI->Pipeline.StyleRegistery);
+            UI->HeaderButtonStyle = UIGetCachedName(byte_string_literal("FileBrowser_HeaderButton"), UI->Pipeline.StyleRegistery);
         }
 
         // Layout
@@ -63,7 +63,6 @@ FileBrowserUI(file_browser_ui *UI, render_pass_list *PassList, render_handle Ren
                 UIButton(UI->HeaderButtonStyle, FileBrowserForwardHistory , &UI->Pipeline);
                 UIButton(UI->HeaderButtonStyle, FileBrowserBackwardHistory, &UI->Pipeline);
             }
-
         }
 
         UI->IsInitialized = 1;

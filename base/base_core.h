@@ -82,6 +82,11 @@
 #define ToggleFlag(v, f) ((v) ^=  (f))
 #define HasFlag(v, f)    ((v) &   (f))
 
+// [Linked List]
+
+#define AppendToLinkedList(List, Node, Counter) if(!List->First) List->First = Node; if(List->Last) List->Last->Next = Node; List->Last = Node; ++Counter
+#define IterateLinkedList(First, Type, N)        for(Type N = First; N != 0; N = N->Next)             
+
 // [Core Types]
 
 #include <stdint.h>

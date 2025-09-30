@@ -4,6 +4,7 @@
 
 #define OS_KeyboardButtonCount 256
 #define OS_MouseButtonCount 5
+#define OS_MAX_PATH 256
 
 typedef enum OSMouseButton_Type
 {
@@ -40,6 +41,14 @@ typedef enum OSResource_Type
     OSResource_None = 0,
     OSResource_File = 1,
 } OSResource_Type;
+
+// [FORWARD DECLARATION]
+
+typedef struct gpu_font_objects  gpu_font_objects;
+typedef struct os_font_objects   os_font_objects;
+typedef struct os_text_backend   os_text_backend;
+typedef struct ui_font           ui_font;
+typedef struct ui_style_registry ui_style_registry;
 
 // [Core Types]
 
@@ -83,12 +92,12 @@ typedef struct os_glyph_raster_info
     rect_f32 SampleSource;
 } os_glyph_raster_info;
 
-// [FORWARD DECLARATION]
-
-typedef struct gpu_font_objects gpu_font_objects;
-typedef struct os_font_objects  os_font_objects;
-typedef struct os_text_backend  os_text_backend;
-typedef struct ui_font          ui_font;
+typedef struct os_watched_registry os_watched_registry;
+struct os_watched_registry
+{
+    os_watched_registry *Next;
+    ui_style_registry   *Registry;
+};
 
 // [CORE API]
 
@@ -134,9 +143,12 @@ internal void OSSetCursor     (OSCursor_Type Type);
 
 // [Misc]
 
-internal void  OSSleep       (u32 Milliseconds);
-external void  OSLogMessage  (byte_string ANSISequence, OSMessage_Severity Severity);
-internal void  OSAbort       (i32 ExitCode);
+internal void        OSSleep                    (u32 Milliseconds);
+external void        OSLogMessage               (byte_string ANSISequence, OSMessage_Severity Severity);
+internal void        OSAbort                    (i32 ExitCode);
+internal void        OSListenToRegistry         (ui_style_registry *Registry);
+internal b32         OSIsValidHandle            (os_handle Handle);
+internal byte_string OSAppendToLaunchDirectory  (byte_string Input, memory_arena *Arena);
 
 // [Text]
 

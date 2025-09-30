@@ -40,15 +40,18 @@ internal wide_string WideString  (u16 *String, u64 Size);
 
 // [String Utilities]
 
-internal b32 IsValidByteString (byte_string Input);
+internal b32  IsValidByteString  (byte_string Input);
+internal b32  ByteStringMatches  (byte_string Str1, byte_string Str2, bit_field Flags);
+internal b32  WideStringMatches  (wide_string A, wide_string B, bit_field Flags);
+internal void PopByteString      (byte_string String, memory_arena *Arena);
+internal void PopWideString      (wide_string String, memory_arena *Arena);
 
 // [Character Utilities]
 
-internal b32  IsAlpha            (u8 Char);
-internal b32  IsDigit            (u8 Char);
-internal b32  IsWhiteSpace       (u8 Char);
-internal u8   ToLowerChar        (u8 Char);
-internal b32  ByteStringMatches  (byte_string Str1, byte_string Str2, bit_field Flags);
+internal b32  IsAlpha       (u8 Char);
+internal b32  IsDigit       (u8 Char);
+internal b32  IsWhiteSpace  (u8 Char);
+internal u8   ToLowerChar   (u8 Char);
 
 // [Encoding/Decoding]
 

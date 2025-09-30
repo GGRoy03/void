@@ -26,6 +26,12 @@ struct memory_arena
     u32   AllocatedFromLine;
 };
 
+typedef struct memory_region
+{
+    memory_arena *Arena;
+    u64           Position;
+} memory_region;
+
 global u64 ArenaDefaultReserveSize = Megabyte(64);
 global u64 ArenaDefaultCommitSize  = Kilobyte(64);
 
@@ -37,7 +43,10 @@ internal void  ClearArena  (memory_arena *Arena);
 external void  PopArenaTo  (memory_arena *Arena, u64 Position);
 external void  PopArena    (memory_arena *Arena, u64 Amount);
 
-internal u64 PositionForArena(memory_arena *Arena);
+internal u64 GetArenaPosition(memory_arena *Arena);
+
+internal memory_region EnterMemoryRegion  (memory_arena *Arena);
+internal void          LeaveMemoryRegion  (memory_region Region);
 
 #define PushArrayNoZeroAligned(a, T, c, align) (T *)PushArena((a), sizeof(T)*(c), (align))
 #define PushArrayAligned(a, T, c, align) (T *)MemoryZero(PushArrayNoZeroAligned(a, T, c, align), sizeof(T)*(c))

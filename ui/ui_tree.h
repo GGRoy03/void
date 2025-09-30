@@ -77,9 +77,9 @@ internal ui_node * UITree_GetFreeNode          (ui_tree *Tree, UINode_Type Type)
 internal ui_node * UITree_GetLayoutNode        (ui_node *Node, ui_pipeline *Pipeline);
 internal ui_node * UITree_GetStyleNode         (ui_node *Node, ui_pipeline *Pipeline);
 
-internal void UITree_BindText           (ui_pipeline *Pipeline, ui_character *Characters, u32 Count, ui_font *Font, ui_node *Node);
-internal void UITree_BindFlag           (ui_node *Node, b32 Set, UILayoutNode_Flag Flag, ui_pipeline *Pipeline);
-internal void UITree_BindClickCallback  (ui_node *Node, ui_click_callback *Callback, ui_pipeline *Pipeline);
+internal void      UITree_BindText             (ui_pipeline *Pipeline, ui_character *Characters, u32 Count, ui_font *Font, ui_node *Node);
+internal void      UITree_BindFlag             (ui_node *Node, b32 Set, UILayoutNode_Flag Flag, ui_pipeline *Pipeline);
+internal void      UITree_BindClickCallback    (ui_node *Node, ui_click_callback *Callback, ui_pipeline *Pipeline);
                                             
 internal b32       UITree_IsValidNode          (ui_node *Node, ui_tree *Tree);
 internal b32       UITree_NodesAreParallel     (ui_node *Node1, ui_node *Node2);

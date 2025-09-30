@@ -55,7 +55,7 @@ global i32 NextId;
 internal void
 UIWindow(ui_style_name StyleName, ui_pipeline *Pipeline)
 {
-    ui_style Style = UIGetStyle(StyleName, &Pipeline->StyleRegistery);
+    ui_style Style = UIGetStyle(StyleName, Pipeline->StyleRegistery);
     ui_node *Node  = UITree_GetFreeNode(Pipeline->StyleTree, UINode_Window);
 
     if (Node)
@@ -81,7 +81,7 @@ UIWindow(ui_style_name StyleName, ui_pipeline *Pipeline)
 internal void
 UIButton(ui_style_name StyleName, ui_click_callback *Callback, ui_pipeline *Pipeline)
 {
-    ui_style Style = UIGetStyle(StyleName, &Pipeline->StyleRegistery);
+    ui_style Style = UIGetStyle(StyleName, Pipeline->StyleRegistery);
     ui_node *Node  = UITree_GetFreeNode(Pipeline->StyleTree, UINode_Button);
 
     if (Node)
@@ -114,7 +114,7 @@ UIButton(ui_style_name StyleName, ui_click_callback *Callback, ui_pipeline *Pipe
 internal void
 UILabel(ui_style_name StyleName, byte_string Text, ui_pipeline *Pipeline)
 {
-    ui_style Style = UIGetStyle(StyleName, &Pipeline->StyleRegistery);
+    ui_style Style = UIGetStyle(StyleName, Pipeline->StyleRegistery);
     ui_node *Node  = UITree_GetFreeNode(Pipeline->StyleTree, UINode_Label);
     if (Node)
     {
@@ -194,7 +194,7 @@ UILabel(ui_style_name StyleName, byte_string Text, ui_pipeline *Pipeline)
 internal void
 UIHeader(ui_style_name StyleName, ui_pipeline *Pipeline)
 {
-    ui_style Style = UIGetStyle(StyleName, &Pipeline->StyleRegistery);
+    ui_style Style = UIGetStyle(StyleName, Pipeline->StyleRegistery);
     ui_node *Node  = UITree_GetFreeNode(Pipeline->StyleTree, UINode_Header);
 
     if (Node)
@@ -215,34 +215,59 @@ UIHeader(ui_style_name StyleName, ui_pipeline *Pipeline)
 // [Style]
 
 internal ui_cached_style *
-UIGetStyleSentinel(byte_string Name, ui_style_registery *Registery)
+UIGetStyleSentinel(byte_string Name, ui_style_subregistry *Registry)
 {
     ui_cached_style *Result = 0;
 
     if (Name.Size)
     {
-        Result = Registery->Sentinels + (Name.Size - 1);
+        Result = Registry->Sentinels + (Name.Size - 1);
     }
 
     return Result;
 }
 
 internal ui_style_name
-UIGetCachedName(byte_string Name, ui_style_registery *Registery)
+UIGetCachedName(byte_string Name, ui_style_registry *Registry)
 {
+    // WARN: This is terrible?
+
     ui_style_name Result = {0};
 
     if (Name.Size)
     {
-        ui_cached_style *CachedStyle = 0;
-        ui_cached_style *Sentinel    = UIGetStyleSentinel(Name, Registery);
-
-        for (CachedStyle = Sentinel->Next; CachedStyle != 0; CachedStyle = CachedStyle->Next)
+        IterateLinkedList(Registry->First, ui_style_subregistry *, Sub)
         {
-            byte_string CachedString = Registery->CachedNames[CachedStyle->Index].Value;
+            ui_cached_style *Sentinel = UIGetStyleSentinel(Name, Sub);
+            IterateLinkedList(Sentinel->Next, ui_cached_style *, CachedStyle)
+            {
+                byte_string CachedString = Sub->CachedNames[CachedStyle->Index].Value;
+                if (ByteStringMatches(Name, CachedString, StringMatch_CaseSensitive))
+                {
+                    Result = Sub->CachedNames[CachedStyle->Index];
+                    break;
+                }
+            }
+        }
+    }
+
+    return Result;
+}
+
+internal ui_style_name
+UIGetCachedNameFromSubregistry(byte_string Name, ui_style_subregistry *Registry)
+{
+    ui_style_name Result = { 0 };
+
+    if (Name.Size)
+    {
+        ui_cached_style *Sentinel = UIGetStyleSentinel(Name, Registry);
+        IterateLinkedList(Sentinel->Next, ui_cached_style *, CachedStyle)
+        {
+            byte_string CachedString = Registry->CachedNames[CachedStyle->Index].Value;
             if (ByteStringMatches(Name, CachedString, StringMatch_CaseSensitive))
             {
-                Result = Registery->CachedNames[CachedStyle->Index];
+                Result = Registry->CachedNames[CachedStyle->Index];
                 break;
             }
         }
@@ -251,29 +276,34 @@ UIGetCachedName(byte_string Name, ui_style_registery *Registery)
     return Result;
 }
 
+
 internal ui_style
-UIGetStyle(ui_style_name Name, ui_style_registery *Registery)
+UIGetStyle(ui_style_name Name, ui_style_registry *Registry)
 {
     ui_style Result = { 0 };
 
-    if (Registery)
+    if (Registry)
     {
-        ui_cached_style *Sentinel = UIGetStyleSentinel(Name.Value, Registery);
-        if (Sentinel)
+        IterateLinkedList(Registry->First, ui_style_subregistry *, Sub)
         {
-            for (ui_cached_style *CachedStyle = Sentinel->Next; CachedStyle != 0; CachedStyle = CachedStyle->Next)
+            ui_cached_style *Sentinel = UIGetStyleSentinel(Name.Value, Sub);
+            if (Sentinel)
             {
-                byte_string CachedString = Registery->CachedNames[CachedStyle->Index].Value;
-                if (Name.Value.String == CachedString.String)
+                IterateLinkedList(Sentinel->Next, ui_cached_style *, CachedStyle)
                 {
-                    Result = CachedStyle->Style;
-                    break;
+                    byte_string CachedString = Sub->CachedNames[CachedStyle->Index].Value;
+                    if (Name.Value.String == CachedString.String)
+                    {
+                        Result = CachedStyle->Style;
+                        break;
+                    }
                 }
             }
-        }
-        else
-        {
-            OSLogMessage(byte_string_literal("Style does not exist."), OSMessage_Warn);
+            else
+            {
+                // TODO: Formatting and better error.
+                OSLogMessage(byte_string_literal("..."), OSMessage_Warn);
+            }
         }
     }
 
@@ -349,7 +379,7 @@ UICreatePipeline(ui_pipeline_params Params)
 
     // Others
     {
-        Result.StyleRegistery = LoadStyleFromFiles(Params.ThemeFiles, Params.ThemeCount, Result.StaticArena);
+        Result.StyleRegistery = CreateStyleRegistry(Params.ThemeFiles, Params.ThemeCount, Result.StaticArena);
         Result.RendererHandle = Params.RendererHandle;
     }
 

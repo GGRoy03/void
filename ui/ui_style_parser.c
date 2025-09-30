@@ -15,77 +15,76 @@ GetSubRegistryFootprint(void)
 internal ui_style_subregistry *
 CreateStyleSubregistry(byte_string FileName, memory_arena *OutputArena)
 {
-    read_only u64 FileSizeLimit      = Gigabyte(1);
-    read_only u64 TokenBufferLimit   = MAXIMUM_STYLE_TOKEN_COUNT_PER_FILE * sizeof(style_token);
-    read_only u64 StyleVarTableLimit = GetStyleVarTableFootprint(STYLE_VAR_TABLE_PARAMS);
+    // Allocate everything that will persist upfront.
+    ui_style_subregistry *Result = PushArray(OutputArena, ui_style_subregistry, 1);
+    Result->CachedNames  = PushArray(OutputArena, ui_style_name  , MAXIMUM_STYLE_COUNT_PER_SUB_REGISTRY);
+    Result->Sentinels    = PushArray(OutputArena, ui_cached_style, MAXIMUM_STYLE_NAME_LENGTH);
+    Result->CachedStyles = PushArray(OutputArena, ui_cached_style, MAXIMUM_STYLE_COUNT_PER_SUB_REGISTRY - MAXIMUM_STYLE_NAME_LENGTH);
+    Result->StringBuffer = PushArray(OutputArena, u8             , MAXIMUM_STYLE_COUNT_PER_SUB_REGISTRY * MAXIMUM_STYLE_NAME_LENGTH);
 
-    memory_arena *Arena = 0;
-    {
-        memory_arena_params Params = { 0 };
-        Params.AllocatedFromFile = __FILE__;
-        Params.AllocatedFromLine = __LINE__;
-        Params.ReserveSize = FileSizeLimit + TokenBufferLimit + StyleVarTableLimit;
-        Params.CommitSize = ArenaDefaultCommitSize;
+    memory_region Region = EnterMemoryRegion(OutputArena);
 
-        Arena = AllocateArena(Params);
-    }
-
-    ui_style_subregistry *Result = 0;
-
-    os_handle FileHandle = OSFindFile(FileName);
-    u64       FileSize   = OSFileSize(FileHandle);
-
-    if (OSIsValidHandle(FileHandle) && FileSize <= FileSizeLimit)
-    {
-        os_read_file File = OSReadFile(FileHandle, Arena);
-
-        tokenized_style_file TokenizedFile = TokenizeStyleFile(File, Arena);
-        if (TokenizedFile.HasError)
-        {
-            LogStyleFileMessage(0, OSMessage_Warn, byte_string_literal("Failed to tokenize file. See error(s) above."));
-            Result->HadError = 1;
-            return Result;
-        }
-
-        Result = PushArray(OutputArena, ui_style_subregistry, 1);
-        Result->CachedNames  = PushArray(OutputArena, ui_style_name  , MAXIMUM_STYLE_COUNT_PER_SUB_REGISTRY);
-        Result->Sentinels    = PushArray(OutputArena, ui_cached_style, MAXIMUM_STYLE_NAME_LENGTH);
-        Result->CachedStyles = PushArray(OutputArena, ui_cached_style, MAXIMUM_STYLE_COUNT_PER_SUB_REGISTRY - MAXIMUM_STYLE_NAME_LENGTH);
-        Result->StringBuffer = PushArray(OutputArena, u8             , MAXIMUM_STYLE_COUNT_PER_SUB_REGISTRY * MAXIMUM_STYLE_NAME_LENGTH);
-
-        b32 Success = ParseTokenizedStyleFile(&TokenizedFile, Arena, Result);
-        if (!Success)
-        {
-            LogStyleFileMessage(0, OSMessage_Warn, byte_string_literal("Failed to parse file. See error(s) above."));
-            Result->HadError = 1;
-            return Result;
-        }
-    }
-
-    ReleaseArena(Arena);
+    byte_string CorrectFileName = OSAppendToLaunchDirectory(FileName, Region.Arena);
+    os_handle   FileHandle      = OSFindFile(CorrectFileName);
     if (OSIsValidHandle(FileHandle))
     {
+        u64 FileSize = OSFileSize(FileHandle);
+        if (FileSize <= MAXIMUM_STYLE_FILE_SIZE)
+        {
+            os_read_file File = OSReadFile(FileHandle, Region.Arena);
+
+            tokenized_style_file TokenizedFile = TokenizeStyleFile(File, Region.Arena);
+            if (!TokenizedFile.HasError)
+            {
+                b32 Success = ParseTokenizedStyleFile(&TokenizedFile, Region.Arena, Result);
+                if (Success)
+                {
+                    Result->HadError     = 0;
+                    Result->FileNameSize = FileName.Size;
+                    memcpy(Result->FileName, FileName.String, FileName.Size);
+                }
+                else
+                {
+                    LogStyleFileMessage(0, OSMessage_Warn, byte_string_literal("Failed to parse %s."), CorrectFileName);
+                }
+            }
+            else
+            {
+                LogStyleFileMessage(0, OSMessage_Warn, byte_string_literal("Failed to tokenize %s."), CorrectFileName);
+            }
+        }
+        else
+        {
+            LogStyleFileMessage(0, OSMessage_Warn, byte_string_literal("File: %s is too big. [%u <= %u]"), FileSize, MAXIMUM_STYLE_FILE_SIZE);
+        }
+
         OSReleaseFile(FileHandle);
     }
+    else
+    {
+        LogStyleFileMessage(0, OSMessage_Warn, byte_string_literal("File: %s does not exist."), CorrectFileName.String);
+    }
+
+    LeaveMemoryRegion(Region);
 
     return Result;
 }
 
 // WARN: May 'chain' the output arena
 
-internal ui_style_registry
+internal ui_style_registry *
 CreateStyleRegistry(byte_string *FileNames, u32 Count, memory_arena *OutputArena)
 {
     Assert(FileNames && Count > 0);
 
-    ui_style_registry Result = {0};
+    ui_style_registry *Result = PushArray(OutputArena, ui_style_registry, 1);
     
     for (u32 FileIdx = 0; FileIdx < Count; FileIdx++)
     {
         ui_style_subregistry *Sub = CreateStyleSubregistry(FileNames[FileIdx], OutputArena);
         if (!Sub->HadError)
         {
-            AppendToLinkedList((&Result), Sub, Result.Count);
+            AppendToLinkedList(Result, Sub, Result->Count);
         }
         else
         {
@@ -93,6 +92,8 @@ CreateStyleRegistry(byte_string *FileNames, u32 Count, memory_arena *OutputArena
             OSLogMessage(byte_string_literal("Could not load styles from file: "), OSMessage_Warn);
         }
     }
+
+    OSListenToRegistry(Result);
 
     return Result;
 }
@@ -292,7 +293,7 @@ ReadVector(os_read_file *File, u32 MinimumSize, u32 MaximumSize, u32 CurrentLine
 internal style_token *
 PeekStyleToken(tokenized_style_file *TokenizedFile, u32 Offset)
 {
-    style_token *Result = 0;
+    style_token *Result = TokenizedFile->Buffer + TokenizedFile->BufferSize;
 
     u32 PostIndex = TokenizedFile->AtToken + Offset;
     if (PostIndex < MAXIMUM_STYLE_TOKEN_COUNT_PER_FILE)
