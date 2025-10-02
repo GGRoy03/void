@@ -1250,6 +1250,8 @@ PlaceStyleVarTableInMemory(style_var_table_params Params, void *Memory)
             {
                 Entry->NextWithSameHash = 0;
             }
+
+            Entry->ValueIsParsed = 0;
         }
     }
 

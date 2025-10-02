@@ -133,6 +133,29 @@ OSWin32StyleFileWatcher(LPVOID Param)
 
                     if (UpdatedSub)
                     {
+                        for (u32 Idx = 0; Idx < OriginSub->StyleCount; Idx++)
+                        {
+                            ui_style_name    CachedName    = OriginSub->CachedNames[Idx];
+                            ui_style_name    UpCachedName  = UIGetCachedNameFromSubregistry(CachedName.Value, UpdatedSub);
+                            ui_cached_style *OrCachedStyle = UIGetStyleFromSubregistry(CachedName, OriginSub);
+                            ui_cached_style *UpCachedStyle = UIGetStyleFromSubregistry(UpCachedName, UpdatedSub);
+                            if (UpCachedStyle && MemoryCompare(&OrCachedStyle->Value, &UpCachedStyle->Value, sizeof(ui_style)) != 0)
+                            {
+                                OrCachedStyle->Value = UpCachedStyle->Value;
+
+                                IterateLinkedList(OrCachedStyle->First, ui_layout_node *, Node)
+                                {
+                                    SetLayoutNodeStyle(OrCachedStyle, Node, SetLayoutNodeStyle_OmitReference);
+                                }
+
+                                // BUG: Potentially incorrect if we update an effect style.
+                                ++OrCachedStyle->Value.BaseVersion;
+                            }
+                            else
+                            {
+                                // TODO: What do we do?
+                            }
+                        }
                     }
 
                     if(Info->NextEntryOffset != 0)

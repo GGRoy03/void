@@ -57,7 +57,7 @@ UIWindow(ui_style_name StyleName, ui_pipeline *Pipeline)
     if (Node)
     {
         AttachLayoutNode    (Node, GetLayoutNodeParent(Pipeline->LayoutTree));
-        SetLayoutNodeStyle  (Style, Node);
+        SetLayoutNodeStyle  (Style, Node, SetLayoutNodeStyle_NoFlag);
         PushLayoutNodeParent(Node, Pipeline->LayoutTree);
 
         if(Style->Value.BorderWidth > 0)
@@ -81,7 +81,7 @@ UIButton(ui_style_name StyleName, ui_click_callback *Callback, ui_pipeline *Pipe
     if (Node)
     {
         AttachLayoutNode  (Node, GetLayoutNodeParent(Pipeline->LayoutTree));
-        SetLayoutNodeStyle(Style, Node);
+        SetLayoutNodeStyle(Style, Node, SetLayoutNodeStyle_NoFlag);
 
         // Draw Flags
         {
@@ -113,7 +113,7 @@ UILabel(ui_style_name StyleName, byte_string Text, ui_pipeline *Pipeline)
     if (Node)
     {
         AttachLayoutNode  (Node, GetLayoutNodeParent(Pipeline->LayoutTree));
-        SetLayoutNodeStyle(Style, Node);
+        SetLayoutNodeStyle(Style, Node, SetLayoutNodeStyle_NoFlag);
 
         // Draw Flags
         {
@@ -193,7 +193,7 @@ UIHeader(ui_style_name StyleName, ui_pipeline *Pipeline)
     if (Node)
     {
         AttachLayoutNode    (Node, GetLayoutNodeParent(Pipeline->LayoutTree));
-        SetLayoutNodeStyle  (Style, Node);
+        SetLayoutNodeStyle  (Style, Node, SetLayoutNodeStyle_NoFlag);
         PushLayoutNodeParent(Node, Pipeline->LayoutTree);
 
         if (Style->Value.BorderWidth > 0)
@@ -293,6 +293,31 @@ UIGetStyle(ui_style_name Name, ui_style_registry *Registry)
             {
                 // TODO: Formatting and better error.
                 OSLogMessage(byte_string_literal("..."), OSMessage_Warn);
+            }
+        }
+    }
+
+    return Result;
+}
+
+internal ui_cached_style *
+UIGetStyleFromSubregistry(ui_style_name Name, ui_style_subregistry *Registry)
+{
+    ui_cached_style *Result = 0;
+
+    if (Registry)
+    {
+        ui_cached_style *Sentinel = UIGetStyleSentinel(Name.Value, Registry);
+        if (Sentinel)
+        {
+            IterateLinkedList(Sentinel->Next, ui_cached_style *, CachedStyle)
+            {
+                byte_string CachedString = Registry->CachedNames[CachedStyle->Index].Value;
+                if (Name.Value.String == CachedString.String)
+                {
+                    Result = CachedStyle;
+                    break;
+                }
             }
         }
     }

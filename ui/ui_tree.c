@@ -94,7 +94,7 @@ GetFreeLayoutNode(ui_layout_tree *Tree, UILayoutNode_Type Type)
 }
 
 internal void
-SetLayoutNodeStyle(ui_cached_style *CachedStyle, ui_layout_node *Node)
+SetLayoutNodeStyle(ui_cached_style *CachedStyle, ui_layout_node *Node, bit_field Flags)
 {
     if (IsValidLayoutNode(Node) && CachedStyle)
     {
@@ -105,7 +105,10 @@ SetLayoutNodeStyle(ui_cached_style *CachedStyle, ui_layout_node *Node)
         Node->Value.Padding = CachedStyle->Value.Padding;
         Node->Value.Spacing = CachedStyle->Value.Spacing;
 
-        AppendToLinkedList(CachedStyle, Node, CachedStyle->RefCount);
+        if (!HasFlag(Flags, SetLayoutNodeStyle_OmitReference))
+        {
+            AppendToLinkedList(CachedStyle, Node, CachedStyle->RefCount);
+        }
     }
 }
 

@@ -261,6 +261,7 @@ internal ui_cached_style * UIGetStyleSentinel              (byte_string   Name, 
 internal ui_style_name     UIGetCachedName                 (byte_string   Name, ui_style_registry    *Registry);
 internal ui_style_name     UIGetCachedNameFromSubregistry  (byte_string   Name, ui_style_subregistry *Registry);
 internal ui_cached_style * UIGetStyle                      (ui_style_name Name, ui_style_registry *Registry);
+internal ui_cached_style * UIGetStyleFromSubregistry       (ui_style_name Name, ui_style_subregistry *Registry);
 
 // [Pipeline]
 

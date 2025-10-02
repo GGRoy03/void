@@ -11,6 +11,12 @@ typedef enum UILayoutNode_Type
     UILayoutNode_Header = 4,
 } UILayoutNode_Type;
 
+typedef enum SetLayoutNodeStyle_Flag
+{
+    SetLayoutNodeStyle_NoFlag        = 0,
+    SetLayoutNodeStyle_OmitReference = 1,
+} SetLayoutNodeStyle_Flag;
+
 // [FORWARD DECLARATIONS]
 
 typedef struct ui_character ui_character;
@@ -68,7 +74,7 @@ internal void             PushLayoutNodeParent      (ui_layout_node *Node, ui_la
                                                     
 internal ui_layout_node * GetLayoutNodeParent       (ui_layout_tree *Tree);
 internal ui_layout_node * GetFreeLayoutNode         (ui_layout_tree *Tree, UILayoutNode_Type Type);
-internal void             SetLayoutNodeStyle        (ui_cached_style *CachedStyle, ui_layout_node *Node);
+internal void             SetLayoutNodeStyle        (ui_cached_style *CachedStyle, ui_layout_node *Node, bit_field Flags);
                                                     
 internal void             UITree_BindText           (ui_pipeline *Pipeline, ui_character *Characters, u32 Count, ui_font *Font, ui_layout_node *Node);
 internal void             UITree_BindClickCallback  (ui_layout_node *Node, ui_click_callback *Callback);
