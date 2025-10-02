@@ -1,7 +1,7 @@
 // [API IMPLEMENTATION]
 
 internal ui_hit_test_result 
-HitTestLayout(vec2_f32 MousePosition, bit_field Flags, ui_layout_node *LayoutRoot, ui_pipeline *Pipeline)
+HitTestLayout(vec2_f32 MousePosition, ui_layout_node *LayoutRoot, ui_pipeline *Pipeline)
 {
     ui_hit_test_result Result = {0};
     ui_layout_box     *Box    = &LayoutRoot->Value;
@@ -18,7 +18,7 @@ HitTestLayout(vec2_f32 MousePosition, bit_field Flags, ui_layout_node *LayoutRoo
         // Recurse into all of the children. Respects draw order.
         for(ui_layout_node *Child = LayoutRoot->Last; Child != 0; Child = Child->Prev)
         {
-            Result = HitTestLayout(MousePosition, Flags, Child, Pipeline);
+            Result = HitTestLayout(MousePosition, Child, Pipeline);
             if(Result.Success)
             {
                 return Result;
@@ -29,7 +29,7 @@ HitTestLayout(vec2_f32 MousePosition, bit_field Flags, ui_layout_node *LayoutRoo
         Result.Intent  = UIIntent_Hover;
         Result.Success = 1;
 
-        if(HasFlag(Flags, UIHitTest_CheckForResize))
+        if(HasFlag(LayoutRoot->Value.Flags, UILayoutNode_IsResizable))
         {
             f32      BorderWidth        = LayoutRoot->CachedStyle->Value.BorderWidth;
             vec2_f32 BorderWidthVector  = Vec2F32(BorderWidth, BorderWidth);

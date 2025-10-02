@@ -14,12 +14,6 @@ typedef enum UILayoutNode_Flag
     UILayoutNode_IsResizable             = 1 << 8,
 } UILayoutNode_Flag;
 
-typedef enum UIHitTest_Flag
-{
-    UIHitTest_NoFlag         = 0,
-    UIHitTest_CheckForResize = 1 << 0,
-} UIHitTest_Flag;
-
 // [FORWARD DECLARATION]
 
 typedef struct ui_text ui_text;
@@ -61,7 +55,7 @@ typedef struct ui_layout_box
 
 // [CORE API]
 
-internal ui_hit_test_result HitTestLayout  (vec2_f32 MousePosition, bit_field Flags, ui_layout_node *LayoutRoot, ui_pipeline *Pipeline);
+internal ui_hit_test_result HitTestLayout  (vec2_f32 MousePosition, ui_layout_node *LayoutRoot, ui_pipeline *Pipeline);
 
 internal void DragUISubtree    (vec2_f32 Delta, ui_layout_node *LayoutRoot, ui_pipeline *Pipeline);
 internal void ResizeUISubtree  (vec2_f32 Delta, ui_layout_node *LayoutNode, ui_pipeline *Pipeline);

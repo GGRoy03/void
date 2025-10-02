@@ -280,15 +280,7 @@ UIPipelineExecute(ui_pipeline *Pipeline, render_pass_list *PassList)
 
     if (!Pipeline->CapturedNode)
     {
-        bit_field HitTestFlags = UIHitTest_NoFlag;
-        {
-            if (HasFlag(LayoutRoot->Value.Flags, UILayoutNode_IsResizable))
-            {
-                SetFlag(HitTestFlags, UIHitTest_CheckForResize);
-            }
-        }
-
-        ui_hit_test_result Hit = HitTestLayout(OSGetMousePosition(), HitTestFlags, LayoutRoot, Pipeline);
+        ui_hit_test_result Hit = HitTestLayout(OSGetMousePosition(), LayoutRoot, Pipeline);
         if(Hit.Success)
         {
             Assert(Hit.Node);
@@ -305,8 +297,6 @@ UIPipelineExecute(ui_pipeline *Pipeline, render_pass_list *PassList)
         
                 SetFlag(Box->Flags, UILayoutNode_IsClicked);
             }
-        
-            // Capture the intent and the node.
         
             switch(Hit.Intent)
             {
