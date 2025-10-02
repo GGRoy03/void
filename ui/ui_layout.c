@@ -6,7 +6,6 @@ HitTestLayout(vec2_f32 MousePosition, ui_layout_node *LayoutRoot, ui_pipeline *P
     ui_hit_test_result Result = {0};
     ui_layout_box     *Box    = &LayoutRoot->Value;
 
-
     f32      Radius        = 0.f;
     vec2_f32 FullHalfSize  = Vec2F32(Box->FinalWidth * 0.5f, Box->FinalHeight * 0.5f);
     vec2_f32 Origin        = Vec2F32Add(Vec2F32(Box->FinalX, Box->FinalY), FullHalfSize);
@@ -63,9 +62,14 @@ HitTestLayout(vec2_f32 MousePosition, ui_layout_node *LayoutRoot, ui_pipeline *P
                     {
                         Result.Intent = UIIntent_ResizeY;
                     }
-                 }
+                }
             }
-         }
+        }
+
+        if (Result.Intent == UIIntent_Hover && HasFlag(LayoutRoot->Value.Flags, UILayoutNode_IsDraggable))
+        {
+            Result.Intent = UIIntent_Drag;
+        }
     }
 
     return Result;

@@ -303,9 +303,9 @@ UIPipelineExecute(ui_pipeline *Pipeline, render_pass_list *PassList)
         
             default: break;
         
-            case UIIntent_Hover:
+            case UIIntent_Drag:
             {
-                if(MouseIsClicked && HasFlag(Box->Flags, UILayoutNode_IsDraggable))
+                if(MouseIsClicked)
                 {
                     Pipeline->CapturedNode = Hit.Node;
                     Pipeline->Intent       = Hit.Intent;
@@ -317,7 +317,7 @@ UIPipelineExecute(ui_pipeline *Pipeline, render_pass_list *PassList)
             case UIIntent_ResizeY:
             case UIIntent_ResizeXY:
             {
-                if (MouseIsClicked && HasFlag(Box->Flags, UILayoutNode_IsResizable))
+                if (MouseIsClicked)
                 {
                     Pipeline->CapturedNode = Hit.Node;
                     Pipeline->Intent       = Hit.Intent;
@@ -344,7 +344,7 @@ UIPipelineExecute(ui_pipeline *Pipeline, render_pass_list *PassList)
         OSSetCursor(OSCursor_Default);
     } break;
 
-    case UIIntent_Hover:
+    case UIIntent_Drag:
     {
         if (Pipeline->CapturedNode && MouseMoved)
         {

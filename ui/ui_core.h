@@ -14,6 +14,7 @@ typedef enum UIIntent_Type
     UIIntent_ResizeX  = 2,
     UIIntent_ResizeY  = 3,
     UIIntent_ResizeXY = 4,
+    UIIntent_Drag     = 5,
 } UIIntent_Type;
 
 typedef enum UIConstant_Type
