@@ -31,7 +31,7 @@ UICornerRadius(f32 TopLeft, f32 TopRight, f32 BotLeft, f32 BotRight)
 internal vec2_unit
 Vec2Unit(ui_unit U0, ui_unit U1)
 {
-    vec2_unit Result = { U0, U1 };
+    vec2_unit Result = { .X = U0, .Y = U1 };
     return Result;
 }
 
@@ -51,10 +51,10 @@ IsNormalizedColor(ui_color Color)
 internal void
 UIWindow(ui_style_name StyleName, ui_pipeline *Pipeline)
 {
-    ui_cached_style *Style = UIGetStyle(StyleName, Pipeline->StyleRegistery);
+    ui_cached_style *Style = UIGetStyle(StyleName, Pipeline->Registry);
     ui_layout_node  *Node  = GetFreeLayoutNode(Pipeline->LayoutTree, UILayoutNode_Window);
 
-    if (Node)
+    if (Style && Node)
     {
         AttachLayoutNode    (Node, GetLayoutNodeParent(Pipeline->LayoutTree));
         SetLayoutNodeStyle  (Style, Node, SetLayoutNodeStyle_NoFlag);
@@ -75,10 +75,10 @@ UIWindow(ui_style_name StyleName, ui_pipeline *Pipeline)
 internal void
 UIButton(ui_style_name StyleName, ui_click_callback *Callback, ui_pipeline *Pipeline)
 {
-    ui_cached_style *Style = UIGetStyle(StyleName, Pipeline->StyleRegistery);
+    ui_cached_style *Style = UIGetStyle(StyleName, Pipeline->Registry);
     ui_layout_node  *Node  = GetFreeLayoutNode(Pipeline->LayoutTree, UILayoutNode_Button);
 
-    if (Node)
+    if (Style && Node)
     {
         AttachLayoutNode  (Node, GetLayoutNodeParent(Pipeline->LayoutTree));
         SetLayoutNodeStyle(Style, Node, SetLayoutNodeStyle_NoFlag);
@@ -105,12 +105,12 @@ UIButton(ui_style_name StyleName, ui_click_callback *Callback, ui_pipeline *Pipe
 // NOTE: Only supports extended ASCII for now.
 
 internal void
-UILabel(ui_style_name StyleName, byte_string Text, ui_pipeline *Pipeline)
+UILabel(ui_style_name StyleName, byte_string Text, ui_pipeline *Pipeline, ui_state *UIState)
 {
-    ui_cached_style *Style = UIGetStyle(StyleName, Pipeline->StyleRegistery);
+    ui_cached_style *Style = UIGetStyle(StyleName, Pipeline->Registry);
     ui_layout_node  *Node  = GetFreeLayoutNode(Pipeline->LayoutTree, UILayoutNode_Label);
 
-    if (Node)
+    if (Style && Node)
     {
         AttachLayoutNode  (Node, GetLayoutNodeParent(Pipeline->LayoutTree));
         SetLayoutNodeStyle(Style, Node, SetLayoutNodeStyle_NoFlag);
@@ -128,54 +128,59 @@ UILabel(ui_style_name StyleName, byte_string Text, ui_pipeline *Pipeline)
             }
         }
 
-        ui_unit TextWidth  = {UIUnit_Float32, 0};
-        ui_unit TextHeight = {UIUnit_Float32, 0};
+        ui_font *Font = UIGetFont(Style, Pipeline->RendererHandle, UIState);
+        if (!Font)
+        {
+            return;
+        }
 
-        ui_font      *Font           = Style->Value.Font.Ref;
         ui_character *Characters     = PushArray(Pipeline->StaticArena, ui_character, Text.Size);
         u32           CharacterCount = (u32)Text.Size; Assert(CharacterCount == Text.Size);
-        if (Characters)
+        if (!Characters)
         {
-            for (u32 Idx = 0; Idx < Text.Size; Idx++)
+            return;
+        }
+
+        ui_unit TextWidth  = { UIUnit_Float32, {0} };
+        ui_unit TextHeight = { UIUnit_Float32, {0} };
+        for (u32 Idx = 0; Idx < Text.Size; Idx++)
+        {
+            u8 Character = Text.String[Idx];
+
+            glyph_state          State      = FindGlyphEntryByDirectAccess((u32)Character, Font->GlyphTable);
+            os_glyph_layout      Layout     = State.Layout;
+            os_glyph_raster_info RasterInfo = State.RasterInfo;
+
+            if (!RasterInfo.IsRasterized)
             {
-                u8 Character = Text.String[Idx];
+                Layout = OSGetGlyphLayout(Character, &Font->OSFontObjects, Font->TextureSize, Font->Size);
 
-                glyph_state          State      = FindGlyphEntryByDirectAccess((u32)Character, Font->GlyphTable);
-                os_glyph_layout      Layout     = State.Layout;
-                os_glyph_raster_info RasterInfo = State.RasterInfo;
+                stbrp_rect STBRect = { 0 };
+                STBRect.w = (u16)Layout.Size.X; Assert(STBRect.w == Layout.Size.X);
+                STBRect.h = (u16)Layout.Size.Y; Assert(STBRect.h == Layout.Size.Y);
+                stbrp_pack_rects(&Font->AtlasContext, &STBRect, 1);
 
-                if (!RasterInfo.IsRasterized)
+                if (STBRect.was_packed)
                 {
-                    Layout = OSGetGlyphLayout(Character, &Font->OSFontObjects, Font->TextureSize, Font->Size);
+                    rect_f32 Rect;
+                    Rect.Min.X = (f32)STBRect.x;
+                    Rect.Min.Y = (f32)STBRect.y;
+                    Rect.Max.X = (f32)STBRect.x + STBRect.w;
+                    Rect.Max.Y = (f32)STBRect.y + STBRect.h;
+                    RasterInfo = OSRasterizeGlyph(Character, Rect, &Font->OSFontObjects, &Font->GPUFontObjects, Pipeline->RendererHandle);
 
-                    stbrp_rect STBRect = { 0 };
-                    STBRect.w = (u16)Layout.Size.X; Assert(STBRect.w == Layout.Size.X);
-                    STBRect.h = (u16)Layout.Size.Y; Assert(STBRect.h == Layout.Size.Y);
-                    stbrp_pack_rects(&Font->AtlasContext, &STBRect, 1);
-
-                    if (STBRect.was_packed)
-                    {
-                        rect_f32 Rect;
-                        Rect.Min.X = (f32)STBRect.x;
-                        Rect.Min.Y = (f32)STBRect.y;
-                        Rect.Max.X = (f32)STBRect.x + STBRect.w;
-                        Rect.Max.Y = (f32)STBRect.y + STBRect.h;
-                        RasterInfo = OSRasterizeGlyph(Character, Rect, &Font->OSFontObjects, &Font->GPUFontObjects, Pipeline->RendererHandle);
-
-                        UpdateDirectGlyphTableEntry((u32)Character, Layout, RasterInfo, Font->GlyphTable);
-                    }
-                    else
-                    {
-                        OSLogMessage(byte_string_literal("Failed to pack rect."), OSMessage_Error);
-                    }
+                    UpdateDirectGlyphTableEntry((u32)Character, Layout, RasterInfo, Font->GlyphTable);
                 }
-
-                TextWidth.Float32 += Layout.AdvanceX;
-                TextHeight.Float32 = Layout.Size.Y > TextHeight.Float32 ? Layout.Size.Y : TextHeight.Float32;
-
-                Characters[Idx].Layout       = Layout;
-                Characters[Idx].SampleSource = RasterInfo.SampleSource;
+                else
+                {
+                }
             }
+
+            TextWidth.Float32 += Layout.AdvanceX;
+            TextHeight.Float32 = Layout.Size.Y > TextHeight.Float32 ? Layout.Size.Y : TextHeight.Float32;
+
+            Characters[Idx].Layout       = Layout;
+            Characters[Idx].SampleSource = RasterInfo.SampleSource;
         }
 
         Node->Value.Width  = TextWidth;
@@ -187,10 +192,10 @@ UILabel(ui_style_name StyleName, byte_string Text, ui_pipeline *Pipeline)
 internal void
 UIHeader(ui_style_name StyleName, ui_pipeline *Pipeline)
 {
-    ui_cached_style *Style = UIGetStyle(StyleName, Pipeline->StyleRegistery);
+    ui_cached_style *Style = UIGetStyle(StyleName, Pipeline->Registry);
     ui_layout_node  *Node  = GetFreeLayoutNode(Pipeline->LayoutTree, UILayoutNode_Header);
 
-    if (Node)
+    if (Style && Node)
     {
         AttachLayoutNode    (Node, GetLayoutNodeParent(Pipeline->LayoutTree));
         SetLayoutNodeStyle  (Style, Node, SetLayoutNodeStyle_NoFlag);
@@ -201,6 +206,29 @@ UIHeader(ui_style_name StyleName, ui_pipeline *Pipeline)
             SetFlag(Node->Value.Flags, UILayoutNode_DrawBorders);
         }
     }
+}
+
+internal ui_layout_node *
+UIScrollView(ui_style_name StyleName, ui_pipeline *Pipeline)
+{
+    ui_cached_style *Style = UIGetStyle(StyleName, Pipeline->Registry);
+    ui_layout_node  *Node  = GetFreeLayoutNode(Pipeline->LayoutTree, UILayoutNode_ScrollView);
+
+    if (Style && Node)
+    {
+        AttachLayoutNode    (Node, GetLayoutNodeParent(Pipeline->LayoutTree));
+        SetLayoutNodeStyle  (Style, Node, SetLayoutNodeStyle_NoFlag);
+        PushLayoutNodeParent(Node, Pipeline->LayoutTree);
+
+        if (Style->Value.BorderWidth > 0)
+        {
+            SetFlag(Node->Value.Flags, UILayoutNode_DrawBorders);
+        }
+
+        SetFlag(Node->Value.Flags, UILayoutNode_PlaceChildrenVertically);
+    }
+
+    return Node;
 }
 
 // [Pipeline]
@@ -244,7 +272,7 @@ UICreatePipeline(ui_pipeline_params Params)
 
     // Others
     {
-        Result.StyleRegistery = CreateStyleRegistry(Params.ThemeFiles, Params.ThemeCount, Result.StaticArena);
+        Result.Registry       = CreateStyleRegistry(Params.ThemeFiles, Params.ThemeCount, Result.StaticArena);
         Result.RendererHandle = Params.RendererHandle;
     }
 
@@ -285,24 +313,24 @@ UIPipelineExecute(ui_pipeline *Pipeline, render_pass_list *PassList)
         {
             Assert(Hit.Node);
             Assert(Hit.Intent != UIIntent_None);
-        
+
             ui_layout_box *Box = &Hit.Node->Value;
-        
+
             if (MouseIsClicked)
             {
                 if (Box->ClickCallback)
                 {
                     Box->ClickCallback(Hit.Node, Pipeline);
                 }
-        
+
                 SetFlag(Box->Flags, UILayoutNode_IsClicked);
             }
-        
+
             switch(Hit.Intent)
             {
-        
+
             default: break;
-        
+
             case UIIntent_Drag:
             {
                 if(MouseIsClicked)
@@ -312,7 +340,7 @@ UIPipelineExecute(ui_pipeline *Pipeline, render_pass_list *PassList)
                 }
                 SetFlag(Box->Flags, UILayoutNode_IsHovered);
             } break;
-        
+
             case UIIntent_ResizeX:
             case UIIntent_ResizeY:
             case UIIntent_ResizeXY:
@@ -323,7 +351,7 @@ UIPipelineExecute(ui_pipeline *Pipeline, render_pass_list *PassList)
                     Pipeline->Intent       = Hit.Intent;
                 }
             } break;
-        
+
             }
         }
 
@@ -335,11 +363,11 @@ UIPipelineExecute(ui_pipeline *Pipeline, render_pass_list *PassList)
         Pipeline->CapturedNode = 0;
         Pipeline->Intent       = UIIntent_None;
     }
-    
+
     switch (Intent)
     {
 
-    case UIIntent_None:
+    default:
     {
         OSSetCursor(OSCursor_Default);
     } break;

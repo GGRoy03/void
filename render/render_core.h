@@ -131,7 +131,7 @@ read_only global u32 UIPassDefaultPaddingSize      = Kilobyte(25);
 
 read_only global u64 RenderPassDataSizeTable[] =
 {
-    {80}, // Inputs to UI pass (ui_rect)
+    80, // Inputs to UI pass (ui_rect)
 };
 
 // [FORWARD DECLARATIONS]
@@ -139,9 +139,6 @@ read_only global u64 RenderPassDataSizeTable[] =
 typedef struct gpu_font_objects gpu_font_objects;
 
 // [CORE API]
-
-// [Misc]
-internal void          BeginRenderingContext  (render_pass_list *List);
 
 // [Handles]
 
@@ -158,7 +155,6 @@ internal b32           CanMergeGroupParams  (rect_group_params *Old, rect_group_
 // [PER-RENDERER API]
 
 internal render_handle InitializeRenderer    (memory_arena *Arena);
-internal void          EndRendererFrame      (void);
 internal void          SubmitRenderCommands  (render_pass_list *List, render_handle BackendHandle);
 
 // [Text]

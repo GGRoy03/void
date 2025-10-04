@@ -4,11 +4,12 @@
 
 typedef enum UILayoutNode_Type
 {
-    UILayoutNode_None   = 0,
-    UILayoutNode_Window = 1,
-    UILayoutNode_Button = 2,
-    UILayoutNode_Label  = 3,
-    UILayoutNode_Header = 4,
+    UILayoutNode_None       = 0,
+    UILayoutNode_Window     = 1,
+    UILayoutNode_Button     = 2,
+    UILayoutNode_Label      = 3,
+    UILayoutNode_Header     = 4,
+    UILayoutNode_ScrollView = 5,
 } UILayoutNode_Type;
 
 // [FORWARD DECLARATIONS]
@@ -62,16 +63,15 @@ read_only global u32 LayoutTreeDefaultDepth    = 16;
 // [API]
 
 internal ui_layout_tree * AllocateLayoutTree        (ui_layout_tree_params Params);
-                                                    
+
 internal void             PopLayoutNodeParent       (ui_layout_tree *Tree);
 internal void             PushLayoutNodeParent      (ui_layout_node *Node, ui_layout_tree*Tree);
-                                                    
+
 internal ui_layout_node * GetLayoutNodeParent       (ui_layout_tree *Tree);
 internal ui_layout_node * GetFreeLayoutNode         (ui_layout_tree *Tree, UILayoutNode_Type Type);
-                                                    
+
 internal void             UITree_BindText           (ui_pipeline *Pipeline, ui_character *Characters, u32 Count, ui_font *Font, ui_layout_node *Node);
 internal void             UITree_BindClickCallback  (ui_layout_node *Node, ui_click_callback *Callback);
-                                                    
+
 internal b32              IsValidLayoutNode         (ui_layout_node *Node);
-internal b32              IsLayoutNodeALeaf         (UILayoutNode_Type Type);
 internal void             AttachLayoutNode          (ui_layout_node *Node, ui_layout_node *Parent);

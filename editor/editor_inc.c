@@ -1,2 +1,2 @@
-#include "file_browser.c"
+#include "console.c"
 #include "editor.c"

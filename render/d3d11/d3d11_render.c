@@ -45,7 +45,6 @@ D3D11GetVertexBuffer(u64 Size, d3d11_backend *Backend)
 
     if(Size > Kilobyte(64))
     {
-        OSLogMessage(byte_string_literal("Failed to acquire D3D11 Vertex Buffer."), OSMessage_Fatal);
     }
 
     return Result;
@@ -170,8 +169,6 @@ InitializeRenderer(memory_arena *Arena)
                                0, 0, &VShaderSrcBlob, &VShaderErrBlob);
             if(FAILED(Error))
             {
-                OSLogMessage(ByteString(VShaderErrBlob->lpVtbl->GetBufferPointer(VShaderErrBlob), VShaderErrBlob->lpVtbl->GetBufferSize(VShaderErrBlob)), OSMessage_Error);
-                OSLogMessage(byte_string_literal("Failed to compile D3D11 vertex shader."), OSMessage_Fatal);
             }
 
             void *ByteCode = VShaderSrcBlob->lpVtbl->GetBufferPointer(VShaderSrcBlob);
@@ -179,7 +176,6 @@ InitializeRenderer(memory_arena *Arena)
             Error = Device->lpVtbl->CreateVertexShader(Device, ByteCode, ByteSize, 0, &VShader);
             if(FAILED(Error))
             {
-                OSLogMessage(byte_string_literal("Failed to create D3D11 vertex shader."), OSMessage_Fatal);
             }
 
             d3d11_input_layout Layout = D3D11ILayoutTable[Type];
@@ -188,7 +184,6 @@ InitializeRenderer(memory_arena *Arena)
                                                       &ILayout);
             if(FAILED(Error))
             {
-                OSLogMessage(byte_string_literal("Failed to create D3D11 input layout."), OSMessage_Fatal);
             }
 
             VShaderSrcBlob->lpVtbl->Release(VShaderSrcBlob);
@@ -208,8 +203,6 @@ InitializeRenderer(memory_arena *Arena)
                                0, 0, &PShaderSrcBlob, &PShaderErrBlob);
             if(FAILED(Error))
             {
-                OSLogMessage(ByteString(PShaderErrBlob->lpVtbl->GetBufferPointer(PShaderErrBlob), PShaderErrBlob->lpVtbl->GetBufferSize(PShaderErrBlob)), OSMessage_Error);
-                OSLogMessage(byte_string_literal("Failed to compile D3D11 pixel shader."), OSMessage_Fatal);
             }
 
             void *ByteCode = PShaderSrcBlob->lpVtbl->GetBufferPointer(PShaderSrcBlob);
@@ -217,7 +210,6 @@ InitializeRenderer(memory_arena *Arena)
             Error = Device->lpVtbl->CreatePixelShader(Device, ByteCode, ByteSize, 0, &PShader);
             if (FAILED(Error))
             {
-                OSLogMessage(byte_string_literal("Failed to create D3D11 pixel shader."), OSMessage_Fatal);
             }
 
             PShaderSrcBlob->lpVtbl->Release(PShaderSrcBlob);
@@ -264,7 +256,6 @@ InitializeRenderer(memory_arena *Arena)
 
         if (FAILED(Backend->Device->lpVtbl->CreateBlendState(Backend->Device, &BlendDesc, &Backend->DefaultBlendState)))
         {
-            OSLogMessage(byte_string_literal("D3D11: Failed to create default blend state."), OSMessage_Error);
         }
     }
 
@@ -282,7 +273,6 @@ InitializeRenderer(memory_arena *Arena)
         Error = Backend->Device->lpVtbl->CreateSamplerState(Backend->Device, &Desc, &Backend->AtlasSamplerState);
         if (FAILED(Error))
         {
-            OSLogMessage(byte_string_literal("D3D11: Failed to create font atlas sampler state."), OSMessage_Error);
         }
     }
 
@@ -400,6 +390,8 @@ SubmitRenderCommands(render_pass_list *RenderPassList, render_handle BackendHand
                 DeviceContext->lpVtbl->DrawInstanced(DeviceContext, 4, InstanceCount, 0, 0);
             }
         } break;
+
+        default: break;
 
         }
     }

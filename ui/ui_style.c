@@ -103,8 +103,6 @@ UIGetStyle(ui_style_name Name, ui_style_registry *Registry)
             }
             else
             {
-                // TODO: Formatting and better error.
-                OSLogMessage(byte_string_literal("..."), OSMessage_Warn);
             }
         }
     }

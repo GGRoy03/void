@@ -82,6 +82,7 @@ struct ui_font
 
 internal ui_font * UILoadFont  (byte_string Name, f32 Size, render_handle Renderer, UIFontCoverage_Type Coverage, ui_state *UIState);
 internal ui_font * UIFindFont  (byte_string Name, f32 Size, ui_state *UIState);
+internal ui_font * UIGetFont   (ui_cached_style *Style, render_handle Renderer, ui_state *UIState);
 
 // [Glyphs]
 

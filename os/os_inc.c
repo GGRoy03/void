@@ -1,5 +1,5 @@
-#include "os/os_core.c"
+#include "./os_core.c"
 
 #ifdef _WIN32
-#include "os/win32/os_win32.c"
+#include "./win32/os_win32.c"
 #endif

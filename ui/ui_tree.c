@@ -113,7 +113,6 @@ UITree_BindText(ui_pipeline *Pipeline, ui_character *Characters, u32 Count, ui_f
     }
     else
     {
-        OSLogMessage(byte_string_literal("Could not set text binding."), OSMessage_Error);
     }
 }
 
@@ -128,19 +127,15 @@ UITree_BindClickCallback(ui_layout_node *Node, ui_click_callback *Callback)
     }
 }
 
+// []
+
+
 // [Helpers]
 
 internal b32 
 IsValidLayoutNode(ui_layout_node *Node)
 {
     b32 Result = Node && Node->Index != InvalidLayoutNodeIndex;
-    return Result;
-}
-
-internal b32
-IsLayoutNodeALeaf(UILayoutNode_Type Type)
-{
-    b32 Result = (Type == UILayoutNode_Button || Type == UILayoutNode_Label);
     return Result;
 }
 

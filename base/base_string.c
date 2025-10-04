@@ -70,6 +70,27 @@ ByteStringMatches(byte_string Str1, byte_string Str2, bit_field Flags)
     return Result;
 }
 
+internal byte_string 
+ByteStringCopy(byte_string Input, memory_arena *Arena)
+{
+    byte_string Result = ByteString(PushArray(Arena, u8, Input.Size), Input.Size);
+    memcpy(Result.String, Input.String, Input.Size);
+
+    return Result;
+}
+
+internal byte_string
+ByteStringAppendBefore(byte_string Pre, byte_string Post, memory_arena *Arena)
+{
+    u64         Size   = Pre.Size + Post.Size;
+    byte_string Result = ByteString(PushArray(Arena, u8, Size), Size);
+
+    memcpy(Result.String           , Pre.String, Pre.Size);
+    memcpy(Result.String + Pre.Size, Post.String, Post.Size);
+
+    return Result;
+}
+
 internal b32
 WideStringMatches(wide_string A, wide_string B, bit_field Flags)
 {
@@ -130,30 +151,6 @@ WideStringMatches(wide_string A, wide_string B, bit_field Flags)
 
         Result = (P1 == End);
     }
-
-    return Result;
-}
-
-internal void
-PopByteString(byte_string String, memory_arena *Arena)
-{
-    PopArena(Arena, String.Size * sizeof(String.String[0]));
-}
-
-internal void
-PopWideString(wide_string String, memory_arena *Arena)
-{
-    PopArena(Arena, String.Size * sizeof(String.String[0]));
-}
-
-internal byte_string
-ByteStringAppendBefore(byte_string Pre, byte_string Post, memory_arena *Arena)
-{
-    u64         Size   = Pre.Size + Post.Size;
-    byte_string Result = ByteString(PushArray(Arena, u8, Size), Size);
-
-    memcpy(Result.String           , Pre.String , Pre.Size );
-    memcpy(Result.String + Pre.Size, Post.String, Post.Size);
 
     return Result;
 }
@@ -369,8 +366,8 @@ ByteStringToWideString(memory_arena *Arena, byte_string Input)
 // [Hashes]
 
 #define XXH_STATIC_LINKING_ONLY
-#define XXH_IMPLEMENTATION     
-#include "third_party/xxhash.h"
+#define XXH_IMPLEMENTATION
+#include "../third_party/xxhash.h"
 
 internal u64
 HashByteString(byte_string Input)

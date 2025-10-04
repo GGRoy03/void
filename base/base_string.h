@@ -32,7 +32,7 @@ typedef struct unicode_decode
 
 #define byte_string_literal(String) ByteString((u8 *)String, sizeof(String) - 1)
 #define byte_string_compile(String) {(u8 *)String, sizeof(String)}
-#define wide_string_literal(String) WideString((u16 *)L##String##, (sizeof(L##String##) - 2) / 2)
+#define wide_string_literal(String) WideString((u16 *)String, (sizeof(String) - 2) / 2) // NOTE: Might be broken?
 
 // [Constructors]
 
@@ -43,10 +43,9 @@ internal wide_string WideString  (u16 *String, u64 Size);
 
 internal b32         IsValidByteString       (byte_string Input);
 internal b32         ByteStringMatches       (byte_string Str1, byte_string Str2, bit_field Flags);
-internal b32         WideStringMatches       (wide_string A, wide_string B, bit_field Flags);
-internal void        PopByteString           (byte_string String, memory_arena *Arena);
-internal void        PopWideString           (wide_string String, memory_arena *Arena);
+internal byte_string ByteStringCopy          (byte_string String, memory_arena *Arena);
 internal byte_string ByteStringAppendBefore  (byte_string Pre, byte_string Post, memory_arena *Arena);
+internal b32         WideStringMatches       (wide_string A, wide_string B, bit_field Flags);
 internal wide_string WideStringAppendBefore  (wide_string Pre, wide_string Post, memory_arena *Arena);
 
 // [Character Utilities]

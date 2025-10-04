@@ -13,7 +13,6 @@ AllocateArena(memory_arena_params Params)
     b32   CommitResult = OSCommitMemory(HeapBase, CommitSize);
     if(!HeapBase || !CommitResult)
     {
-        OSLogMessage(byte_string_literal("FAILED TO COMMIT MEMORY(WIN32)."), OSMessage_Fatal);
     }
 
     memory_arena *Arena = (memory_arena*)HeapBase;

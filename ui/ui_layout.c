@@ -110,12 +110,14 @@ TopDownLayout(ui_layout_node *LayoutRoot, ui_pipeline *Pipeline)
 {
     if (Pipeline->LayoutTree)
     {
+        memory_region Region = EnterMemoryRegion(Pipeline->LayoutTree->Arena);
+
         node_queue Queue = { 0 };
         {
             typed_queue_params Params = { 0 };
             Params.QueueSize = Pipeline->LayoutTree->NodeCount;
 
-            Queue = BeginNodeQueue(Params, Pipeline->LayoutTree->Arena);
+            Queue = BeginNodeQueue(Params, Region.Arena);
         }
 
         if (Queue.Data)
@@ -137,8 +139,8 @@ TopDownLayout(ui_layout_node *LayoutRoot, ui_pipeline *Pipeline)
                 ui_layout_node *Current = PopNodeQueue(&Queue);
                 ui_layout_box  *Box     = &Current->Value;
 
-                f32 AvWidth    = Box->FinalWidth - (Box->Padding.Left + Box->Padding.Right);
-                f32 AvHeight   = Box->FinalHeight - (Box->Padding.Top + Box->Padding.Bot);
+                f32 AvWidth    = Box->FinalWidth  - (Box->Padding.Left + Box->Padding.Right);
+                f32 AvHeight   = Box->FinalHeight - (Box->Padding.Top  + Box->Padding.Bot);
                 f32 UsedWidth  = 0;
                 f32 UsedHeight = 0;
                 f32 BasePosX   = Box->FinalX + Box->Padding.Left;
@@ -161,7 +163,7 @@ TopDownLayout(ui_layout_node *LayoutRoot, ui_pipeline *Pipeline)
                             }
                             else if (ChildBox->Width.Type == UIUnit_Float32)
                             {
-                                Width = ChildBox->Width.Float32 <= AvWidth ? ChildBox->Width.Float32 : 0.f;
+                                Width = ChildBox->Width.Float32 <= AvWidth ? ChildBox->Width.Float32 : AvWidth;
                             }
                             else
                             {
@@ -174,7 +176,7 @@ TopDownLayout(ui_layout_node *LayoutRoot, ui_pipeline *Pipeline)
                             }
                             else if (ChildBox->Height.Type == UIUnit_Float32)
                             {
-                                Height = ChildBox->Height.Float32 <= AvHeight ? ChildBox->Height.Float32 : 0.f;
+                                Height = ChildBox->Height.Float32 <= AvHeight ? ChildBox->Height.Float32 : AvHeight;
                             }
                             else
                             {
@@ -201,37 +203,49 @@ TopDownLayout(ui_layout_node *LayoutRoot, ui_pipeline *Pipeline)
                 // Text Position
                 // TODO: Text wrapping and stuff.
                 // TODO: Text Alignment.
+                
+                if (Box->Flags & UILayoutNode_DrawText)
                 {
-                    if (Box->Flags & UILayoutNode_DrawText)
-                    {
-                        ui_text *Text    = Box->Text;
-                        vec2_f32 TextPos = Vec2F32(BasePosX, BasePosY);
+                    ui_text *Text    = Box->Text;
+                    vec2_f32 TextPos = Vec2F32(BasePosX, BasePosY);
 
-                        for (u32 Idx = 0; Idx < Text->Size; Idx++)
+                    for (u32 Idx = 0; Idx < Text->Size; Idx++)
+                    {
+                        ui_character *Character = &Text->Characters[Idx];
+                        Character->Position.Min.X = roundf(TextPos.X + Character->Layout.Offset.X);
+                        Character->Position.Min.Y = roundf(TextPos.Y + Character->Layout.Offset.Y);
+                        Character->Position.Max.X = roundf(Character->Position.Min.X + Character->Layout.AdvanceX);
+                        Character->Position.Max.Y = roundf(Character->Position.Min.Y + Text->LineHeight);
+
+                        f32 GlyphSize = Character->Position.Max.X - Character->Position.Min.X;
+
+                        if (UsedWidth + GlyphSize >= AvWidth)
                         {
-                            ui_character *Character = &Text->Characters[Idx];
+                            TextPos.X  = BasePosX;
+                            TextPos.Y += Text->LineHeight;
+
                             Character->Position.Min.X = roundf(TextPos.X + Character->Layout.Offset.X);
                             Character->Position.Min.Y = roundf(TextPos.Y + Character->Layout.Offset.Y);
                             Character->Position.Max.X = roundf(Character->Position.Min.X + Character->Layout.AdvanceX);
                             Character->Position.Max.Y = roundf(Character->Position.Min.Y + Text->LineHeight);
 
-                            TextPos.X += (Character->Position.Max.X) - (Character->Position.Min.X);
+                            UsedWidth = 0;
                         }
-                    }
+
+                        TextPos.X += (Character->Position.Max.X) - (Character->Position.Min.X);
+                        UsedWidth += GlyphSize;
+                    }      
                 }
 
             }
 
-            // NOTE: Not really clear that we are clearing the queue...
-            PopArena(Pipeline->LayoutTree->Arena, Pipeline->LayoutTree->NodeCount * sizeof(ui_layout_node *));
+            LeaveMemoryRegion(Region);
         }
         else
         {
-            OSLogMessage(byte_string_literal("Failed to allocate queue for (Top Down Layout) ."), OSMessage_Error);
         }
     }
     else
     {
-        OSLogMessage(byte_string_literal("Unable to compute (Top Down Layout), because one of the trees is invalid."), OSMessage_Error);
     }
 }

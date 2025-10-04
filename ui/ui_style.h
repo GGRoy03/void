@@ -73,6 +73,9 @@ struct ui_cached_style
     ui_layout_node *First;
     ui_layout_node *Last;
     u32             RefCount;
+
+    // Misc
+    b32 FontReferenceIsSet;
 };
 
 typedef struct ui_style_subregistry ui_style_subregistry;

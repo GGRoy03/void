@@ -62,17 +62,14 @@ UILoadFont(byte_string Name, f32 Size, render_handle Renderer, UIFontCoverage_Ty
                 }
                 else
                 {
-                    OSLogMessage(byte_string_literal("Failed to acquire OS font objects: See error(s) above."), OSMessage_Warn);
                 }
             }
             else
             {
-                OSLogMessage(byte_string_literal("Failed to create glyph transfer: See error(s) above."), OSMessage_Warn);
             }
         }
         else
         {
-            OSLogMessage(byte_string_literal("Failed to create glyph cache: See error(s) above."), OSMessage_Warn);
         }
 
         if (!IsValid)
@@ -85,18 +82,7 @@ UILoadFont(byte_string Name, f32 Size, render_handle Renderer, UIFontCoverage_Ty
         }
         else
         {
-            if (!UIState->First)
-            {
-                UIState->First = Result;
-            }
-
-            if (UIState->Last)
-            {
-                UIState->Last->Next = Result;
-            }
-
-            UIState->Last       = Result;
-            UIState->FontCount += 1;
+            AppendToLinkedList(UIState, Result, UIState->FontCount);
         }
 
     }
@@ -116,6 +102,38 @@ UIFindFont(byte_string Name, f32 Size, ui_state *UIState)
     }
 
     return 0;
+}
+
+internal ui_font *
+UIGetFont(ui_cached_style *Style, render_handle Renderer, ui_state *UIState)
+{
+    ui_font *Result = 0;
+
+    if (Style->Value.FontSize)
+    {
+        if (Style->FontReferenceIsSet)
+        {
+            Result = Style->Value.Font.Ref;
+        }
+        else
+        {
+            Result = UIFindFont(Style->Value.Font.Name, Style->Value.FontSize, UIState);
+            if (Result)
+            {
+                Style->Value.Font.Ref     = Result;
+                Style->FontReferenceIsSet = 1;
+            }
+            else
+            {
+                Result = UILoadFont(Style->Value.Font.Name, Style->Value.FontSize, Renderer, UIFontCoverage_ASCIIOnly, UIState);
+
+                Style->Value.Font.Ref     = Result;
+                Style->FontReferenceIsSet = 1;
+            }
+        }
+    }
+
+    return Result;
 }
 
 // [Glyphs]

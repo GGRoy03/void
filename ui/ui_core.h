@@ -120,7 +120,7 @@ typedef struct ui_pipeline_params
 typedef struct ui_pipeline
 {
     ui_layout_tree    *LayoutTree;
-    ui_style_registry *StyleRegistery;
+    ui_style_registry *Registry;
 
     ui_layout_node *CapturedNode;
     UIIntent_Type   Intent;
@@ -135,14 +135,16 @@ typedef struct ui_pipeline
 
 typedef struct ui_state
 {
+    // Fonts
     ui_font *First;
     ui_font *Last;
     u32      FontCount;
 
+    // Console
+    console_queue Console;
+
     memory_arena *StaticData;
 } ui_state;
-
-// [API]
 
 // [Helpers]
 
@@ -156,12 +158,14 @@ internal b32 IsNormalizedColor(ui_color Color);
 
 // [Components]
 
-internal void UIWindow  (ui_style_name StyleName, ui_pipeline *Pipeline);
-internal void UIButton  (ui_style_name StyleName, ui_click_callback *Callback, ui_pipeline *Pipeline);
-internal void UILabel   (ui_style_name StyleName, byte_string Text, ui_pipeline *Pipeline);
-internal void UIHeader  (ui_style_name StyleName, ui_pipeline *Pipeline);
+internal void             UIWindow      (ui_style_name StyleName, ui_pipeline *Pipeline);
+internal void             UIButton      (ui_style_name StyleName, ui_click_callback *Callback, ui_pipeline *Pipeline);
+internal void             UILabel       (ui_style_name StyleName, byte_string Text, ui_pipeline *Pipeline, ui_state *UIState);
+internal void             UIHeader      (ui_style_name StyleName, ui_pipeline *Pipeline);
+internal ui_layout_node * UIScrollView  (ui_style_name StyleName, ui_pipeline *Pipeline);
 
-#define UIHeaderEx(StyleName, Pipeline) DeferLoop(UIHeader(StyleName, Pipeline), PopLayoutNodeParent(Pipeline->LayoutTree))
+#define UIHeaderEx(StyleName, Pipeline)           DeferLoop(UIHeader(StyleName, Pipeline)    , PopLayoutNodeParent(Pipeline->LayoutTree))
+#define UIScrollViewEx(Node, StyleName, Pipeline) DeferLoop(Node = UIScrollView(StyleName, Pipeline), PopLayoutNodeParent(Pipeline->LayoutTree))
 
 // [Pipeline]
 

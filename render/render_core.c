@@ -21,42 +21,6 @@ RenderHandleMatches(render_handle H1, render_handle H2)
     return Result;
 }
 
-// [Internal API]
-
-// WARN: UNUSED
-
-internal size_t 
-EstimateUIPassFootprint(render_pass_ui_stats Stats)
-{
-    size_t Result = UIPassDefaultPaddingSize;
-
-    if(Stats.GroupCount == 0 || Stats.PassCount == 0 || Stats.RenderedDataSize == 0)
-    {
-        Result += UIPassDefaultRenderedDataSize;
-        Result += UIPassDefaultBatchCount * sizeof(render_batch_node);
-        Result += UIPassDefaultGroupCount * sizeof(rect_group_node);
-        Result += UIPassDefaultPassCount  * sizeof(render_pass_node);
-    }
-    else
-    {
-        Result += Stats.RenderedDataSize;
-        Result += (Stats.BatchCount - 0) * sizeof(render_batch_node);
-        Result += (Stats.GroupCount - 0) * sizeof(rect_group_node);
-        Result += (Stats.PassCount  - 1) * sizeof(render_pass_node);
-    }
-
-    return Result;
-}
-
-// [Core API]
-
-// WARN: NO-OP
-
-internal void
-BeginRendereringContext(render_pass_list *List)
-{   UNUSED(List);
-}
-
 // [Batches]
 
 internal void *

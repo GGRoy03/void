@@ -128,40 +128,44 @@ typedef struct style_parser
 
 // [GLOBALS]
 
-read_only global u32                    MAXIMUM_STYLE_TOKEN_COUNT_PER_FILE = 10'000;
+read_only global u32                    MAXIMUM_STYLE_TOKEN_COUNT_PER_FILE = 10000;
 read_only global style_var_table_params STYLE_VAR_TABLE_PARAMS             = {.EntryCount = 512, .HashCount = 128};
 
 read_only global bit_field StyleTypeValidAttributesTable[] =
 {
-    {0}, // None
+    // None
+
+    0,
 
     // Window
-    {
+
         UIStyleAttribute_Size       |UIStyleAttribute_Padding     |UIStyleAttribute_Spacing |
         UIStyleAttribute_BorderColor|UIStyleAttribute_BorderWidth |UIStyleAttribute_Color   |
         UIStyleAttribute_Softness   |UIStyleAttribute_CornerRadius|UIStyleAttribute_FontName|
-        UIStyleAttribute_FontSize
-    },
+        UIStyleAttribute_FontSize,
 
     // Button
-    {
+
         UIStyleAttribute_Size    |UIStyleAttribute_BorderColor|UIStyleAttribute_BorderWidth |
         UIStyleAttribute_Color   |UIStyleAttribute_Softness   |UIStyleAttribute_CornerRadius|
-        UIStyleAttribute_FontName|UIStyleAttribute_FontSize
-    },
+        UIStyleAttribute_FontName|UIStyleAttribute_FontSize,
 
     // Label
-    {
-        UIStyleAttribute_FontSize | UIStyleAttribute_FontName
-    },
+
+        UIStyleAttribute_FontSize | UIStyleAttribute_FontName,
 
     // Header
-    {
+
         UIStyleAttribute_Size    | UIStyleAttribute_BorderColor | UIStyleAttribute_BorderWidth  |
         UIStyleAttribute_Color   | UIStyleAttribute_Softness    | UIStyleAttribute_CornerRadius |
         UIStyleAttribute_FontName| UIStyleAttribute_FontSize    | UIStyleAttribute_Padding      |
-        UIStyleAttribute_Spacing
-    },
+        UIStyleAttribute_Spacing,
+
+    // Scroll View
+
+        UIStyleAttribute_Size        |UIStyleAttribute_BorderColor|UIStyleAttribute_BorderWidth|
+        UIStyleAttribute_CornerRadius|UIStyleAttribute_Color      |UIStyleAttribute_Softness   |
+        UIStyleAttribute_Padding     |UIStyleAttribute_Spacing,
 };
 
 // [API]
@@ -209,4 +213,4 @@ internal ui_style_name        * CreateCachedStyleName          (byte_string Name
 // [Error Handling]
 
 internal read_only char * StyleAttributeToString  (UIStyleAttribute_Flag Flag);
-internal void             LogStyleFileMessage     (u32 LineInFile, OSMessage_Severity Severity, byte_string Format, ...);
+internal void             LogStyleFileMessage     (u32 LineInFile, ConsoleMessage_Severity Severity, byte_string Format, ...);

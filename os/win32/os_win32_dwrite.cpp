@@ -3,6 +3,8 @@ extern "C"
 #include "base/base_inc.h"
 #include "os/os_inc.h"
 #include "render/render_inc.h"
+#include "ui/ui_core.h"
+#include "editor/console.h"
 #include "third_party/stb_rect_pack.h"
 }
 
@@ -20,12 +22,11 @@ OSWin32FontIsValid(os_font_objects *Objects)
 
 extern "C" void
 OSWin32AcquireTextBackend()
-{   
+{
     OSWin32ReleaseTextBackend(OSWin32State.TextBackend);
 
     if (FAILED(DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory), (IUnknown **)&OSWin32State.TextBackend->DWriteFactory)))
     {
-        OSLogMessage(byte_string_literal("Win32: Failed to create DirectWrite factory."), OSMessage_Error);
     }
 }
 
@@ -126,19 +127,16 @@ OSAcquireFontObjects(byte_string Name, f32 Size, gpu_font_objects *GPUObjects, o
                 Error = OSObjects->RenderTarget->CreateSolidColorBrush(D2D1::ColorF(1.0f, 1.0f, 1.0f, 1.0f), &OSObjects->FillBrush);
                 if (FAILED(Error))
                 {
-                    OSLogMessage(byte_string_literal("Win32: Failed to create D2D Solid Color Brush."), OSMessage_Error);
                 }
             }
             else
             {
-                OSLogMessage(byte_string_literal("Win32: Failed to create DXGI Transfer Surface."), OSMessage_Error);
             }
 
             D2DFactory->Release();
         }
         else
         {
-            OSLogMessage(byte_string_literal("Win32: Failed to create D2D Factory."), OSMessage_Error);
         }
     }
 
@@ -186,7 +184,7 @@ OSReleaseFontObjects(os_font_objects *Objects)
 extern "C" os_glyph_layout
 OSGetGlyphLayout(u8 Character, os_font_objects *FontObjects, vec2_f32 TextureSize, f32 Size)
 {
-    os_glyph_layout  Result    = {0};
+    os_glyph_layout  Result    = {{0}};
     HRESULT          Error     = S_OK;
     os_text_backend *OSBackend = OSWin32State.TextBackend;
     memory_arena    *OSArena   = OSWin32State.Arena;;
@@ -217,7 +215,7 @@ OSGetGlyphLayout(u8 Character, os_font_objects *FontObjects, vec2_f32 TextureSiz
 
             u16 GlyphIndex = 0;
             u32 CodePoint  = (u32)WideCharacter.String[0];
-            Error = FontObjects->FontFace->GetGlyphIndicesW(&CodePoint, 1, &GlyphIndex);
+            Error = FontObjects->FontFace->GetGlyphIndicesA(&CodePoint, 1, &GlyphIndex);
 
             if (SUCCEEDED(Error))
             {
@@ -234,12 +232,10 @@ OSGetGlyphLayout(u8 Character, os_font_objects *FontObjects, vec2_f32 TextureSiz
                 }
                 else
                 {
-                    OSLogMessage(byte_string_literal("Failed to query glyph metrics."), OSMessage_Error);
                 }
             }
             else
             {
-                OSLogMessage(byte_string_literal("Failed to query glyph index."), OSMessage_Error);
             }
 
             TextLayout->Release();
@@ -278,7 +274,7 @@ OSRasterizeGlyph(u8 Character, rect_f32 Rect, os_font_objects *OSFontObjects, gp
                 OSFontObjects->RenderTarget->SetTransform(D2D1::Matrix3x2F::Scale(D2D1::Size(1, 1), D2D1::Point2F(0.0f, 0.0f)));
                 OSFontObjects->RenderTarget->BeginDraw();
                 OSFontObjects->RenderTarget->Clear(D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.0f)); // NOTE: Is this needed?
-                OSFontObjects->RenderTarget->DrawTextW((WCHAR *)WideGlyph.String, (u32)WideGlyph.Size,
+                OSFontObjects->RenderTarget->DrawTextA((WCHAR *)WideGlyph.String, (u32)WideGlyph.Size,
                                                      OSFontObjects->TextFormat, &DrawRect, OSFontObjects->FillBrush,
                                                      D2D1_DRAW_TEXT_OPTIONS_CLIP | D2D1_DRAW_TEXT_OPTIONS_ENABLE_COLOR_FONT,
                                                      DWRITE_MEASURING_MODE_NATURAL);

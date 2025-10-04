@@ -120,6 +120,11 @@ OSWin32StyleFileWatcher(LPVOID Param)
                                 if (WideStringMatches(WideFileName, UpdatedFileName, StringMatch_NoFlag))
                                 {
                                     UpdatedSub = CreateStyleSubregistry(ByteFileName, Region.Arena);
+                                    if (UpdatedSub->HadError)
+                                    {
+                                        UpdatedSub = 0;
+                                    }
+
                                     break;
                                 }
                             }
@@ -141,6 +146,7 @@ OSWin32StyleFileWatcher(LPVOID Param)
                             ui_cached_style *UpCachedStyle = UIGetStyleFromSubregistry(UpCachedName, UpdatedSub);
                             if (UpCachedStyle && MemoryCompare(&OrCachedStyle->Value, &UpCachedStyle->Value, sizeof(ui_style)) != 0)
                             {
+                                // BUG: Erases bindings...
                                 OrCachedStyle->Value = UpCachedStyle->Value;
 
                                 IterateLinkedList(OrCachedStyle->First, ui_layout_node *, Node)
@@ -172,13 +178,11 @@ OSWin32StyleFileWatcher(LPVOID Param)
             }
             else
             {
-                OSLogMessage(byte_string_literal("Could not read directory changes."), OSMessage_Warn);
             }
         }
     }
     else
     {
-        OSLogMessage(byte_string_literal("Failed to find specified directory. Hot-Reloaded Styles will not work."), OSMessage_Warn);
     }
 
     EnterCriticalSection(&Watcher->WatchListLock);
@@ -302,51 +306,20 @@ wWinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPWSTR CmdLine, i32 ShowCmd
         WindowClass.hCursor       = LoadCursor(0, IDC_ARROW);
         WindowClass.hbrBackground = (HBRUSH)(COLOR_WINDOW + 2);
         WindowClass.lpszMenuName  = 0;
-        WindowClass.lpszClassName = L"Game Window";
+        WindowClass.lpszClassName = "Game Window";
         WindowClass.hIconSm       = LoadIcon(0, IDI_APPLICATION);
 
         if(!RegisterClassEx(&WindowClass))
         {
-            MessageBox(0, L"Error registering class", L"Error", MB_OK | MB_ICONERROR);
+            MessageBox(0, "Error registering class", "Error", MB_OK | MB_ICONERROR);
             return 0;
         }
 
         OSWin32State.WindowHandle = CreateWindowEx(0, WindowClass.lpszClassName,
-                                                   L"Engine", WS_OVERLAPPEDWINDOW,
+                                                   "Engine", WS_OVERLAPPEDWINDOW,
                                                    0, 0, 1920, 1080, // WARN: Lazy
                                                    0, 0, WindowClass.hInstance, 0);
         ShowWindow(OSWin32State.WindowHandle, ShowCmd);
-    }
-
-    // Console (missing some safe code)
-    {
-        HWND ConsoleHandle = GetStdHandle(STD_OUTPUT_HANDLE);
-        if (!ConsoleHandle || ConsoleHandle == INVALID_HANDLE_VALUE)
-        {
-            if (!AllocConsole())
-            {
-                // TODO: What can we do?
-            }
-
-            ConsoleHandle = GetStdHandle(STD_OUTPUT_HANDLE);
-
-            FILE *F;
-            freopen_s(&F, "CONOUT$", "w", stdout);
-            freopen_s(&F, "CONOUT$", "w", stderr);
-            setvbuf(stdout, NULL, _IONBF, 0);
-
-            DWORD ConsoleMode;
-            if (GetConsoleMode(ConsoleHandle, &ConsoleMode))
-            {
-                DWORD NewMode = ConsoleMode | ENABLE_VIRTUAL_TERMINAL_PROCESSING;
-                if (SetConsoleMode(ConsoleHandle, NewMode))
-                {
-                    OSWin32State.ConsoleSupportsVT = 1;
-                }
-
-                OSWin32State.ConsoleHandle = ConsoleHandle;
-            }
-        }
     }
 
     // Text
@@ -360,7 +333,6 @@ wWinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPWSTR CmdLine, i32 ShowCmd
         InitializeCriticalSection(&OSWin32State.FileWatcher.WatchListLock);
         if(!ThreadHandle)
         {
-            OSLogMessage(byte_string_literal("Failed to launch watcher thread. Styles will not be hot-reloadable."), OSMessage_Error);
         }
 
         CloseHandle(ThreadHandle);
@@ -370,52 +342,6 @@ wWinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPWSTR CmdLine, i32 ShowCmd
     GameEntryPoint();
 
     return 0;
-}
-
-// [Per-OS Logging Implementation]
-
-external void
-OSLogMessage(byte_string ANSISequence, OSMessage_Severity Severity)
-{
-    switch (Severity)
-    {
-
-    case OSMessage_Info:
-    {
-        OSWin32SetConsoleColor(byte_string_literal("\x1b[32m"), FOREGROUND_GREEN | FOREGROUND_INTENSITY);
-        OSWin32WriteToConsole(byte_string_literal("[INFO] -> "));
-        OSWin32SetConsoleColor(byte_string_literal("\x1b[32m"), FOREGROUND_GREEN | FOREGROUND_INTENSITY);
-        OSWin32WriteToConsole(ANSISequence);
-    } break;
-
-    case OSMessage_Warn:
-    {
-        OSWin32SetConsoleColor(byte_string_literal("\x1b[33m"), FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_INTENSITY);
-        OSWin32WriteToConsole(byte_string_literal("[WARN] -> "));
-        OSWin32SetConsoleColor(byte_string_literal("\x1b[33m"), FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_INTENSITY);
-        OSWin32WriteToConsole(ANSISequence);
-    } break;
-
-    case OSMessage_Error:
-    {
-        OSWin32SetConsoleColor(byte_string_literal("\x1b[31m"), FOREGROUND_RED | FOREGROUND_INTENSITY);
-        OSWin32WriteToConsole(byte_string_literal("[ERROR] -> "));
-        OSWin32SetConsoleColor(byte_string_literal("\x1b[31m"), FOREGROUND_RED | FOREGROUND_INTENSITY);
-        OSWin32WriteToConsole(ANSISequence);
-    } break;
-
-    case OSMessage_Fatal:
-    {
-        OSWin32SetConsoleColor(byte_string_literal("\x1b[97;41m"), FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_INTENSITY | BACKGROUND_RED);
-        OSWin32WriteToConsole(byte_string_literal("[FATAL] -> "));
-        OSWin32SetConsoleColor(byte_string_literal("\x1b[97;41m"), FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_INTENSITY | BACKGROUND_RED);
-        OSWin32WriteToConsole(ANSISequence);
-        OSAbort(1);
-    } break;
-
-    }
-
-    OSWin32WriteToConsole(byte_string_literal("\n"));
 }
 
 // [Per-OS API Memory Implementation]
@@ -467,12 +393,10 @@ OSAppendToLaunchDirectory(byte_string Input, memory_arena *Arena)
         }
         else
         {
-            OSLogMessage(byte_string_literal("Failed to append the current directory."), OSMessage_Error);
         }
     }
     else
     {
-        OSLogMessage(byte_string_literal("Failed to query the current directory."), OSMessage_Error);
     }
 
     return Result;
@@ -510,7 +434,6 @@ OSFileSize(os_handle Handle)
             }
             else
             {
-                OSLogMessage(byte_string_literal("Failed to query file size."), OSMessage_Warn);
             }
         }
     }

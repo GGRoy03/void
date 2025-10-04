@@ -13,15 +13,6 @@ typedef enum OSMouseButton_Type
     OSMouseButton_Right = 2,
 } OSMouseButton_Type;
 
-typedef enum OSMessage_Severity
-{
-    OSMessage_None  = 0,
-    OSMessage_Info  = 1,
-    OSMessage_Warn  = 2,
-    OSMessage_Error = 3,
-    OSMessage_Fatal = 4,
-} OSMessage_Severity;
-
 typedef enum OSCursor_Type
 {
     OSCursor_None                      = 0,
@@ -144,7 +135,6 @@ internal void OSSetCursor     (OSCursor_Type Type);
 // [Misc]
 
 internal void        OSSleep                    (u32 Milliseconds);
-external void        OSLogMessage               (byte_string ANSISequence, OSMessage_Severity Severity);
 internal void        OSAbort                    (i32 ExitCode);
 internal void        OSListenToRegistry         (ui_style_registry *Registry);
 internal b32         OSIsValidHandle            (os_handle Handle);

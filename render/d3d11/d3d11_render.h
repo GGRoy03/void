@@ -230,7 +230,7 @@ read_only global d3d11_input_layout D3D11ILayoutTable[] =
     {D3D11RectILayout, ArrayCount(D3D11RectILayout)},
 };
 
-read_only global u32 D3D11UniformBufferSizeTable[] =
+read_only global u64 D3D11UniformBufferSizeTable[] =
 {
-    {(u32)sizeof(d3d11_rect_uniform_buffer)},
+    sizeof(d3d11_rect_uniform_buffer),
 };

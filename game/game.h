@@ -8,6 +8,7 @@ typedef struct game_state
 
     // Rendering
     render_pass_list RenderPassList;
+    render_handle    Renderer;
 } game_state;
 
 // [Core API]
