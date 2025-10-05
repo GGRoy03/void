@@ -127,9 +127,6 @@ UITree_BindClickCallback(ui_layout_node *Node, ui_click_callback *Callback)
     }
 }
 
-// []
-
-
 // [Helpers]
 
 internal b32 

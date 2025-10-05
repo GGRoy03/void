@@ -1,3 +1,14 @@
+// [Helpers]
+
+internal void
+AlignGlyph(vec2_f32 GlyphPosition, f32 LineHeight, ui_character *Character)
+{
+    Character->Position.Min.X = roundf(GlyphPosition.X + Character->Layout.Offset.X);
+    Character->Position.Min.Y = roundf(GlyphPosition.Y + Character->Layout.Offset.Y);
+    Character->Position.Max.X = roundf(Character->Position.Min.X + Character->Layout.AdvanceX);
+    Character->Position.Max.Y = roundf(Character->Position.Min.Y + LineHeight); // WARN: Wrong?
+}
+
 // [API IMPLEMENTATION]
 
 internal ui_hit_test_result 
@@ -80,6 +91,8 @@ DragUISubtree(vec2_f32 Delta, ui_layout_node *LayoutRoot, ui_pipeline *Pipeline)
 {
     Assert(Delta.X != 0.f || Delta.Y != 0.f);
 
+    // NOTE: Should we allow this mutation? It does work...
+
     LayoutRoot->Value.FinalX += Delta.X;
     LayoutRoot->Value.FinalY += Delta.Y;
 
@@ -89,24 +102,22 @@ DragUISubtree(vec2_f32 Delta, ui_layout_node *LayoutRoot, ui_pipeline *Pipeline)
     }
 }
 
-// NOTE: How does this change?
-
 internal void
 ResizeUISubtree(vec2_f32 Delta, ui_layout_node *LayoutNode, ui_pipeline *Pipeline)
 {
     Assert(LayoutNode->Value.Width.Type  != UIUnit_Percent);
     Assert(LayoutNode->Value.Height.Type != UIUnit_Percent);
 
+    // NOTE: Should we allow this mutation? It does work...
+
     LayoutNode->Value.Width.Float32  += Delta.X;
     LayoutNode->Value.Height.Float32 += Delta.Y;
-
-    TopDownLayout(LayoutNode, Pipeline);
 }
 
 DEFINE_TYPED_QUEUE(Node, node, ui_layout_node *);
 
 internal void
-TopDownLayout(ui_layout_node *LayoutRoot, ui_pipeline *Pipeline)
+PreOrderPlace(ui_layout_node *LayoutRoot, ui_pipeline *Pipeline)
 {
     if (Pipeline->LayoutTree)
     {
@@ -122,16 +133,6 @@ TopDownLayout(ui_layout_node *LayoutRoot, ui_pipeline *Pipeline)
 
         if (Queue.Data)
         {
-            ui_layout_box *RootBox = &LayoutRoot->Value;
-
-            if (RootBox->Width.Type != UIUnit_Float32)
-            {
-                return; // TODO: Error.
-            }
-
-            RootBox->FinalWidth  = RootBox->Width.Float32;
-            RootBox->FinalHeight = RootBox->Height.Float32;
-
             PushNodeQueue(&Queue, LayoutRoot);
 
             while (!IsNodeQueueEmpty(&Queue))
@@ -139,113 +140,189 @@ TopDownLayout(ui_layout_node *LayoutRoot, ui_pipeline *Pipeline)
                 ui_layout_node *Current = PopNodeQueue(&Queue);
                 ui_layout_box  *Box     = &Current->Value;
 
-                f32 AvWidth    = Box->FinalWidth  - (Box->Padding.Left + Box->Padding.Right);
-                f32 AvHeight   = Box->FinalHeight - (Box->Padding.Top  + Box->Padding.Bot);
-                f32 UsedWidth  = 0;
-                f32 UsedHeight = 0;
-                f32 BasePosX   = Box->FinalX + Box->Padding.Left;
-                f32 BasePosY   = Box->FinalY + Box->Padding.Top;
+                // NOTE: Interesting that we apply padding here...
+                f32 CursorX = Box->FinalX + Box->Padding.Left;
+                f32 CursorY = Box->FinalY + Box->Padding.Top;
 
+               if(HasFlag(Box->Flags, UILayoutNode_PlaceChildrenX))
                 {
-                    for (ui_layout_node *ChildNode = Current->First; (ChildNode != 0 && UsedWidth <= AvWidth); ChildNode = ChildNode->Next)
+                    IterateLinkedList(Current->First, ui_layout_node *, Child)
                     {
-                        ChildNode->Value.FinalX = BasePosX + UsedWidth;
-                        ChildNode->Value.FinalY = BasePosY + UsedHeight;
+                        Child->Value.FinalX = CursorX;
+                        Child->Value.FinalY = CursorY;
 
-                        ui_layout_box *ChildBox = &ChildNode->Value;
+                        CursorX += Child->Value.FinalWidth + Box->Spacing.Horizontal;
 
-                        f32 Width  = 0;
-                        f32 Height = 0;
-                        {
-                            if (ChildBox->Width.Type == UIUnit_Percent)
-                            {
-                                Width = (ChildBox->Width.Percent / 100.f) * AvWidth;
-                            }
-                            else if (ChildBox->Width.Type == UIUnit_Float32)
-                            {
-                                Width = ChildBox->Width.Float32 <= AvWidth ? ChildBox->Width.Float32 : AvWidth;
-                            }
-                            else
-                            {
-                                return;
-                            }
-
-                            if (ChildBox->Height.Type == UIUnit_Percent)
-                            {
-                                Height = (ChildBox->Height.Percent / 100.f) * AvHeight;
-                            }
-                            else if (ChildBox->Height.Type == UIUnit_Float32)
-                            {
-                                Height = ChildBox->Height.Float32 <= AvHeight ? ChildBox->Height.Float32 : AvHeight;
-                            }
-                            else
-                            {
-                                return;
-                            }
-
-                            ChildBox->FinalWidth  = Width;
-                            ChildBox->FinalHeight = Height;
-                        }
-
-                        if (Box->Flags & UILayoutNode_PlaceChildrenVertically)
-                        {
-                            UsedHeight += Height + Box->Spacing.Vertical;
-                        }
-                        else
-                        {
-                            UsedWidth += Width + Box->Spacing.Horizontal;
-                        }
-
-                        PushNodeQueue(&Queue, ChildNode);
+                        PushNodeQueue(&Queue, Child);
                     }
                 }
 
-                // Text Position
-                // TODO: Text wrapping and stuff.
-                // TODO: Text Alignment.
-                
-                if (Box->Flags & UILayoutNode_DrawText)
+                if(HasFlag(Box->Flags, UILayoutNode_PlaceChildrenY))
                 {
-                    ui_text *Text    = Box->Text;
-                    vec2_f32 TextPos = Vec2F32(BasePosX, BasePosY);
+                    IterateLinkedList(Current->First, ui_layout_node *, Child)
+                    {
+                        Child->Value.FinalX = CursorX;
+                        Child->Value.FinalY = CursorY;
 
-                    for (u32 Idx = 0; Idx < Text->Size; Idx++)
+                        CursorY += Child->Value.FinalHeight + Box->Spacing.Vertical;
+
+                        PushNodeQueue(&Queue, Child);
+                    }
+                }
+
+                // TODO: I believe if we used the offsets the sampling could
+                // be more precise? Where are the offsets used anyway?
+
+                if(HasFlag(Box->Flags, UILayoutNode_DrawText) && Box->Text)
+                {
+                    ui_text *Text       = Box->Text;
+                    u32      FilledLine = 0.f;
+                    f32      LineWidth  = 0.f;
+                    f32      LineStartX = CursorX;
+                    f32      LineStartY = CursorY;
+
+                    for(u32 Idx = 0; Idx < Text->Size; ++Idx)
                     {
                         ui_character *Character = &Text->Characters[Idx];
-                        Character->Position.Min.X = roundf(TextPos.X + Character->Layout.Offset.X);
-                        Character->Position.Min.Y = roundf(TextPos.Y + Character->Layout.Offset.Y);
-                        Character->Position.Max.X = roundf(Character->Position.Min.X + Character->Layout.AdvanceX);
-                        Character->Position.Max.Y = roundf(Character->Position.Min.Y + Text->LineHeight);
 
-                        f32 GlyphSize = Character->Position.Max.X - Character->Position.Min.X;
+                        f32      GlyphWidth    = Character->Layout.AdvanceX;
+                        vec2_f32 GlyphPosition = Vec2F32(LineStartX + LineWidth, LineStartY + (FilledLine * Text->LineHeight));
 
-                        if (UsedWidth + GlyphSize >= AvWidth)
+                        AlignGlyph(GlyphPosition, Text->LineHeight, Character);
+
+                        if(LineWidth + GlyphWidth > Box->FinalWidth)
                         {
-                            TextPos.X  = BasePosX;
-                            TextPos.Y += Text->LineHeight;
+                            if(LineWidth > 0.f)
+                            {
+                                ++FilledLine;
+                            }
+                            LineWidth = GlyphWidth;
 
-                            Character->Position.Min.X = roundf(TextPos.X + Character->Layout.Offset.X);
-                            Character->Position.Min.Y = roundf(TextPos.Y + Character->Layout.Offset.Y);
-                            Character->Position.Max.X = roundf(Character->Position.Min.X + Character->Layout.AdvanceX);
-                            Character->Position.Max.Y = roundf(Character->Position.Min.Y + Text->LineHeight);
+                            GlyphPosition = Vec2F32(LineStartX, LineStartY + (FilledLine * Text->LineHeight));
+                            AlignGlyph(GlyphPosition, Text->LineHeight, Character);
 
-                            UsedWidth = 0;
                         }
-
-                        TextPos.X += (Character->Position.Max.X) - (Character->Position.Min.X);
-                        UsedWidth += GlyphSize;
-                    }      
+                        else
+                        {
+                            LineWidth += GlyphWidth;
+                        }
+                    }
                 }
 
             }
 
             LeaveMemoryRegion(Region);
         }
-        else
+    }
+}
+
+internal void
+PreOrderMeasure(ui_layout_node *LayoutRoot, ui_pipeline *Pipeline)
+{
+    if (!Pipeline->LayoutTree) 
+    {
+        return;
+    }
+
+    memory_region Region = EnterMemoryRegion(Pipeline->LayoutTree->Arena);
+
+    node_queue Queue = { 0 };
+    {
+        typed_queue_params Params = { 0 };
+        Params.QueueSize = Pipeline->LayoutTree->NodeCount;
+
+        Queue = BeginNodeQueue(Params, Region.Arena);
+    }
+
+    if (!Queue.Data)
+    {
+        LeaveMemoryRegion(Region);
+        return;
+    }
+
+    PushNodeQueue(&Queue, LayoutRoot);
+
+    while (!IsNodeQueueEmpty(&Queue))
+    {
+        ui_layout_node *Current = PopNodeQueue(&Queue);
+        ui_layout_box  *Box     = &Current->Value;
+
+        f32 AvWidth  = Box->FinalWidth  - (Box->Padding.Left + Box->Padding.Right);
+        f32 AvHeight = Box->FinalHeight - (Box->Padding.Top  + Box->Padding.Bot);
+
+        IterateLinkedList(Current->First, ui_layout_node *, Child)
         {
+            ui_layout_box *CBox = &Child->Value;
+
+            if (CBox->Width.Type == UIUnit_Percent)
+            {
+                CBox->FinalWidth = (CBox->Width.Percent / 100.f) * AvWidth;
+            }
+            else if (Box->Width.Type == UIUnit_Float32)
+            {
+                CBox->FinalWidth = CBox->Width.Float32 <= AvWidth ? CBox->Width.Float32 : AvWidth;
+            }
+
+            if (CBox->Height.Type == UIUnit_Percent)
+            {
+                CBox->FinalHeight = (CBox->Height.Percent / 100.f) * AvHeight;
+            }
+            else if (CBox->Height.Type == UIUnit_Float32)
+            {
+                CBox->FinalHeight = CBox->Height.Float32 <= AvHeight ? CBox->Height.Float32 : AvHeight;
+            }
+
+            PushNodeQueue(&Queue, Child);
         }
     }
-    else
+
+    LeaveMemoryRegion(Region);
+}
+
+internal void
+PostOrderMeasure(ui_layout_node *LayoutRoot)
+{
+    IterateLinkedList(LayoutRoot->First, ui_layout_node *, Child)
     {
+        PostOrderMeasure(Child);
+    }
+
+    ui_layout_box *Box = &LayoutRoot->Value;
+
+    f32 InnerAvWidth = Box->FinalWidth - (Box->Padding.Left + Box->Padding.Right);
+
+    if(HasFlag(Box->Flags, UILayoutNode_DrawText) && Box->Text)
+    {
+        ui_text *Text = Box->Text;
+
+        f32 LineWidth = 0.f;
+        u32 LineCount = 0;
+
+        if(Text->Size)
+        {
+            LineCount = 1;
+
+            for(u32 Idx = 0; Idx < Text->Size; ++Idx)
+            {
+                ui_character *Character  = &Text->Characters[Idx];
+                f32           GlyphWidth = Character->Layout.AdvanceX;
+
+                if(LineWidth + GlyphWidth > InnerAvWidth)
+                {
+                    if(LineWidth > 0.f)
+                    {
+                        ++LineCount;
+                    }
+
+                    LineWidth = GlyphWidth;
+                }
+                else
+                {
+                    LineWidth += GlyphWidth;
+                }
+            }
+
+            Box->FinalHeight = LineCount * Text->LineHeight;
+        }
     }
 }

@@ -1,17 +1,17 @@
 external void
 ConsolePrintMessage(byte_string Message, ConsoleMessage_Severity Severity, ui_state *UIState)
 {
-    editor_console_ui *Console = &EditorUI.ConsoleUI;
+    editor_console_ui *ConsoleUI = &EditorUI.ConsoleUI;
 
-    byte_string Output = ByteStringCopy(Message, Console->Arena);
+    byte_string Output = ByteStringCopy(Message, ConsoleUI->Arena);
 
     // NOTE: This sould not be done explicitly by the user.
     // Also, how do we want to set the text color? Just an attribute
     // surely...
 
-    PushLayoutNodeParent(Console->MessageScrollViewNode, Console->Pipeline.LayoutTree);
-    UILabel(Console->MessageStyle, Output, &Console->Pipeline, UIState);
-    PopLayoutNodeParent(Console->Pipeline.LayoutTree);
+    PushLayoutNodeParent(ConsoleUI->MessageScrollViewNode, ConsoleUI->Pipeline.LayoutTree);
+    UILabel(ConsoleUI->MessageStyle, Output, &ConsoleUI->Pipeline, UIState);
+    PopLayoutNodeParent(ConsoleUI->Pipeline.LayoutTree);
 }
 
 internal void

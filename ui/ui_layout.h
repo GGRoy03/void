@@ -2,16 +2,17 @@
 
 typedef enum UILayoutNode_Flag
 {
-    UILayoutNode_NoFlag                  = 0,
-    UILayoutNode_PlaceChildrenVertically = 1 << 0,
-    UILayoutNode_DrawBackground          = 1 << 1,
-    UILayoutNode_DrawBorders             = 1 << 2,
-    UILayoutNode_DrawText                = 1 << 3,
-    UILayoutNode_HasClip                 = 1 << 4,
-    UILayoutNode_IsHovered               = 1 << 5,
-    UILayoutNode_IsClicked               = 1 << 6,
-    UILayoutNode_IsDraggable             = 1 << 7,
-    UILayoutNode_IsResizable             = 1 << 8,
+    UILayoutNode_NoFlag         = 0,
+    UILayoutNode_DrawBackground = 1 << 0,
+    UILayoutNode_DrawBorders    = 1 << 1,
+    UILayoutNode_DrawText       = 1 << 2,
+    UILayoutNode_HasClip        = 1 << 3,
+    UILayoutNode_IsHovered      = 1 << 4,
+    UILayoutNode_IsClicked      = 1 << 5,
+    UILayoutNode_IsDraggable    = 1 << 6,
+    UILayoutNode_IsResizable    = 1 << 7,
+    UILayoutNode_PlaceChildrenX = 1 << 8,
+    UILayoutNode_PlaceChildrenY = 1 << 9,
 } UILayoutNode_Flag;
 
 // [FORWARD DECLARATION]
@@ -60,4 +61,6 @@ internal ui_hit_test_result HitTestLayout  (vec2_f32 MousePosition, ui_layout_no
 internal void DragUISubtree    (vec2_f32 Delta, ui_layout_node *LayoutRoot, ui_pipeline *Pipeline);
 internal void ResizeUISubtree  (vec2_f32 Delta, ui_layout_node *LayoutNode, ui_pipeline *Pipeline);
 
-internal void TopDownLayout  (ui_layout_node *LayoutRoot, ui_pipeline *Pipeline);
+internal void PreOrderMeasure   (ui_layout_node *LayoutRoot, ui_pipeline *Pipeline);
+internal void PostOrderMeasure  (ui_layout_node *LayoutRoot);
+internal void PreOrderPlace     (ui_layout_node *LayoutRoot, ui_pipeline *Pipeline);

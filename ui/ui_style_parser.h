@@ -152,7 +152,8 @@ read_only global bit_field StyleTypeValidAttributesTable[] =
 
     // Label
 
-        UIStyleAttribute_FontSize | UIStyleAttribute_FontName,
+        UIStyleAttribute_FontSize   |UIStyleAttribute_FontName   |UIStyleAttribute_Size|
+        UIStyleAttribute_BorderWidth|UIStyleAttribute_BorderColor,
 
     // Header
 

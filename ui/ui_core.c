@@ -65,10 +65,10 @@ UIWindow(ui_style_name StyleName, ui_pipeline *Pipeline)
             SetFlag(Node->Value.Flags, UILayoutNode_DrawBorders);
         }
 
-        SetFlag(Node->Value.Flags, UILayoutNode_DrawBackground         );
-        SetFlag(Node->Value.Flags, UILayoutNode_PlaceChildrenVertically);
-        SetFlag(Node->Value.Flags, UILayoutNode_IsDraggable            );
-        SetFlag(Node->Value.Flags, UILayoutNode_IsResizable            );
+        SetFlag(Node->Value.Flags, UILayoutNode_DrawBackground);
+        SetFlag(Node->Value.Flags, UILayoutNode_PlaceChildrenY);
+        SetFlag(Node->Value.Flags, UILayoutNode_IsDraggable);
+        SetFlag(Node->Value.Flags, UILayoutNode_IsResizable);
     }
 }
 
@@ -141,8 +141,6 @@ UILabel(ui_style_name StyleName, byte_string Text, ui_pipeline *Pipeline, ui_sta
             return;
         }
 
-        ui_unit TextWidth  = { UIUnit_Float32, {0} };
-        ui_unit TextHeight = { UIUnit_Float32, {0} };
         for (u32 Idx = 0; Idx < Text.Size; Idx++)
         {
             u8 Character = Text.String[Idx];
@@ -176,15 +174,10 @@ UILabel(ui_style_name StyleName, byte_string Text, ui_pipeline *Pipeline, ui_sta
                 }
             }
 
-            TextWidth.Float32 += Layout.AdvanceX;
-            TextHeight.Float32 = Layout.Size.Y > TextHeight.Float32 ? Layout.Size.Y : TextHeight.Float32;
-
             Characters[Idx].Layout       = Layout;
             Characters[Idx].SampleSource = RasterInfo.SampleSource;
         }
 
-        Node->Value.Width  = TextWidth;
-        Node->Value.Height = TextHeight;
         UITree_BindText(Pipeline, Characters, CharacterCount, Font, Node);
     }
 }
@@ -205,6 +198,8 @@ UIHeader(ui_style_name StyleName, ui_pipeline *Pipeline)
         {
             SetFlag(Node->Value.Flags, UILayoutNode_DrawBorders);
         }
+
+        SetFlag(Node->Value.Flags, UILayoutNode_PlaceChildrenX);
     }
 }
 
@@ -225,7 +220,7 @@ UIScrollView(ui_style_name StyleName, ui_pipeline *Pipeline)
             SetFlag(Node->Value.Flags, UILayoutNode_DrawBorders);
         }
 
-        SetFlag(Node->Value.Flags, UILayoutNode_PlaceChildrenVertically);
+        SetFlag(Node->Value.Flags, UILayoutNode_PlaceChildrenY);
     }
 
     return Node;
@@ -281,14 +276,16 @@ UICreatePipeline(ui_pipeline_params Params)
 
 internal void
 UIPipelineBegin(ui_pipeline *Pipeline)
-{   Assert(Pipeline);
+{
+    Assert(Pipeline);
 
     ClearArena(Pipeline->FrameArena);
 }
 
 internal void
 UIPipelineExecute(ui_pipeline *Pipeline, render_pass_list *PassList)
-{   Assert(Pipeline && PassList);
+{
+    Assert(Pipeline && PassList);
 
     // Unpacking
     ui_layout_node *LayoutRoot = &Pipeline->LayoutTree->Nodes[0];
@@ -296,7 +293,15 @@ UIPipelineExecute(ui_pipeline *Pipeline, render_pass_list *PassList)
 
     // Layout
     {
-        TopDownLayout(LayoutRoot, Pipeline);
+        // NOTE: Temporary.
+        LayoutRoot->Value.FinalWidth  = LayoutRoot->Value.Width.Float32;
+        LayoutRoot->Value.FinalHeight = LayoutRoot->Value.Height.Float32;
+
+        PreOrderMeasure(LayoutRoot, Pipeline);
+
+        PostOrderMeasure(LayoutRoot);
+
+        PreOrderPlace(LayoutRoot, Pipeline);
     }
 
     vec2_f32 MouseDelta     = OSGetMouseDelta();
@@ -416,7 +421,6 @@ UIPipelineExecute(ui_pipeline *Pipeline, render_pass_list *PassList)
     } break;
 
     }
-    
 
     UIPipelineBuildDrawList(Pipeline, RenderPass, LayoutRoot);
 }
