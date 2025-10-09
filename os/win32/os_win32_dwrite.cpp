@@ -43,6 +43,8 @@ OSWin32ReleaseTextBackend(os_text_backend *TextBackend)
     }
 }
 
+// WARN: Badly written..
+
 extern "C" b32
 OSAcquireFontObjects(byte_string Name, f32 Size, gpu_font_objects *GPUObjects, os_font_objects *OSObjects)
 {
@@ -179,119 +181,151 @@ OSReleaseFontObjects(os_font_objects *Objects)
     }
 }
 
-// NOTE: Only handles extended ASCII right now.
-
-extern "C" os_glyph_layout
-OSGetGlyphLayout(u8 Character, os_font_objects *FontObjects, vec2_f32 TextureSize, f32 Size)
+extern "C" os_glyph_info
+OSGetGlyphInfo(byte_string UTF8, os_font_objects *OSFontObjects, f32 FontSize)
 {
-    os_glyph_layout  Result    = {{0}};
-    HRESULT          Error     = S_OK;
+    os_glyph_info    Result    = {{0}};
     os_text_backend *OSBackend = OSWin32State.TextBackend;
     memory_arena    *OSArena   = OSWin32State.Arena;;
 
-    if (OSBackend && OSBackend->DWriteFactory)
+    if(!OSBackend || !OSBackend->DWriteFactory || !OSFontObjects->FontFace)
     {
-        wide_string WideCharacter = ByteStringToWideString(OSArena, ByteString(&Character, 1));
-
-        IDWriteTextLayout *TextLayout = 0;
-        OSBackend->DWriteFactory->CreateTextLayout((WCHAR *)WideCharacter.String, (u32)WideCharacter.Size, FontObjects->TextFormat,
-                                                   (FLOAT)TextureSize.X, (FLOAT)TextureSize.Y,
-                                                   &TextLayout);
-        if (TextLayout)
-        {
-            DWRITE_TEXT_METRICS Metrics = {0};
-            TextLayout->GetMetrics(&Metrics);
-            Result.Size.X   = (u16)(Metrics.width  + 0.5f);
-            Result.Size.Y   = (u16)(Metrics.height + 0.5f);
-            Result.Offset.X = (f32)(Metrics.left);
-            Result.Offset.Y = (f32)(Metrics.top);
-
-            // NOTE: I have no idea if this is the correct fix...
-            // Seems to be okay for now.
-            if (Result.Size.X == 0)
-            {
-                Result.Size.X = Metrics.widthIncludingTrailingWhitespace;
-            }
-
-            u16 GlyphIndex = 0;
-            u32 CodePoint  = (u32)WideCharacter.String[0];
-            Error = FontObjects->FontFace->GetGlyphIndicesA(&CodePoint, 1, &GlyphIndex);
-
-            if (SUCCEEDED(Error))
-            {
-                DWRITE_GLYPH_METRICS GlyphMetrics = {0};
-                Error = FontObjects->FontFace->GetDesignGlyphMetrics(&GlyphIndex, 1, &GlyphMetrics, 0);
-
-                if (SUCCEEDED(Error))
-                {
-                    DWRITE_FONT_METRICS FontMetrics = {0};
-                    FontObjects->FontFace->GetMetrics(&FontMetrics);
-
-                    f32 Scale = Size / (f32)FontMetrics.designUnitsPerEm;
-                    Result.AdvanceX = (f32)(GlyphMetrics.advanceWidth * Scale + 0.5f);
-                }
-                else
-                {
-                }
-            }
-            else
-            {
-            }
-
-            TextLayout->Release();
-        }
-
-        PopArena(OSArena, WideCharacter.Size * sizeof(WideCharacter.String[0]));
+        byte_string Message = byte_string_literal("");
+        ConsoleWriteMessage(Message, ConsoleMessage_Error, &Console);
+        return Result;
     }
 
+    unicode_decode DecodedUTF8 = DecodeByteString(UTF8.String, UTF8.Size);
+    if(DecodedUTF8.Codepoint == _UI32_MAX)
+    {
+        byte_string Message = byte_string_literal("");
+        ConsoleWriteMessage(Message, ConsoleMessage_Error, &Console);
+        return Result;
+    }
+
+    wide_string UTF16 = ByteStringToWideString(OSArena, UTF8);
+    if(!IsValidWideString(UTF16))
+    {
+        byte_string Message = byte_string_literal("");
+        ConsoleWriteMessage(Message, ConsoleMessage_Error, &Console);
+        return Result;
+    }
+
+    IDWriteTextLayout *TextLayout = 0;
+    {
+        WCHAR *String     = (WCHAR*)UTF16.String;
+        UINT32 StringSize = (UINT32)UTF16.Size;
+
+        OSBackend->DWriteFactory->CreateTextLayout(String, StringSize,
+                                                   OSFontObjects->TextFormat,
+                                                   256.f, 256.f, &TextLayout);
+    }
+
+    if(!TextLayout)
+    {
+        byte_string Message = byte_string_literal("");
+        ConsoleWriteMessage(Message, ConsoleMessage_Error, &Console);
+        return Result;
+    }
+
+    DWRITE_TEXT_METRICS Metrics = {0};
+    {
+        TextLayout->GetMetrics(&Metrics);
+        Result.Size.X   = (u16)(Metrics.width  + 0.5f);
+        Result.Size.Y   = (u16)(Metrics.height + 0.5f);
+        Result.Offset.X = (f32)(Metrics.left);
+        Result.Offset.Y = (f32)(Metrics.top);
+
+        if (Result.Size.X == 0)
+        {
+            Result.Size.X = Metrics.widthIncludingTrailingWhitespace;
+        }
+    }
+
+    u16 GlyphIndex = 0;
+    {
+        u32     CodePoint = DecodedUTF8.Codepoint;
+        HRESULT Error     = OSFontObjects->FontFace->GetGlyphIndicesA(&CodePoint, 1, &GlyphIndex);
+
+        if(FAILED(Error))
+        {
+            byte_string Message = byte_string_literal("");
+            ConsoleWriteMessage(Message, ConsoleMessage_Error, &Console);
+            return Result;
+        }
+    }
+
+    DWRITE_GLYPH_METRICS GlyphMetrics = {0};
+    {
+        HRESULT Error = OSFontObjects->FontFace->GetDesignGlyphMetrics(&GlyphIndex, 1, &GlyphMetrics, 0);
+        if(FAILED(Error))
+        {
+            byte_string Message = byte_string_literal("");
+            ConsoleWriteMessage(Message, ConsoleMessage_Error, &Console);
+            return Result;
+        }
+    }
+
+    DWRITE_FONT_METRICS FontMetrics;
+    OSFontObjects->FontFace->GetMetrics(&FontMetrics);
+
+    f32 Scale = FontSize / (f32)FontMetrics.designUnitsPerEm;
+    Result.AdvanceX = (f32)(GlyphMetrics.advanceWidth * Scale + 0.5f);
+
+    TextLayout->Release();
 
     return Result;
 }
 
-// NOTE: Only handles extended ASCII right now.
-
-extern "C" os_glyph_raster_info
-OSRasterizeGlyph(u8 Character, rect_f32 Rect, os_font_objects *OSFontObjects, gpu_font_objects *GPUFontObjects, render_handle RendererHandle)
+extern "C" b32
+OSRasterizeGlyph(byte_string UTF8, rect_f32 Rect, os_font_objects *OSFontObjects)
 {
-    os_glyph_raster_info Result = {0};
+    b32 Result = 0;
 
-    if (OSFontObjects)
+    if (OSFontObjects && OSFontObjects->RenderTarget && OSFontObjects->FillBrush)
     {
-        memory_arena *Arena = OSWin32State.Arena;
+        memory_region Local = EnterMemoryRegion(OSWin32State.Arena);
 
-        if (OSFontObjects->RenderTarget && OSFontObjects->FillBrush)
+        unicode_decode DecodedUTF8 = DecodeByteString(UTF8.String, UTF8.Size);
+        if(DecodedUTF8.Codepoint == _UI32_MAX)
         {
-            wide_string WideGlyph = ByteStringToWideString(Arena, ByteString(&Character, 1));
-
-            if (WideGlyph.String && WideGlyph.Size)
-            {
-                D2D1_RECT_F DrawRect;
-                DrawRect.left   = 0;
-                DrawRect.top    = 0;
-                DrawRect.right  = Rect.Max.X;
-                DrawRect.bottom = Rect.Max.Y;
-
-                OSFontObjects->RenderTarget->SetTransform(D2D1::Matrix3x2F::Scale(D2D1::Size(1, 1), D2D1::Point2F(0.0f, 0.0f)));
-                OSFontObjects->RenderTarget->BeginDraw();
-                OSFontObjects->RenderTarget->Clear(D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.0f)); // NOTE: Is this needed?
-                OSFontObjects->RenderTarget->DrawTextA((WCHAR *)WideGlyph.String, (u32)WideGlyph.Size,
-                                                     OSFontObjects->TextFormat, &DrawRect, OSFontObjects->FillBrush,
-                                                     D2D1_DRAW_TEXT_OPTIONS_CLIP | D2D1_DRAW_TEXT_OPTIONS_ENABLE_COLOR_FONT,
-                                                     DWRITE_MEASURING_MODE_NATURAL);
-                PopArena(Arena, WideGlyph.Size * sizeof(WideGlyph.String[0]));
-
-                HRESULT Error = OSFontObjects->RenderTarget->EndDraw();
-                if (FAILED(Error))
-                {
-                    Assert(!"Failed EndDraw.");
-                }
-
-                Result.IsRasterized = true;
-                Result.SampleSource = Rect;
-
-                TransferGlyph(Rect, RendererHandle, GPUFontObjects);
-            }
+            return Result;
         }
+
+        wide_string UTF16 = ByteStringToWideString(Local.Arena, UTF8);
+        if(!IsValidWideString(UTF16))
+        {
+            return Result;
+        }
+
+        if(IsValidWideString(UTF16))
+        {
+            D2D1_RECT_F DrawRect;
+            DrawRect.left   = 0.f;
+            DrawRect.top    = 0.f;
+            DrawRect.right  = Rect.Max.X;
+            DrawRect.bottom = Rect.Max.Y;
+
+            ID2D1RenderTarget    *RenderTarget = OSFontObjects->RenderTarget;
+            IDWriteTextFormat    *TextFormat   = OSFontObjects->TextFormat;
+            ID2D1SolidColorBrush *FillBrush    = OSFontObjects->FillBrush;
+
+
+            RenderTarget->SetTransform(D2D1::Matrix3x2F::Scale(D2D1::Size(1, 1), D2D1::Point2F(0.0f, 0.0f)));
+            RenderTarget->BeginDraw();
+            RenderTarget->Clear(D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.0f));
+
+            WCHAR                 *String  = (WCHAR*)UTF16.String;
+            UINT32                 Size    = (UINT32)UTF16.Size;
+            D2D1_DRAW_TEXT_OPTIONS Options = D2D1_DRAW_TEXT_OPTIONS_CLIP | D2D1_DRAW_TEXT_OPTIONS_ENABLE_COLOR_FONT;
+            DWRITE_MEASURING_MODE  Mode    = DWRITE_MEASURING_MODE_NATURAL;
+
+            RenderTarget->DrawText(String, Size, TextFormat, &DrawRect, FillBrush, Options, Mode);
+
+            Result = SUCCEEDED(RenderTarget->EndDraw());
+        }
+
+        LeaveMemoryRegion(Local);
     }
 
     return Result;
@@ -299,7 +333,8 @@ OSRasterizeGlyph(u8 Character, rect_f32 Rect, os_font_objects *OSFontObjects, gp
 
 extern "C" f32
 OSGetLineHeight(f32 FontSize, os_font_objects *OSFontObjects)
-{   Assert(FontSize > 0 && OSFontObjects && OSFontObjects->FontFace);
+{
+    Assert(FontSize > 0 && OSFontObjects && OSFontObjects->FontFace);
 
     DWRITE_FONT_METRICS FontMetrics = {};
     OSFontObjects->FontFace->GetMetrics(&FontMetrics);

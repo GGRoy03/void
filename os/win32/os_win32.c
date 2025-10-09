@@ -44,154 +44,6 @@ OSWin32WriteToConsole(byte_string ANSISequence)
     }
 }
 
-internal DWORD WINAPI
-OSWin32StyleFileWatcher(LPVOID Param)
-{
-    UNUSED(Param);
-
-    os_win32_file_watcher *Watcher = &OSWin32State.FileWatcher;
-
-    {
-        memory_arena_params Params = {0};
-        Params.AllocatedFromFile = __FILE__;
-        Params.AllocatedFromLine = __LINE__;
-        Params.ReserveSize       = Kilobyte(64) + GetSubRegistryFootprint();
-        Params.CommitSize        = Kilobyte(1);
-
-        Watcher->Arena = AllocateArena(Params);
-    }
-
-    DWORD  ShareMode = FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE;
-    DWORD  Access    = FILE_LIST_DIRECTORY;
-    DWORD  Create    = OPEN_EXISTING;
-    DWORD  Flags     = FILE_FLAG_BACKUP_SEMANTICS;
-    HANDLE DirHandle = CreateFileA("D:/Work/CIM/build/styles", Access, ShareMode, 0, Create, Flags, 0); // TODO: Fix this.
-
-    if (DirHandle != INVALID_HANDLE_VALUE)
-    {
-        DWORD BytesReturned = 0;
-        BYTE  Buffer[4096]  = {0};
-
-        while (1)
-        {
-            DWORD Filter      = FILE_NOTIFY_CHANGE_LAST_WRITE;
-            BOOL  FoundUpdate = ReadDirectoryChangesW(DirHandle, Buffer, sizeof(Buffer), FALSE, Filter, &BytesReturned, 0, 0);
-            if(FoundUpdate)
-            {
-                BYTE *Ptr = Buffer;
-
-                // Snapshot (Probably is a better way, but I've never done this)
-
-                EnterCriticalSection(&Watcher->WatchListLock);
-
-                u32                   FileCount = Watcher->WatchCount;
-                os_watched_registry **List      = PushArray(Watcher->Arena, os_watched_registry *, Watcher->WatchCount);
-                os_watched_registry  *It        = Watcher->First;
-
-                for (u32 Idx = 0; Idx < Watcher->WatchCount; Idx++)
-                {
-                    List[Idx] = It;
-                    It        = It->Next;
-                }
-
-                LeaveCriticalSection(&Watcher->WatchListLock);
-
-                memory_region Region = EnterMemoryRegion(Watcher->Arena);
-
-                ui_style_subregistry *UpdatedSub = 0;
-                ui_style_subregistry *OriginSub  = 0;
-                do
-                {
-                     FILE_NOTIFY_INFORMATION *Info = (FILE_NOTIFY_INFORMATION *)Ptr;
-
-                    if (Info->Action == FILE_ACTION_MODIFIED)
-                    {
-                        wide_string UpdatedFileName = WideStringAppendBefore(wide_string_literal("styles/"), WideString(Info->FileName, Info->FileNameLength / 2), Region.Arena);
-
-                        for (u32 Idx = 0; Idx < FileCount; Idx++)
-                        {
-                            os_watched_registry *Watched  = List[Idx];
-                            ui_style_registry   *Registry = Watched->Registry;
-
-                            for (OriginSub = Registry->First; OriginSub != 0; OriginSub = OriginSub->Next)
-                            {
-                                byte_string ByteFileName = ByteString(OriginSub->FileName, OriginSub->FileNameSize);
-                                wide_string WideFileName = ByteStringToWideString(Region.Arena, ByteFileName);
-                                if (WideStringMatches(WideFileName, UpdatedFileName, StringMatch_NoFlag))
-                                {
-                                    UpdatedSub = CreateStyleSubregistry(ByteFileName, Region.Arena);
-                                    if (UpdatedSub->HadError)
-                                    {
-                                        UpdatedSub = 0;
-                                    }
-
-                                    break;
-                                }
-                            }
-
-                            if (UpdatedSub)
-                            {
-                                break;
-                            }
-                        }
-                    }
-
-                    if (UpdatedSub)
-                    {
-                        for (u32 Idx = 0; Idx < OriginSub->StyleCount; Idx++)
-                        {
-                            ui_style_name    CachedName    = OriginSub->CachedNames[Idx];
-                            ui_style_name    UpCachedName  = UIGetCachedNameFromSubregistry(CachedName.Value, UpdatedSub);
-                            ui_cached_style *OrCachedStyle = UIGetStyleFromSubregistry(CachedName, OriginSub);
-                            ui_cached_style *UpCachedStyle = UIGetStyleFromSubregistry(UpCachedName, UpdatedSub);
-                            if (UpCachedStyle && MemoryCompare(&OrCachedStyle->Value, &UpCachedStyle->Value, sizeof(ui_style)) != 0)
-                            {
-                                // BUG: Erases bindings...
-                                OrCachedStyle->Value = UpCachedStyle->Value;
-
-                                IterateLinkedList(OrCachedStyle->First, ui_layout_node *, Node)
-                                {
-                                    SetLayoutNodeStyle(OrCachedStyle, Node, SetLayoutNodeStyle_OmitReference);
-                                }
-
-                                // BUG: Potentially incorrect if we update an effect style.
-                                ++OrCachedStyle->Value.BaseVersion;
-                            }
-                            else
-                            {
-                                // TODO: What do we do?
-                            }
-                        }
-                    }
-
-                    if(Info->NextEntryOffset != 0)
-                    {
-                        Ptr += Info->NextEntryOffset;
-                    }
-                    else
-                    {
-                        break;
-                    }
-                } while(1);
-
-                LeaveMemoryRegion(Region);
-            }
-            else
-            {
-            }
-        }
-    }
-    else
-    {
-    }
-
-    EnterCriticalSection(&Watcher->WatchListLock);
-    ReleaseArena(Watcher->Arena);
-    LeaveCriticalSection(&Watcher->WatchListLock);
-
-    return 1;
-}
-
 internal LRESULT CALLBACK
 OSWin32WindowProc(HWND Handle, UINT Message, WPARAM WParam, LPARAM LParam)
 {
@@ -327,17 +179,6 @@ wWinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPWSTR CmdLine, i32 ShowCmd
         OSWin32State.TextBackend = PushArena(OSWin32State.Arena, sizeof(os_text_backend), AlignOf(os_text_backend));
         OSWin32AcquireTextBackend();
     }
-
-    {
-        HANDLE ThreadHandle = CreateThread(0, 0, OSWin32StyleFileWatcher, 0, 0, 0);
-        InitializeCriticalSection(&OSWin32State.FileWatcher.WatchListLock);
-        if(!ThreadHandle)
-        {
-        }
-
-        CloseHandle(ThreadHandle);
-    }
-
 
     GameEntryPoint();
 
@@ -640,28 +481,6 @@ internal void
 OSAbort(i32 ExitCode)
 {
     ExitProcess(ExitCode);
-}
-
-// [Watcher Thread: Debug Only]
-
-internal void
-OSListenToRegistry(ui_style_registry *Registry)
-{
-    os_win32_state        *State   = &OSWin32State;
-    os_win32_file_watcher *Watcher = &State->FileWatcher;
-
-    EnterCriticalSection(&Watcher->WatchListLock);
-
-    if (Watcher->Arena)
-    {
-        os_watched_registry *Watched = PushArray(Watcher->Arena, os_watched_registry, 1);
-        Watched->Next      = 0;
-        Watched->Registry  = Registry;
-
-        AppendToLinkedList(Watcher, Watched, Watcher->WatchCount);
-    }
-
-    LeaveCriticalSection(&Watcher->WatchListLock);
 }
 
 // [WIN32 SPECIFIC API]

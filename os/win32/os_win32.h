@@ -19,15 +19,6 @@ typedef struct IDXGISurface    IDXGISurface;
 
 // [CORE TYPES]
 
-typedef struct os_win32_file_watcher
-{
-    memory_arena        *Arena;
-    CRITICAL_SECTION     WatchListLock;
-    os_watched_registry *First;
-    os_watched_registry *Last;
-    u32                  WatchCount;
-} os_win32_file_watcher;
-
 typedef struct os_win32_state
 {
     // Misc
@@ -37,9 +28,6 @@ typedef struct os_win32_state
     os_text_backend *TextBackend;
     os_system_info   SystemInfo;
     os_inputs        Inputs;
-
-    // IDK ANYMORE
-    os_win32_file_watcher FileWatcher;
 
     // WIN32
     HWND WindowHandle;
