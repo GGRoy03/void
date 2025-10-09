@@ -1,22 +1,14 @@
-// [CONSTANTS]
-
-typedef enum UIFontCoverage_Type
-{
-    UIFontCoverage_None      = 0,
-    UIFontCoverage_ASCIIOnly = 1,
-} UIFontCoverage_Type;
-
 // [CORE TYPES]
 
-typedef struct glyph_state
+typedef struct glyph_hash
 {
-    os_glyph_layout      Layout;
-    os_glyph_raster_info RasterInfo;
-} glyph_state;
+    u64 Value;
+} glyph_hash;
 
 typedef struct glyph_table_params
 {
     u32 EntryCount;
+    u32 HashCount;
 } glyph_table_params;
 
 typedef struct glyph_table_stats
@@ -25,31 +17,42 @@ typedef struct glyph_table_stats
     u64 MissCount;
 } glyph_table_stats;
 
-typedef struct direct_glyph_table
+typedef struct glyph_entry
+{
+    glyph_hash HashValue;
+
+    u32 NextWithSameHash;
+    u32 NextLRU;
+    u32 PrevLRU;
+
+    b32      IsRasterized;
+    rect_f32 Source;
+    rect_f32 Position;
+    vec2_f32 Offset;
+    f32      AdvanceX;
+} glyph_entry;
+
+typedef struct glyph_table
 {
     glyph_table_stats Stats;
 
-    glyph_state *Entries;
-    u32          EntryCount;
-} direct_glyph_table;
+    u32 HashMask;
+    u32 HashCount;
+    u32 EntryCount;
 
-typedef struct ui_character
+    u32         *HashTable;
+    glyph_entry *Entries;
+} glyph_table;
+
+typedef struct glyph_state
 {
-    os_glyph_layout Layout;
-    rect_f32        SampleSource;
-    rect_f32        Position;
-} ui_character;
-
-typedef struct ui_text
-{
-    f32           LineHeight;
-    vec2_f32      AtlasTextureSize;
-    render_handle AtlasTexture;
-    ui_character *Characters;
-    u32           Size;
-} ui_text;
-
-// NOTE: Should we just hold on to handles?
+    u32      Id;
+    b32      IsRasterized;
+    rect_f32 Source;
+    rect_f32 Position;
+    vec2_f32 Offset;
+    f32      AdvanceX;
+} glyph_state;
 
 typedef struct ui_font ui_font;
 struct ui_font
@@ -62,31 +65,46 @@ struct ui_font
     os_font_objects  OSFontObjects;
 
     // Info
-    vec2_f32            TextureSize;
-    f32                 LineHeight;
-    f32                 Size;
-    byte_string         Name;
-    UIFontCoverage_Type Coverage;
+    vec2_f32    TextureSize;
+    f32         LineHeight;
+    f32         Size;
+    byte_string Name;
 
     // 2D Allocator
     stbrp_context AtlasContext;
     stbrp_node   *AtlasNodes;
 
     // Tables
-    direct_glyph_table *GlyphTable;
+    glyph_table *Cache;        // Handles any codepoint
+    glyph_state  Direct[0x7F]; // Handles ASCII
 };
 
-// [API]
+typedef struct ui_glyph
+{
+    rect_f32 Position;
+    rect_f32 Source;
+    vec2_f32 Offset;
+    f32      AdvanceX;
+} ui_glyph;
+
+typedef struct ui_glyph_run
+{
+    f32       LineHeight;
+    rect_f32  BoundsLastFrame;
+    ui_glyph *Glyphs;
+    u32       GlyphCount;
+} ui_glyph_run;
 
 // [Fonts]
 
-internal ui_font * UILoadFont  (byte_string Name, f32 Size, render_handle Renderer, UIFontCoverage_Type Coverage, ui_state *UIState);
-internal ui_font * UIFindFont  (byte_string Name, f32 Size, ui_state *UIState);
-internal ui_font * UIGetFont   (ui_cached_style *Style, render_handle Renderer, ui_state *UIState);
+internal b32       IsFontValid  (ui_font *Font);
+internal ui_font * UILoadFont   (byte_string Name, f32 Size);
+internal ui_font * UIQueryFont  (ui_cached_style *Style);
 
 // [Glyphs]
 
-internal size_t               GetDirectGlyphTableFootprint   (glyph_table_params Params);
-internal glyph_state          FindGlyphEntryByDirectAccess   (u32 CodePoint, direct_glyph_table *Table);
-internal direct_glyph_table * PlaceDirectGlyphTableInMemory  (glyph_table_params Params, void *Memory);
-internal void                 UpdateDirectGlyphTableEntry    (u32 CodePoint, os_glyph_layout NewLayout, os_glyph_raster_info NewRasterInfo, direct_glyph_table *Table);
+internal glyph_entry * GetGlyphEntry          (glyph_table *Table, u32 Index);
+internal u32         * GetSlotPointer         (glyph_table *Table, glyph_hash Hash);
+internal glyph_entry * GetSentinel            (glyph_table *Table);
+internal void          UpdateGlyphCacheEntry  (glyph_table *Table, glyph_state New);
+internal ui_glyph_run  CreateGlyphRun         (byte_string Text, ui_font *Font, memory_arena *Arena);

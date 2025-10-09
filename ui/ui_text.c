@@ -1,134 +1,109 @@
 // [Fonts]
 
-internal ui_font *
-UILoadFont(byte_string Name, f32 Size, render_handle Renderer, UIFontCoverage_Type Coverage, ui_state *UIState)
+internal render_handle
+GetFontAtlas(ui_font *Font)
 {
-    ui_font *Result      = 0;
-    vec2_i32 TextureSize = Vec2I32(1024, 1024);
+    render_handle Result = RenderHandle((u64)Font->GPUFontObjects.GlyphCacheView);
+    return Result;
+}
 
-    u8                *HeapBase       = 0;
-    size_t             TableFootprint = 0;
-    glyph_table_params TableParams    = { 0 };
+// WARN: The way we do allocations makes it impossible to reclaim them. Problem
+// is at the root.
+
+internal ui_font *
+UILoadFont(byte_string Name, f32 Size)
+{
+    ui_font *Result = 0;
+
+    // Global Access
+    render_handle Renderer = RenderState.Renderer;
+    memory_arena *Arena    = UIState.StaticData;
+
+    if(IsValidByteString(Name) && Size && IsValidRenderHandle(Renderer))
     {
-        {
-            TableParams.EntryCount = Coverage == UIFontCoverage_ASCIIOnly ? 255 : 0;
-        }
+        vec2_i32 TextureSize = Vec2I32(1024, 1024);
+        size_t   Footprint   = (TextureSize.X * sizeof(stbrp_node)) + sizeof(ui_font);
 
-        size_t Footprint = sizeof(ui_font);
-        {
-            TableParams.EntryCount = Coverage == UIFontCoverage_ASCIIOnly ? 255 : 0;
+        Result = PushArena(Arena, Footprint, AlignOf(ui_font));
 
-            if (Coverage == UIFontCoverage_ASCIIOnly)
+        if(Result)
+        {
+            Result->Name        = ByteStringCopy(Name, Arena);
+            Result->Size        = Size;
+            Result->AtlasNodes  = (stbrp_node*)(Result + 1);
+            Result->TextureSize = Vec2I32ToVec2F32(TextureSize);
+
+            stbrp_init_target(&Result->AtlasContext, TextureSize.X, TextureSize.Y, Result->AtlasNodes, TextureSize.X);
+
+            if(CreateGlyphCache(Renderer, Result->TextureSize, &Result->GPUFontObjects))
             {
-                TableFootprint = GetDirectGlyphTableFootprint(TableParams);
-            }
-
-            Footprint += TableFootprint;
-            Footprint += TextureSize.X * sizeof(stbrp_node);
-        }
-
-        if(UIState->StaticData)
-        {
-            HeapBase = PushArena(UIState->StaticData, Footprint, AlignOf(ui_font));
-        }
-    }
-
-    if(HeapBase)
-    {
-        direct_glyph_table *Table = PlaceDirectGlyphTableInMemory(TableParams, HeapBase);
-
-        Result              = (ui_font*)(HeapBase + TableFootprint);
-        Result->GlyphTable  = Table;
-        Result->TextureSize = Vec2I32ToVec2F32(TextureSize);
-        Result->Size        = Size;
-        Result->Coverage    = Coverage;
-        Result->Name        = ByteString(PushArray(UIState->StaticData, u8, Name.Size), Name.Size);
-        Result->AtlasNodes  = (stbrp_node *)(Result + 1);
-
-        memcpy(Result->Name.String, Name.String, Name.Size);
-
-        stbrp_init_target(&Result->AtlasContext, TextureSize.X, TextureSize.Y, Result->AtlasNodes, TextureSize.X);
-
-        b32 IsValid = CreateGlyphCache(Renderer, Result->TextureSize, &Result->GPUFontObjects);
-        if (IsValid)
-        {
-            IsValid = CreateGlyphTransfer(Renderer, Result->TextureSize, &Result->GPUFontObjects);
-            if (IsValid)
-            {
-                IsValid = OSAcquireFontObjects(Name, Size, &Result->GPUFontObjects, &Result->OSFontObjects);
-                if (IsValid)
+                if(CreateGlyphTransfer(Renderer, Result->TextureSize, &Result->GPUFontObjects))
                 {
-                    Result->LineHeight = OSGetLineHeight(Size, &Result->OSFontObjects);
+                    if(OSAcquireFontObjects(Name, Size, &Result->GPUFontObjects, &Result->OSFontObjects))
+                    {
+                        Result->LineHeight = OSGetLineHeight(Result->Size, &Result->OSFontObjects);
+                        AppendToLinkedList((&UIState), Result, UIState.FontCount);
+                    }
+                    else
+                    {
+                        ReleaseGlyphCache(&Result->GPUFontObjects);
+                        ReleaseGlyphTransfer(&Result->GPUFontObjects);
+                    }
                 }
                 else
                 {
+                    ReleaseGlyphCache(&Result->GPUFontObjects);
                 }
             }
-            else
-            {
-            }
+
         }
         else
         {
+            byte_string Message = byte_string_literal("Failed to allocate memory when calling UILoadFont");
+            ConsoleWriteMessage(Message, ConsoleMessage_Error, &Console);
         }
-
-        if (!IsValid)
-        {
-            ReleaseGlyphCache   (&Result->GPUFontObjects);
-            ReleaseGlyphTransfer(&Result->GPUFontObjects);
-            OSReleaseFontObjects(&Result->OSFontObjects);
-
-            Result = 0;
-        }
-        else
-        {
-            AppendToLinkedList(UIState, Result, UIState->FontCount);
-        }
-
+    }
+    else
+    {
+        byte_string Message = byte_string_literal("One or more arguments given to UILoadFont is invalid.");
+        ConsoleWriteMessage(Message, ConsoleMessage_Error, &Console);
     }
 
     return Result;
 }
 
 internal ui_font *
-UIFindFont(byte_string Name, f32 Size, ui_state *UIState)
+UIQueryFont(ui_cached_style *Style)
 {
-    for (ui_font *Font = UIState->First; Font != 0; Font = Font->Next)
+    ui_font *Result = UIGetFont(Style);
+
+    if(!Result)
     {
-        if (Font->Size == Size && ByteStringMatches(Font->Name, Name, StringMatch_NoFlag))
+        byte_string FontName = UIGetFontName(Style);
+        f32         FontSize = UIGetFontSize(Style);
+        Assert(IsValidByteString(FontName) && FontSize > 0.f); // NOTE: Assert or explicit check?
+
+        for (ui_font *Font = UIState.First; Font != 0; Font = Font->Next)
         {
-            return Font;
+            if (Font->Size == FontSize && ByteStringMatches(Font->Name, FontName, StringMatch_NoFlag))
+            {
+                Result = Font;
+                break;
+            }
         }
-    }
 
-    return 0;
-}
-
-internal ui_font *
-UIGetFont(ui_cached_style *Style, render_handle Renderer, ui_state *UIState)
-{
-    ui_font *Result = 0;
-
-    if (Style->Value.FontSize)
-    {
-        if (Style->FontReferenceIsSet)
+        if (Result)
         {
-            Result = Style->Value.Font.Ref;
+            UISetFont(Style, Result);
+            SetFlag(Style->Flags, CachedStyle_FontIsLoaded);
         }
         else
         {
-            Result = UIFindFont(Style->Value.Font.Name, Style->Value.FontSize, UIState);
-            if (Result)
-            {
-                Style->Value.Font.Ref     = Result;
-                Style->FontReferenceIsSet = 1;
-            }
-            else
-            {
-                Result = UILoadFont(Style->Value.Font.Name, Style->Value.FontSize, Renderer, UIFontCoverage_ASCIIOnly, UIState);
-
-                Style->Value.Font.Ref     = Result;
-                Style->FontReferenceIsSet = 1;
+           Result = UILoadFont(FontName, FontSize);
+           if(Result)
+           {
+                UISetFont(Style, Result);
+                SetFlag(Style->Flags, CachedStyle_FontIsLoaded);
             }
         }
     }
@@ -138,54 +113,124 @@ UIGetFont(ui_cached_style *Style, render_handle Renderer, ui_state *UIState)
 
 // [Glyphs]
 
-internal glyph_state
-FindGlyphEntryByDirectAccess(u32 CodePoint, direct_glyph_table *Table)
+internal glyph_entry *
+GetGlyphEntry(glyph_table *Table, u32 Index)
 {
-    glyph_state Result = {0};
+    Assert(Index < Table->EntryCount);
+    glyph_entry *Result = Table->Entries + Index;
+    return Result;
+}
 
-    if (CodePoint < Table->EntryCount)
-    {
-        Result = Table->Entries[CodePoint];
-    }
+internal u32 *
+GetSlotPointer(glyph_table *Table, glyph_hash Hash)
+{
+    u32 HashIndex = Hash.Value;
+    u32 HashSlot  = (HashIndex & Table->HashMask);
+
+    Assert(HashSlot < Table->HashCount);
+    u32 *Result = &Table->HashTable[HashSlot];
 
     return Result;
 }
 
-internal size_t
-GetDirectGlyphTableFootprint(glyph_table_params Params)
+internal glyph_entry *
+GetSentinel(glyph_table *Table)
 {
-    size_t EntryCount = Params.EntryCount * sizeof(glyph_state);
-    size_t Result     = EntryCount + sizeof(direct_glyph_table);
-
-    return Result;
-}
-
-internal direct_glyph_table *
-PlaceDirectGlyphTableInMemory(glyph_table_params Params, void *Memory)
-{   Assert(Params.EntryCount > 0 && Memory);
-
-    direct_glyph_table *Result = 0;
-
-    if (Memory)
-    {
-        glyph_state *Entries = (glyph_state *)Memory;
-
-        Result             = (direct_glyph_table *)Entries + Params.EntryCount;
-        Result->Entries    = Entries;
-        Result->EntryCount = Params.EntryCount;
-    }
-
+    glyph_entry *Result = Table->Entries;
     return Result;
 }
 
 internal void
-UpdateDirectGlyphTableEntry(u32 CodePoint, os_glyph_layout NewLayout, os_glyph_raster_info NewRasterInfo, direct_glyph_table *Table)
-{   Assert(Table);
-
-    if (CodePoint < Table->EntryCount)
+UpdateGlyphCacheEntry(glyph_table *Table, glyph_state New)
+{
+    glyph_entry *Entry = GetGlyphEntry(Table, New.Id);
+    if(Entry)
     {
-        glyph_state *State = Table->Entries + CodePoint;
-        State->Layout     = NewLayout;
-        State->RasterInfo = NewRasterInfo;
+        Entry->IsRasterized = New.IsRasterized;
+        Entry->Source       = New.Source;
+        Entry->Offset       = New.Offset;
+        Entry->AdvanceX     = New.AdvanceX;
+        Entry->Position     = New.Position;
     }
+}
+
+// WARN: Known limitations:
+// 1) Only handles 1 byte UTF8 encoding
+// 2) Only handles direct glyph access
+
+internal ui_glyph_run
+CreateGlyphRun(byte_string Text, ui_font *Font, memory_arena *Arena)
+{
+    ui_glyph_run Result = {0};
+
+    // Global Access
+    render_handle Renderer = RenderState.Renderer;
+
+    if(IsValidByteString(Text) && IsFontValid(Font) && IsValidRenderHandle(Renderer) && Arena)
+    {
+        Result.Glyphs     = PushArray(Arena, ui_glyph, Text.Size);
+        Result.LineHeight = Font->LineHeight;
+        Result.GlyphCount = Text.Size;
+
+        for(u32 Idx = 0; Idx < Text.Size; ++Idx)
+        {
+            byte_string UTF8Stream = ByteString(&Text.String[Idx], 1);
+
+            glyph_state *State = 0;
+            if(IsAsciiString(UTF8Stream))
+            {
+                State = &Font->Direct[Text.String[Idx]];
+            }
+            else
+            {
+                // TODO: Call the cache..
+                return Result;
+            }
+
+            if(!State->IsRasterized)
+            {
+                os_glyph_info Info = OSGetGlyphInfo(UTF8Stream, &Font->OSFontObjects, Font->Size);
+
+                stbrp_rect STBRect = { 0 };
+                STBRect.w = (u16)Info.Size.X;
+                STBRect.h = (u16)Info.Size.Y;
+                stbrp_pack_rects(&Font->AtlasContext, &STBRect, 1);
+
+                Assert(STBRect.w == Info.Size.X);
+                Assert(STBRect.h == Info.Size.Y);
+
+                if (STBRect.was_packed)
+                {
+                    rect_f32 Rect;
+                    Rect.Min.X = (f32)STBRect.x;
+                    Rect.Min.Y = (f32)STBRect.y;
+                    Rect.Max.X = (f32)STBRect.x + STBRect.w;
+                    Rect.Max.Y = (f32)STBRect.y + STBRect.h;
+
+                    State->IsRasterized = OSRasterizeGlyph(UTF8Stream, Rect, &Font->OSFontObjects);
+                    State->Source   = Rect;
+                    State->Offset   = Info.Offset;
+                    State->AdvanceX = Info.AdvanceX;
+
+                    TransferGlyph(Rect, Renderer, &Font->GPUFontObjects);
+                }
+                else
+                {
+                    byte_string Message = byte_string_literal("Could not pack glyph in texture in CreateGlyphRun");
+                    ConsoleWriteMessage(Message, ConsoleMessage_Warn, &Console);
+                }
+            }
+
+            Result.Glyphs[Idx].Source   = State->Source;
+            Result.Glyphs[Idx].Offset   = State->Offset;
+            Result.Glyphs[Idx].AdvanceX = State->AdvanceX;
+        }
+    }
+    else
+    {
+        byte_string Message = byte_string_literal("One or more arguments passed to CreateGlyphRun is invalid.");
+        ConsoleWriteMessage(Message, ConsoleMessage_Warn, &Console);
+    }
+
+    return Result;
 }
