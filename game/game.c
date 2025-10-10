@@ -28,7 +28,7 @@ GameEntryPoint()
 
     while(OSUpdateWindow())
     {
-        ShowEditorUI(&GameState, &UIState);
+        ShowEditorUI(&GameState);
 
         SubmitRenderCommands(&GameState.RenderPassList, GameState.Renderer);
 

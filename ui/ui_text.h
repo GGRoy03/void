@@ -97,7 +97,6 @@ typedef struct ui_glyph_run
 
 // [Fonts]
 
-internal b32       IsFontValid  (ui_font *Font);
 internal ui_font * UILoadFont   (byte_string Name, f32 Size);
 internal ui_font * UIQueryFont  (ui_cached_style *Style);
 

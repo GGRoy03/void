@@ -147,7 +147,7 @@ GetArenaPosition(memory_arena *Arena)
     return Result;
 }
 
-internal memory_region 
+external memory_region 
 EnterMemoryRegion(memory_arena *Arena)
 {
     memory_region Result;
@@ -157,7 +157,7 @@ EnterMemoryRegion(memory_arena *Arena)
     return Result;
 }
 
-internal void         
+external void
 LeaveMemoryRegion(memory_region Region)
 {
     PopArenaTo(Region.Arena, Region.Position);

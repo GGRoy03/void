@@ -1,21 +1,51 @@
+// WARN: WIP
+
 external void
-ConsolePrintMessage(byte_string Message, ConsoleMessage_Severity Severity, ui_state *UIState)
+ConsolePrintMessage(byte_string Message, ConsoleMessage_Severity Severity)
 {
     editor_console_ui *ConsoleUI = &EditorUI.ConsoleUI;
+    ui_pipeline       *Pipeline  = &ConsoleUI->Pipeline;
 
-    byte_string Output = ByteStringCopy(Message, ConsoleUI->Arena);
+    ui_color    TextColor = UIColor(1.f, 1.f, 1.f, 1.f);
+    byte_string Prefix    = byte_string_literal("[Text]  => ");
+    switch(Severity)
+    {
 
-    // NOTE: This sould not be done explicitly by the user.
-    // Also, how do we want to set the text color? Just an attribute
-    // surely...
+    default: break;
 
-    PushLayoutNodeParent(ConsoleUI->MessageScrollViewNode, ConsoleUI->Pipeline.LayoutTree);
-    UILabel(ConsoleUI->MessageStyle, Output, &ConsoleUI->Pipeline, UIState);
-    PopLayoutNodeParent(ConsoleUI->Pipeline.LayoutTree);
+    case ConsoleMessage_Info:
+    {
+        TextColor = UIColor(0.01f, 0.71f, 0.99f, 1.f);
+        Prefix    = byte_string_literal("[Info]  => ");
+    } break;
+
+    case ConsoleMessage_Warn:
+    {
+        TextColor = UIColor(0.99f, 0.62f, 0.01f, 1.f);
+        Prefix    = byte_string_literal("[Warn]  => ");
+    } break;
+
+    case ConsoleMessage_Error:
+    {
+        TextColor = UIColor(0.99f, 0.01f, 0.11f, 1.f);
+        Prefix    = byte_string_literal("[Error] => ");
+    } break;
+
+    case ConsoleMessage_Fatal:
+    {
+        TextColor = UIColor(0.99f, 0.01f, 0.11f, 1.f);
+        Prefix    = byte_string_literal("[Fatal] => ");
+    } break;
+
+    }
+
+    Useless(Pipeline);
+    Useless(TextColor);
+    Useless(Prefix);
 }
 
 internal void
-ConsoleUI(editor_console_ui *ConsoleUI, game_state *GameState, ui_state *UIState)
+ConsoleUI(editor_console_ui *ConsoleUI, game_state *GameState)
 {
     if(!ConsoleUI->IsInitialized)
     {
@@ -26,11 +56,10 @@ ConsoleUI(editor_console_ui *ConsoleUI, game_state *GameState, ui_state *UIState
                 byte_string_literal("styles/editor_console.cim"),
             };
 
-            PipelineParams.ThemeFiles     = ThemeFiles;
-            PipelineParams.ThemeCount     = ArrayCount(ThemeFiles);
-            PipelineParams.TreeDepth      = 4;
-            PipelineParams.TreeNodeCount  = 16;
-            PipelineParams.RendererHandle = GameState->Renderer; // NOTE: Why do we do this?
+            PipelineParams.ThemeFiles    = ThemeFiles;
+            PipelineParams.ThemeCount    = ArrayCount(ThemeFiles);
+            PipelineParams.TreeDepth     = 4;
+            PipelineParams.TreeNodeCount = 16;
         }
         ConsoleUI->Pipeline = UICreatePipeline(PipelineParams);
 
@@ -43,20 +72,7 @@ ConsoleUI(editor_console_ui *ConsoleUI, game_state *GameState, ui_state *UIState
         }
         ConsoleUI->Arena = AllocateArena(ArenaParams);
 
-        // Styles
-        {
-            ConsoleUI->WindowStyle       = UIGetCachedName(byte_string_literal("Console_Window")     , ConsoleUI->Pipeline.Registry);
-            ConsoleUI->MessageStyle      = UIGetCachedName(byte_string_literal("Console_Message")    , ConsoleUI->Pipeline.Registry);
-            ConsoleUI->MessageScrollView = UIGetCachedName(byte_string_literal("Console_MessageView"), ConsoleUI->Pipeline.Registry);
-        }
-
         // Layout
-        UIWindow(ConsoleUI->WindowStyle, &ConsoleUI->Pipeline);
-        {
-            UIScrollViewEx(ConsoleUI->MessageScrollViewNode, ConsoleUI->MessageScrollView, (&ConsoleUI->Pipeline))
-            {
-            }
-        }
 
         ConsoleUI->IsInitialized = 1;
     }
@@ -68,7 +84,7 @@ ConsoleUI(editor_console_ui *ConsoleUI, game_state *GameState, ui_state *UIState
         console_queue_node *Node = 0;
         while((Node = PopConsoleMessageQueue(&Console)))
         {
-            ConsolePrintMessage(ByteString(Node->Value.Text, Node->Value.TextSize), Node->Value.Severity, UIState);
+            ConsolePrintMessage(ByteString(Node->Value.Text, Node->Value.TextSize), Node->Value.Severity);
             FreeConsoleNode(Node);
         }
     }

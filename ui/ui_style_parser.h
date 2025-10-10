@@ -1,91 +1,116 @@
 #pragma once
 
-// TO ADD NEW STYLES, FOLLOW THIS GUIDE.
-// 1) Add the attribute flag in UIStyleAttribute_Flag.
-// 2) Add the valid style types which may have this new attribute in this table: StyleTypeValidAttributesTable.
-// 3) Add the check for the new attribute in GetStyleAttributeFlag.
-// 4) Add the format check in IsAttributeFormattedCorrectly
-// 5) Add the SaveStyleAttribute implementation for the new type.
-
-// NOTE: Is there no way to make this way simpler? With a single 'key' per type, the type itself?
-
 // [Enums]
 
-typedef enum UIStyleToken_Type
+typedef enum StyleToken_Type
 {
-    UIStyleToken_EndOfFile   = 0,
-    UIStyleToken_Percent     = 37,
-    UIStyleToken_Comma       = 44,
-    UIStyleToken_Period      = 46,
-    UIStyleToken_SemiColon   = 59,
-    UIStyleToken_AtSymbol    = 64,
-    UIStyleToken_OpenBrace   = 123,
-    UIStyleToken_CloseBrace  = 125,
-    UIStyleToken_Identifier  = 256,
-    UIStyleToken_Assignment  = 257,
-    UIStyleToken_Unit        = 258,
-    UIStyleToken_String      = 259,
-    UIStyleToken_Vector      = 260,
-    UIStyleToken_Style       = 261,
-    UIStyleToken_For         = 262,
-    UIStyleToken_Var         = 263,
-} UIStyleToken_Type;
+    StyleToken_EndOfFile   = 0,
+    StyleToken_Percent     = 37,
+    StyleToken_Comma       = 44,
+    StyleToken_Period      = 46,
+    StyleToken_SemiColon   = 59,
+    StyleToken_AtSymbol    = 64,
+    StyleToken_OpenBrace   = 123,
+    StyleToken_CloseBrace  = 125,
+    StyleToken_Identifier  = 256,
+    StyleToken_Assignment  = 257,
+    StyleToken_Unit        = 258,
+    StyleToken_String      = 259,
+    StyleToken_Vector      = 260,
+    StyleToken_Style       = 261,
+    StyleToken_Var         = 262,
+} StyleToken_Type;
 
-typedef enum UIStyleAttribute_Flag
+enum StyleParser_Constant
 {
-    UIStyleAttribute_None         = 0,
-    UIStyleAttribute_Size         = 1 << 0,
-    UIStyleAttribute_Color        = 1 << 1,
-    UIStyleAttribute_Padding      = 1 << 2,
-    UIStyleAttribute_Spacing      = 1 << 3,
-    UIStyleAttribute_FontName     = 1 << 4,
-    UIStyleAttribute_FontSize     = 1 << 5,
-    UIStyleAttribute_Softness     = 1 << 6,
-    UIStyleAttribute_BorderColor  = 1 << 7,
-    UIStyleAttribute_BorderWidth  = 1 << 8,
-    UIStyleAttribute_CornerRadius = 1 << 9,
-} UIStyleAttribute_Flag;
+    StyleParser_MaximumTokenPerFile = 100000,
+    StyleParser_MaximumFileSize     = Gigabyte(1),
+};
 
-typedef enum UICacheStyle_Flag
-{
-    UICacheStyle_NoFlag          = 0,
-    UICacheStyle_BindClickEffect = 1 << 0,
-    UICacheStyle_BindHoverEffect = 1 << 1,
-} UICacheStyle_Flag;
-
-typedef enum UIStyle_Type
-{
-    UIStyle_Base  = 0,
-    UIStyle_Hover = 1,
-    UIStyle_Click = 2,
-    UIStyle_None  = 3,
-
-    UIStyle_Type_Count = 3,
-} UIStyle_Type;
-
-// [Types]
+// [CORE TYPES]
 
 typedef struct style_token
 {
     u32 LineInFile;
+    u8 *FilePointer;
 
-    UIStyleToken_Type Type;
+    StyleToken_Type Type;
     union
     {
         ui_unit     Unit;
         byte_string Identifier;
-        vec4_unit   Vector;
+
+        struct {vec4_unit Vector; u32 VectorSize;};
     };
 } style_token;
 
-typedef struct tokenized_style_file
+typedef struct style_token_buffer
 {
-    style_token *Buffer;
-    u32          BufferSize;
-    u32          LineCount;
-    u32          AtToken;
-    b32          HasError;
-} tokenized_style_file;
+    style_token *Tokens;
+    u64          At;
+    u64          Size;
+} style_token_buffer;
+
+typedef struct style_file
+{
+    byte_string        Name;
+    u64                StyleCount;
+    style_token_buffer Buffer;
+} style_file;
+
+// Style Primitives
+// The diffrent primitives that compose a style file.
+// Only used in the context of the parser.
+
+typedef struct style_header
+{
+    b32         HadError;
+    byte_string StyleName;
+} style_header;
+
+typedef struct style_attribute
+{
+    b32                IsSet;
+    u32                HadError;
+    u32                LineInFile;
+    StyleProperty_Type PropertyType;
+    StyleToken_Type    ParsedAs;
+    union
+    {
+        ui_unit     Unit;
+        byte_string String;
+
+        struct {vec4_unit Vector; u32 VectorSize;};
+    };
+} style_attribute;
+
+typedef struct style_variable
+{
+    b32          IsValid;
+    byte_string  Name;
+    u32          LineInFile;
+    style_token *ValueToken;
+} style_variable;
+
+typedef struct style_effect
+{
+    StyleEffect_Type Type;
+} style_effect;
+
+typedef struct style_block
+{
+    u32             AttributeCount;
+    style_attribute Attributes[StyleEffect_Count][StyleProperty_Count];
+} style_block;
+
+typedef struct style
+{
+    style_header Header;
+    style_block  Block;
+} style;
+
+// Variables
+// Implemented as a simple linked list hashmap. Per file.
 
 typedef struct style_var_hash
 {
@@ -117,77 +142,92 @@ typedef struct style_var_table
     style_var_entry *Entries;
 } style_var_table;
 
-typedef struct style_parser
+// [Table Entries]
+// Types used as part of lookup tables used when parsing.
+
+typedef struct style_keyword_table_entry
 {
-    UIStyle_Type     StyleType;
-    ui_style         Styles[UIStyle_Type_Count];
-    b32              StyleIsSet[UIStyle_Type_Count];
-    byte_string      StyleName;
-    style_var_table *VarTable;
-} style_parser;
+    byte_string     Name;
+    StyleToken_Type TokenType;
+} style_keyword_table_entry;
+
+typedef struct style_effect_table_entry
+{
+    byte_string        Name;
+    StyleEffect_Type EffectType;
+} style_effect_table_entry;
+
+typedef struct style_property_table_entry
+{
+    byte_string        Name;
+    StyleProperty_Type PropertyType;
+} style_property_table_entry;
+
+typedef struct style_parser_error_entry
+{
+    byte_string             Message;
+    ConsoleMessage_Severity Severity;
+} style_parser_error_entry;
 
 // [GLOBALS]
 
-read_only global u32                    MAXIMUM_STYLE_TOKEN_COUNT_PER_FILE = 10000;
-read_only global style_var_table_params STYLE_VAR_TABLE_PARAMS             = {.EntryCount = 512, .HashCount = 128};
-
-read_only global bit_field StyleTypeValidAttributesTable[] =
+read_only global style_keyword_table_entry StyleKeywordTable[] = 
 {
-    // None
-
-    0,
-
-    // Window
-
-        UIStyleAttribute_Size       |UIStyleAttribute_Padding     |UIStyleAttribute_Spacing |
-        UIStyleAttribute_BorderColor|UIStyleAttribute_BorderWidth |UIStyleAttribute_Color   |
-        UIStyleAttribute_Softness   |UIStyleAttribute_CornerRadius|UIStyleAttribute_FontName|
-        UIStyleAttribute_FontSize,
-
-    // Button
-
-        UIStyleAttribute_Size    |UIStyleAttribute_BorderColor|UIStyleAttribute_BorderWidth |
-        UIStyleAttribute_Color   |UIStyleAttribute_Softness   |UIStyleAttribute_CornerRadius|
-        UIStyleAttribute_FontName|UIStyleAttribute_FontSize,
-
-    // Label
-
-        UIStyleAttribute_FontSize   |UIStyleAttribute_FontName   |UIStyleAttribute_Size|
-        UIStyleAttribute_BorderWidth|UIStyleAttribute_BorderColor,
-
-    // Header
-
-        UIStyleAttribute_Size    | UIStyleAttribute_BorderColor | UIStyleAttribute_BorderWidth  |
-        UIStyleAttribute_Color   | UIStyleAttribute_Softness    | UIStyleAttribute_CornerRadius |
-        UIStyleAttribute_FontName| UIStyleAttribute_FontSize    | UIStyleAttribute_Padding      |
-        UIStyleAttribute_Spacing,
-
-    // Scroll View
-
-        UIStyleAttribute_Size        |UIStyleAttribute_BorderColor|UIStyleAttribute_BorderWidth|
-        UIStyleAttribute_CornerRadius|UIStyleAttribute_Color      |UIStyleAttribute_Softness   |
-        UIStyleAttribute_Padding     |UIStyleAttribute_Spacing,
+    {byte_string_compile("style"), StyleToken_Style},
+    {byte_string_compile("var")  , StyleToken_Var  },
 };
 
-// [API]
+read_only global style_effect_table_entry StyleEffectTable[] = 
+{
+    {byte_string_compile("base") , StyleEffect_Base },
+    {byte_string_compile("hover"), StyleEffect_Hover},
+    {byte_string_compile("click"), StyleEffect_Click},
+};
 
-internal size_t                 GetSubRegistryFootprint  (void);
-internal ui_style_registry    * CreateStyleRegistry      (byte_string *FileNames, u32 Count, memory_arena *OutputArena);
-internal ui_style_subregistry * CreateStyleSubregistry   (byte_string FileName, memory_arena *OutputArena);
+read_only global style_property_table_entry StylePropertyTable[] =
+{
+    {byte_string_compile("size")        , StyleProperty_Size        },
+    {byte_string_compile("color")       , StyleProperty_Color       },
+    {byte_string_compile("padding")     , StyleProperty_Padding     },
+    {byte_string_compile("spacing")     , StyleProperty_Spacing     },
+    {byte_string_compile("fontsize")    , StyleProperty_FontSize    },
+    {byte_string_compile("fontname")    , StyleProperty_Font        },
+    {byte_string_compile("softness")    , StyleProperty_Softness    },
+    {byte_string_compile("textcolor")   , StyleProperty_TextColor   },
+    {byte_string_compile("borderwidth") , StyleProperty_BorderWidth },
+    {byte_string_compile("bordercolor") , StyleProperty_BorderColor },
+    {byte_string_compile("cornerradius"), StyleProperty_CornerRadius},
+};
+
+// [Runtime API]
+
+internal ui_style_registry    * CreateStyleRegistry     (byte_string *FileNames, u32 Count, memory_arena *OutputArena);
+internal ui_style_subregistry * CreateStyleSubregistry  (byte_string FileName, memory_arena *OutputArena);
+
+// [Helpers]
+
+internal b32      IsValidStyleTokenBuffer  (style_token_buffer *Buffer);
+internal b32      IsValidStyleFile         (style_file *File);
+internal ui_color ToNormalizedColor        (vec4_unit Vec);
 
 // [Tokenizer]
 
-internal b32                  ReadString         (os_read_file *File, byte_string *OutString);
-internal b32                  ReadVector         (os_read_file *File, u32 MinimumSize, u32 MaximumSize, u32 CurrentLineInFile, style_token *Result);
-internal b32                  ReadUnit           (os_read_file *File, u32 CurrentLineInFile, ui_unit *Result);
-internal tokenized_style_file TokenizeStyleFile  (os_read_file File, memory_arena *Arena);
+internal style_token * GetStyleToken       (style_token_buffer *Buffer, u64 Index);
+internal style_token * EmitStyleToken      (style_token_buffer *Buffer, StyleToken_Type Type, u32 AtLine, u8 *InFile);
+internal style_token * PeekStyleToken      (style_token_buffer *Buffer, i32 Offset);
+internal void          ConsumeStyleTokens  (style_token_buffer *Buffer, u32 Count);
+internal ui_unit       ReadUnit            (os_read_file *File, byte_string FileName, u32 LineInFile);
+internal byte_string   ReadIdentifier      (os_read_file *File);
+internal vec4_unit     ReadVector          (os_read_file *File, byte_string FileName, u32 LineInFile);
+internal style_file    TokenizeStyleFile   (byte_string FileName, os_read_file File, memory_arena *Arena);
 
 // [Parsing Routines]
 
-internal b32 ParseTokenizedStyleFile  (tokenized_style_file *TokenizedFile, memory_arena *Arena, ui_style_subregistry *Registery);
-internal b32 ParseStyleVariable       (style_parser *Parser, tokenized_style_file *TokenizedFile);
-internal b32 ParseStyleHeader         (style_parser *Parser, tokenized_style_file *TokenizedFile, ui_style_subregistry *Registery);
-internal b32 ParseStyleAttribute      (style_parser *Parser, tokenized_style_file *TokenizedFile, UILayoutNode_Type ParsingFor);
+internal ui_style_subregistry * ParseStyleFile       (style_file *File, memory_arena *Arena);
+internal style_header           ParseStyleHeader     (byte_string FileName, style_token_buffer *Buffer);
+internal style_block            ParseStyleBlock      (byte_string FileName, style_token_buffer *Buffer, style_var_table *VarTable);
+internal style_attribute        ParseStyleAttribute  (byte_string FileName, style_token_buffer *Buffer, style_var_table *VarTable);
+internal style_variable         ParseStyleVariable   (byte_string FileName, style_token_buffer *Buffer);
 
 // [Variables]
 
@@ -196,22 +236,17 @@ internal style_var_entry * GetStyleVarSentinel         (style_var_table *Table);
 internal style_var_entry * GetStyleVarEntry            (u32 Index, style_var_table *Table);
 internal u32               PopFreeStyleVarEntry        (style_var_table *Table);
 internal style_var_entry * FindStyleVarEntry           (style_var_hash Hash, style_var_table *Table);
-internal style_var_hash    HashStyleVarIdentifier      (byte_string Identifier);
+internal style_var_hash    HashStyleVar                (byte_string Name);
 internal size_t            GetStyleVarTableFootprint   (style_var_table_params Params);
 
-// []
+// [Caching]
 
-internal b32      ValidateColor      (vec4_unit Vec);
-internal ui_color ToNormalizedColor  (vec4_unit Vec);
-
-internal b32                    SaveStyleAttribute             (UIStyleAttribute_Flag Attribute, style_token *Value, style_parser *Parser);
-internal UIStyleAttribute_Flag  GetStyleAttributeFlag          (byte_string Identifier);
-internal b32                    IsAttributeFormattedCorrectly  (UIStyleToken_Type TokenType, UIStyleAttribute_Flag AttributeFlag);
-internal ui_cached_style      * CacheStyle                     (ui_style Style, byte_string Name, UIStyle_Type Type, ui_cached_style *BaseStyle, ui_style_subregistry *Registery);
-internal ui_cached_style      * CreateCachedStyle              (ui_style Style, ui_style_subregistry *Registery);
-internal ui_style_name        * CreateCachedStyleName          (byte_string Name, ui_cached_style *CachedStyle, ui_style_subregistry *Registery);
+internal void           ValidateAttributeFormatting  (byte_string FileName, style_attribute *Attribute);
+internal style_property ConvertAttributeToProperty   (style_attribute Attribute);
+internal void           CacheStyle                   (byte_string FileName, style *ParsedStyle, ui_style_subregistry *Registry);
 
 // [Error Handling]
 
-internal read_only char * StyleAttributeToString  (UIStyleAttribute_Flag Flag);
-internal void             LogStyleFileMessage     (u32 LineInFile, ConsoleMessage_Severity Severity, byte_string Format, ...);
+internal void  SynchronizeParser       (style_token_buffer *Buffer, StyleToken_Type StopAt);
+internal void  ReportStyleParserError  (ConsoleMessage_Severity Severity, byte_string Message);
+internal void  ReportStyleFileError    (byte_string FileName, u32 Line, ConsoleMessage_Severity Severity, byte_string Message);

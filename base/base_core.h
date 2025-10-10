@@ -25,7 +25,7 @@
 #define read_only     const
 
 #define Assert(Cond) do { if (!(Cond)) __debugbreak(); } while (0)
-#define UNUSED(x) (void)(x)
+#define Useless(x) (void)(x)
 #define ArrayCount(Array) (sizeof(Array) / sizeof(Array[0]))
 #define IsPowerOfTwo(Value) (((Value) & ((Value) - 1)) == 0)
 
@@ -66,7 +66,7 @@
 
 // [Loop Macros]
 
-#define ForEachEnum(Type, It)  for(Type It = (Type)0; It < Type##_Count; It = (Type)(It + 1))
+#define ForEachEnum(Type, Count, It)  for(Type It = (Type)0; It < Count; It = (Type)(It + 1))
 #define DeferLoop(Begin, End)  for(i32 _i = ((Begin), 0); !_i; _i++, (End))
 
 // [Compiler Warnings]

@@ -166,7 +166,7 @@ CreateGlyphRun(byte_string Text, ui_font *Font, memory_arena *Arena)
     // Global Access
     render_handle Renderer = RenderState.Renderer;
 
-    if(IsValidByteString(Text) && IsFontValid(Font) && IsValidRenderHandle(Renderer) && Arena)
+    if(IsValidByteString(Text) && IsValidRenderHandle(Renderer) && Arena)
     {
         Result.Glyphs     = PushArray(Arena, ui_glyph, Text.Size);
         Result.LineHeight = Font->LineHeight;

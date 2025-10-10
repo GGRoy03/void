@@ -70,27 +70,12 @@ typedef struct os_read_file
     b32         FullyRead;
 } os_read_file;
 
-typedef struct os_glyph_layout
+typedef struct os_glyph_info
 {
     vec2_i32 Size;
     vec2_f32 Offset;
     f32      AdvanceX;
-} os_glyph_layout;
-
-typedef struct os_glyph_raster_info
-{
-    b32      IsRasterized;
-    rect_f32 SampleSource;
-} os_glyph_raster_info;
-
-typedef struct os_watched_registry os_watched_registry;
-struct os_watched_registry
-{
-    os_watched_registry *Next;
-    ui_style_registry   *Registry;
-};
-
-// [CORE API]
+} os_glyph_info;
 
 // [Inputs]
 
@@ -101,7 +86,7 @@ internal void ProcessInputMessage(os_button_state *NewState, b32 IsDown);
 internal b32   IsValidFile      (os_read_file *File);
 internal void  SkipWhiteSpaces  (os_read_file *File);
 internal u8  * PeekFilePointer  (os_read_file *File);
-internal u8    PeekFile         (os_read_file *File, u32 Offset);
+internal u8    PeekFile         (os_read_file *File, i32 Offset);
 internal void  AdvanceFile      (os_read_file *File, u32 Count);
 
 internal os_handle    OSFindFile     (byte_string Path);
@@ -131,19 +116,17 @@ internal void  OSRelease        (void *Memory);
 internal b32  OSUpdateWindow  (void);
 internal void OSSetCursor     (OSCursor_Type Type);
 
-
 // [Misc]
 
 internal void        OSSleep                    (u32 Milliseconds);
 internal void        OSAbort                    (i32 ExitCode);
-internal void        OSListenToRegistry         (ui_style_registry *Registry);
 internal b32         OSIsValidHandle            (os_handle Handle);
 internal byte_string OSAppendToLaunchDirectory  (byte_string Input, memory_arena *Arena);
 
 // [Text]
 
-external b32                  OSAcquireFontObjects  (byte_string Name, f32 Size, gpu_font_objects *GPUObjects, os_font_objects *OSObjects);
-external void                 OSReleaseFontObjects  (os_font_objects *Objects);
-external os_glyph_layout      OSGetGlyphLayout      (u8 Character, os_font_objects *FontObjects, vec2_f32 TextureSize, f32 Size);
-external os_glyph_raster_info OSRasterizeGlyph      (u8 Character, rect_f32 Rect, os_font_objects *OSFontObjects, gpu_font_objects *GPUFontObjects, render_handle RendererHandle);
-extern   f32                  OSGetLineHeight       (f32 FontSize, os_font_objects *OSFontObjects);
+external b32            OSAcquireFontObjects  (byte_string Name, f32 Size, gpu_font_objects *GPUObjects, os_font_objects *OSObjects);
+external void           OSReleaseFontObjects  (os_font_objects *Objects);
+external os_glyph_info  OSGetGlyphInfo        (byte_string UTF8, os_font_objects *FontObjects, f32 FontSize);
+external b32            OSRasterizeGlyph      (byte_string UTF8, rect_f32 Rect, os_font_objects *OSFontObjects);
+external f32            OSGetLineHeight       (f32 FontSize, os_font_objects *OSFontObjects);

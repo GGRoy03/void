@@ -158,7 +158,7 @@ InitializeRenderer(memory_arena *Arena)
         ID3D11VertexShader *VShader = 0;
         ID3D11PixelShader  *PShader = 0;
 
-        ForEachEnum(RenderPass_Type, Type)
+        ForEachEnum(RenderPass_Type, RenderPass_Count, Type)
         {
             byte_string Source = D3D11ShaderSourceTable[Type];
 
@@ -192,7 +192,7 @@ InitializeRenderer(memory_arena *Arena)
             Backend->ILayouts[Type] = ILayout;
         }
 
-        ForEachEnum(RenderPass_Type, Type)
+        ForEachEnum(RenderPass_Type, RenderPass_Count, Type)
         {
             byte_string Source = D3D11ShaderSourceTable[Type];
 
@@ -222,7 +222,7 @@ InitializeRenderer(memory_arena *Arena)
     {
         ID3D11Device *Device = Backend->Device;
 
-        ForEachEnum(RenderPass_Type, Type)
+        ForEachEnum(RenderPass_Type, RenderPass_Count, Type)
         {
             ID3D11Buffer *Buffer = 0;
 

@@ -1,6 +1,6 @@
 #include "ui_core.c"
 #include "ui_style.c"
-#include "ui_layout.c"
-#include "ui_tree.c"
 #include "ui_style_parser.c"
 #include "ui_text.c"
+#include "ui_layout.c"
+#include "ui_component.c"

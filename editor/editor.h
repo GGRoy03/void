@@ -8,4 +8,4 @@ typedef struct editor_ui
 
 global editor_ui EditorUI;
 
-internal void ShowEditorUI  (game_state *GameState, ui_state *UIState);
+internal void ShowEditorUI  (game_state *GameState);

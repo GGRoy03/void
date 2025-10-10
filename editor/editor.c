@@ -1,5 +1,5 @@
 internal void 
-ShowEditorUI(game_state *GameState, ui_state *UIState)
+ShowEditorUI(game_state *GameState)
 {
-    ConsoleUI(&EditorUI.ConsoleUI, GameState, UIState);
+    ConsoleUI(&EditorUI.ConsoleUI, GameState);
 }

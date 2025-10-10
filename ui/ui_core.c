@@ -46,186 +46,6 @@ IsNormalizedColor(ui_color Color)
     return Result;
 }
 
-// [Components]
-
-internal void
-UIWindow(ui_style_name StyleName, ui_pipeline *Pipeline)
-{
-    ui_cached_style *Style = UIGetStyle(StyleName, Pipeline->Registry);
-    ui_layout_node  *Node  = GetFreeLayoutNode(Pipeline->LayoutTree, UILayoutNode_Window);
-
-    if (Style && Node)
-    {
-        AttachLayoutNode    (Node, GetLayoutNodeParent(Pipeline->LayoutTree));
-        SetLayoutNodeStyle  (Style, Node, SetLayoutNodeStyle_NoFlag);
-        PushLayoutNodeParent(Node, Pipeline->LayoutTree);
-
-        if(Style->Value.BorderWidth > 0)
-        {
-            SetFlag(Node->Value.Flags, UILayoutNode_DrawBorders);
-        }
-
-        SetFlag(Node->Value.Flags, UILayoutNode_DrawBackground);
-        SetFlag(Node->Value.Flags, UILayoutNode_PlaceChildrenY);
-        SetFlag(Node->Value.Flags, UILayoutNode_IsDraggable);
-        SetFlag(Node->Value.Flags, UILayoutNode_IsResizable);
-    }
-}
-
-internal void
-UIButton(ui_style_name StyleName, ui_click_callback *Callback, ui_pipeline *Pipeline)
-{
-    ui_cached_style *Style = UIGetStyle(StyleName, Pipeline->Registry);
-    ui_layout_node  *Node  = GetFreeLayoutNode(Pipeline->LayoutTree, UILayoutNode_Button);
-
-    if (Style && Node)
-    {
-        AttachLayoutNode  (Node, GetLayoutNodeParent(Pipeline->LayoutTree));
-        SetLayoutNodeStyle(Style, Node, SetLayoutNodeStyle_NoFlag);
-
-        // Draw Flags
-        {
-            if (Style->Value.BorderWidth > 0)
-            {
-                SetFlag(Node->Value.Flags, UILayoutNode_DrawBorders);
-            }
-
-            SetFlag(Node->Value.Flags, UILayoutNode_DrawBackground);
-        }
-
-        // Callbacks (What about hovers?)
-        if (Callback)
-        {
-            UITree_BindClickCallback(Node, Callback);
-        }
-    }
-}
-
-// NOTE: Only supports direct glyph access for now.
-// NOTE: Only supports extended ASCII for now.
-
-internal void
-UILabel(ui_style_name StyleName, byte_string Text, ui_pipeline *Pipeline, ui_state *UIState)
-{
-    ui_cached_style *Style = UIGetStyle(StyleName, Pipeline->Registry);
-    ui_layout_node  *Node  = GetFreeLayoutNode(Pipeline->LayoutTree, UILayoutNode_Label);
-
-    if (Style && Node)
-    {
-        AttachLayoutNode  (Node, GetLayoutNodeParent(Pipeline->LayoutTree));
-        SetLayoutNodeStyle(Style, Node, SetLayoutNodeStyle_NoFlag);
-
-        // Draw Flags
-        {
-            if (Style->Value.BorderWidth > 0)
-            {
-                SetFlag(Node->Value.Flags, UILayoutNode_DrawBorders);
-            }
-
-            if (Text.Size > 0)
-            {
-                SetFlag(Node->Value.Flags, UILayoutNode_DrawText);
-            }
-        }
-
-        ui_font *Font = UIGetFont(Style, Pipeline->RendererHandle, UIState);
-        if (!Font)
-        {
-            return;
-        }
-
-        ui_character *Characters     = PushArray(Pipeline->StaticArena, ui_character, Text.Size);
-        u32           CharacterCount = (u32)Text.Size; Assert(CharacterCount == Text.Size);
-        if (!Characters)
-        {
-            return;
-        }
-
-        for (u32 Idx = 0; Idx < Text.Size; Idx++)
-        {
-            u8 Character = Text.String[Idx];
-
-            glyph_state          State      = FindGlyphEntryByDirectAccess((u32)Character, Font->GlyphTable);
-            os_glyph_layout      Layout     = State.Layout;
-            os_glyph_raster_info RasterInfo = State.RasterInfo;
-
-            if (!RasterInfo.IsRasterized)
-            {
-                Layout = OSGetGlyphLayout(Character, &Font->OSFontObjects, Font->TextureSize, Font->Size);
-
-                stbrp_rect STBRect = { 0 };
-                STBRect.w = (u16)Layout.Size.X; Assert(STBRect.w == Layout.Size.X);
-                STBRect.h = (u16)Layout.Size.Y; Assert(STBRect.h == Layout.Size.Y);
-                stbrp_pack_rects(&Font->AtlasContext, &STBRect, 1);
-
-                if (STBRect.was_packed)
-                {
-                    rect_f32 Rect;
-                    Rect.Min.X = (f32)STBRect.x;
-                    Rect.Min.Y = (f32)STBRect.y;
-                    Rect.Max.X = (f32)STBRect.x + STBRect.w;
-                    Rect.Max.Y = (f32)STBRect.y + STBRect.h;
-                    RasterInfo = OSRasterizeGlyph(Character, Rect, &Font->OSFontObjects, &Font->GPUFontObjects, Pipeline->RendererHandle);
-
-                    UpdateDirectGlyphTableEntry((u32)Character, Layout, RasterInfo, Font->GlyphTable);
-                }
-                else
-                {
-                }
-            }
-
-            Characters[Idx].Layout       = Layout;
-            Characters[Idx].SampleSource = RasterInfo.SampleSource;
-        }
-
-        UITree_BindText(Pipeline, Characters, CharacterCount, Font, Node);
-    }
-}
-
-internal void
-UIHeader(ui_style_name StyleName, ui_pipeline *Pipeline)
-{
-    ui_cached_style *Style = UIGetStyle(StyleName, Pipeline->Registry);
-    ui_layout_node  *Node  = GetFreeLayoutNode(Pipeline->LayoutTree, UILayoutNode_Header);
-
-    if (Style && Node)
-    {
-        AttachLayoutNode    (Node, GetLayoutNodeParent(Pipeline->LayoutTree));
-        SetLayoutNodeStyle  (Style, Node, SetLayoutNodeStyle_NoFlag);
-        PushLayoutNodeParent(Node, Pipeline->LayoutTree);
-
-        if (Style->Value.BorderWidth > 0)
-        {
-            SetFlag(Node->Value.Flags, UILayoutNode_DrawBorders);
-        }
-
-        SetFlag(Node->Value.Flags, UILayoutNode_PlaceChildrenX);
-    }
-}
-
-internal ui_layout_node *
-UIScrollView(ui_style_name StyleName, ui_pipeline *Pipeline)
-{
-    ui_cached_style *Style = UIGetStyle(StyleName, Pipeline->Registry);
-    ui_layout_node  *Node  = GetFreeLayoutNode(Pipeline->LayoutTree, UILayoutNode_ScrollView);
-
-    if (Style && Node)
-    {
-        AttachLayoutNode    (Node, GetLayoutNodeParent(Pipeline->LayoutTree));
-        SetLayoutNodeStyle  (Style, Node, SetLayoutNodeStyle_NoFlag);
-        PushLayoutNodeParent(Node, Pipeline->LayoutTree);
-
-        if (Style->Value.BorderWidth > 0)
-        {
-            SetFlag(Node->Value.Flags, UILayoutNode_DrawBorders);
-        }
-
-        SetFlag(Node->Value.Flags, UILayoutNode_PlaceChildrenY);
-    }
-
-    return Node;
-}
-
 // [Pipeline]
 
 internal ui_pipeline
@@ -267,8 +87,7 @@ UICreatePipeline(ui_pipeline_params Params)
 
     // Others
     {
-        Result.Registry       = CreateStyleRegistry(Params.ThemeFiles, Params.ThemeCount, Result.StaticArena);
-        Result.RendererHandle = Params.RendererHandle;
+        Result.Registry = CreateStyleRegistry(Params.ThemeFiles, Params.ThemeCount, Result.StaticArena);
     }
 
     return Result;
@@ -313,22 +132,20 @@ UIPipelineExecute(ui_pipeline *Pipeline, render_pass_list *PassList)
 
     if (!Pipeline->CapturedNode)
     {
-        ui_hit_test_result Hit = HitTestLayout(OSGetMousePosition(), LayoutRoot, Pipeline);
+        ui_hit_test Hit = HitTestLayout(OSGetMousePosition(), LayoutRoot, Pipeline);
         if(Hit.Success)
         {
             Assert(Hit.Node);
             Assert(Hit.Intent != UIIntent_None);
 
-            ui_layout_box *Box = &Hit.Node->Value;
-
             if (MouseIsClicked)
             {
-                if (Box->ClickCallback)
+                if (HasFlag(Hit.Node->Flags, UILayoutNode_None))
                 {
-                    Box->ClickCallback(Hit.Node, Pipeline);
+                    // TODO: Callback or something?
                 }
 
-                SetFlag(Box->Flags, UILayoutNode_IsClicked);
+                SetFlag(Hit.Node->Flags, UILayoutNode_IsClicked);
             }
 
             switch(Hit.Intent)
@@ -343,7 +160,7 @@ UIPipelineExecute(ui_pipeline *Pipeline, render_pass_list *PassList)
                     Pipeline->CapturedNode = Hit.Node;
                     Pipeline->Intent       = Hit.Intent;
                 }
-                SetFlag(Box->Flags, UILayoutNode_IsHovered);
+                SetFlag(Hit.Node->Flags, UILayoutNode_IsHovered);
             } break;
 
             case UIIntent_ResizeX:
@@ -439,11 +256,9 @@ UIPipelineBuildDrawList(ui_pipeline *Pipeline, render_pass *Pass, ui_layout_node
         b32 CanMerge = 1;
         if(Node)
         {
-            if(HasFlag(Box->Flags, UILayoutNode_DrawText))
+            if(HasFlag(LayoutRoot->Flags, UILayoutNode_TextIsBound))
             {
-                Assert(Box->Text);
-                NewParams.AtlasTextureSize = Box->Text->AtlasTextureSize;
-                NewParams.AtlasTextureView = Box->Text->AtlasTexture;
+                // NOTE: IDK...
             }
 
             CanMerge = CanMergeGroupParams(&Node->Params, &NewParams);
@@ -471,74 +286,38 @@ UIPipelineBuildDrawList(ui_pipeline *Pipeline, render_pass *Pass, ui_layout_node
         List         = &Node->BatchList;
     }
 
-    ui_style *BaseStyle = &LayoutRoot->CachedStyle->Value;
-    ui_style *Style     = BaseStyle;
-    {
-        b32 Overriden = 0;
+    // TODO: Implement the override logic.
 
-        if (HasFlag(Box->Flags, UILayoutNode_IsClicked))
-        {
-            if (Style->ClickOverride)
-            {
-                Style     = Style->ClickOverride;
-                Overriden = 1;
-            }
+    ui_cached_style *Style = 0;
 
-            ClearFlag(Box->Flags, UILayoutNode_IsClicked);
-        }
-
-        if (!Overriden && HasFlag(Box->Flags, UILayoutNode_IsHovered))
-        {
-            if (Style->HoverOverride)
-            {
-                Style     = Style->HoverOverride;
-                Overriden = 1;
-            }
-
-            ClearFlag(Box->Flags, UILayoutNode_IsHovered);
-        }
-
-        if (Overriden && Style->BaseVersion != BaseStyle->BaseVersion)
-        {
-            if (!HasFlag(Style->Flags, UIStyleNode_HasColor))        Style->Color        = BaseStyle->Color;
-            if (!HasFlag(Style->Flags, UIStyleNode_HasBorderColor))  Style->BorderColor  = BaseStyle->BorderColor;
-            if (!HasFlag(Style->Flags, UIStyleNode_HasSoftness))     Style->Softness     = BaseStyle->Softness;
-            if (!HasFlag(Style->Flags, UIStyleNode_HasBorderColor))  Style->BorderColor  = BaseStyle->BorderColor;
-            if (!HasFlag(Style->Flags, UIStyleNode_HasBorderWidth))  Style->BorderWidth  = BaseStyle->BorderWidth;
-            if (!HasFlag(Style->Flags, UIStyleNode_HasCornerRadius)) Style->CornerRadius = BaseStyle->CornerRadius;
-
-            Style->BaseVersion = BaseStyle->BaseVersion;
-        }
-    }
-
-    if (HasFlag(Box->Flags, UILayoutNode_DrawBackground))
-    {
-        ui_rect *Rect = PushDataInBatchList(Pipeline->FrameArena, List);  
-        Rect->RectBounds  = RectF32(Box->FinalX, Box->FinalY, Box->FinalWidth, Box->FinalHeight);
-        Rect->Color       = Style->Color;
-        Rect->CornerRadii = Style->CornerRadius;
-        Rect->Softness    = Style->Softness;
-    }
-
-    if (HasFlag(Box->Flags, UILayoutNode_DrawBorders))
+    if (HasFlag(LayoutRoot->Flags, UILayoutNode_DrawBackground))
     {
         ui_rect *Rect = PushDataInBatchList(Pipeline->FrameArena, List);
         Rect->RectBounds  = RectF32(Box->FinalX, Box->FinalY, Box->FinalWidth, Box->FinalHeight);
-        Rect->Color       = Style->BorderColor;
-        Rect->CornerRadii = Style->CornerRadius;
-        Rect->BorderWidth = Style->BorderWidth;
-        Rect->Softness    = Style->Softness;
+        Rect->Color       = UIGetColor(Style);
+        Rect->CornerRadii = UIGetCornerRadius(Style);
+        Rect->Softness    = UIGetSoftness(Style);
     }
 
-    if (HasFlag(Box->Flags, UILayoutNode_DrawText))
+    if (HasFlag(LayoutRoot->Flags, UILayoutNode_DrawBorders))
     {
-        for (u32 Idx = 0; Idx < Box->Text->Size; Idx++)
+        ui_rect *Rect = PushDataInBatchList(Pipeline->FrameArena, List);
+        Rect->RectBounds  = RectF32(Box->FinalX, Box->FinalY, Box->FinalWidth, Box->FinalHeight);
+        Rect->Color       = UIGetBorderColor(Style);
+        Rect->CornerRadii = UIGetCornerRadius(Style);
+        Rect->BorderWidth = UIGetBorderWidth(Style);
+        Rect->Softness    = UIGetSoftness(Style);
+    }
+
+    if (HasFlag(LayoutRoot->Flags, UILayoutNode_DrawText))
+    {
+        for (u32 Idx = 0; Idx < Box->DisplayText->GlyphCount; ++Idx)
         {
             ui_rect *Rect = PushDataInBatchList(Pipeline->FrameArena, List);
             Rect->SampleAtlas       = 1.f;
-            Rect->AtlasSampleSource = Box->Text->Characters[Idx].SampleSource;
-            Rect->RectBounds        = Box->Text->Characters[Idx].Position;
-            Rect->Color             = UIColor(1.f, 1.f, 1.f, 1.f);
+            Rect->AtlasSampleSource = Box->DisplayText->Glyphs[Idx].Source;
+            Rect->RectBounds        = Box->DisplayText->Glyphs[Idx].Position;
+            Rect->Color             = UIGetTextColor(Style);
         }
     }
 

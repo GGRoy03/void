@@ -137,7 +137,7 @@ InitializeLayoutNode(ui_cached_style *Style, UILayoutNode_Type Type, bit_field C
 
         if(Style)
         {
-            if(GetBorderWidth(Style) > 0.f)
+            if(UIGetBorderWidth(Style) > 0.f)
             {
                 Assert(!HasFlag(Node->Flags, UILayoutNode_DrawBorders));
                 SetFlag(Node->Flags, UILayoutNode_DrawBorders);

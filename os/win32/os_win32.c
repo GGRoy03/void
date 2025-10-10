@@ -124,9 +124,9 @@ OSWin32WindowProc(HWND Handle, UINT Message, WPARAM WParam, LPARAM LParam)
 i32 WINAPI
 wWinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPWSTR CmdLine, i32 ShowCmd)
 {
-    UNUSED(PrevInstance);
-    UNUSED(CmdLine);
-    UNUSED(Instance);
+    Useless(PrevInstance);
+    Useless(CmdLine);
+    Useless(Instance);
 
     // System Info
     {

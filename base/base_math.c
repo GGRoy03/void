@@ -150,8 +150,6 @@ IsPointInRect(rect_f32 Target, vec2_f32 Point)
 	return Result;
 }
 
-// TODO: Copy the shader to check if it's faster on the CPU as well.
-
 internal f32
 RoundedRectSDF(vec2_f32 LocalPosition, vec2_f32 RectHalfSize, f32 Radius)
 {
@@ -172,6 +170,15 @@ RoundedRectSDF(vec2_f32 LocalPosition, vec2_f32 RectHalfSize, f32 Radius)
 	f32 Result        = OuterDistance + InnerDistance - Radius;
 
 	return Result;
+}
+
+// [Ranges]
+
+internal b32
+IsInRangeF32(f32 Min, f32 Max, f32 Value)
+{
+    b32 Result = (Value >= Min && Value <= Max);
+    return Result;
 }
 
 internal b32

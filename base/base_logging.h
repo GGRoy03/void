@@ -59,9 +59,9 @@ global console_queue Console;
 
 // [PRODUCER API]
 
-internal void ConsoleWriteMessage       (console_queue_node *Node, console_queue *Queue);
-internal void ConsoleWriteMessageList   (console_queue_node *First, console_queue_node *Last, console_queue *Queue);
-internal void ConsoleWriteMessageBatch  (u64 NodeCount, console_queue_node *Nodes[], console_queue *Queue); 
+internal void ConsolePushMessage       (console_queue_node *Node, console_queue *Queue);
+internal void ConsolePushMessageList   (console_queue_node *First, console_queue_node *Last, console_queue *Queue);
+internal void ConsolePushMessageBatch  (u64 NodeCount, console_queue_node *Nodes[], console_queue *Queue); 
 
 // [CONSUMER API]
 
@@ -74,6 +74,6 @@ internal void                       FreeConsoleMessageNode         (console_queu
 
 // [NON-ATOMIC API]
 
-internal u64                  GetTimeStamp         (void);
-internal console_queue_node * AllocateConsoleNode  (byte_string Message, ConsoleMessage_Severity Severity);
-internal void                 FreeConsoleNode      (console_queue_node *Node);
+internal u64   GetTimeStamp         (void);
+external void  ConsoleWriteMessage  (byte_string Message, ConsoleMessage_Severity Severity, console_queue *Queue);
+internal void  FreeConsoleNode      (console_queue_node *Node);

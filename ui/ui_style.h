@@ -2,98 +2,86 @@
 
 // [CONSTANTS]
 
-typedef enum UIStyleNode_Flag
+typedef enum CachedStyle_Flag
 {
-    UIStyleNode_NoFlag            = 0,
-    UIStyleNode_HasSize           = 1 << 0,
-    UIStyleNode_HasColor          = 1 << 1,
-    UIStyleNode_HasPadding        = 1 << 2,
-    UIStyleNode_HasSpacing        = 1 << 3,
-    UIStyleNode_HasFontName       = 1 << 4,
-    UIStyleNode_HasFontSize       = 1 << 5,
-    UIStyleNode_HasSoftness       = 1 << 6,
-    UIStyleNode_HasBorderColor    = 1 << 7,
-    UIStyleNode_HasBorderWidth    = 1 << 8,
-    UIStyleNode_HasCornerRadius   = 1 << 9,
-    UIStyleNode_DirtySubtree      = 1 << 10,
-    UIStyleNode_DirtySpine        = 1 << 11,
-    UIStyleNode_StyleSetAtRuntime = 1 << 12,
-} UIStyleNode_Flag;
+    CachedStyle_FontIsLoaded = 1 << 0,
+} CachedStyle_Flag;
 
-typedef enum SetLayoutNodeStyle_Flag
+typedef enum StyleProperty_Type
 {
-    SetLayoutNodeStyle_NoFlag        = 0,
-    SetLayoutNodeStyle_OmitReference = 1,
-} SetLayoutNodeStyle_Flag;
+    StyleProperty_Size         = 0,
+    StyleProperty_Color        = 1,
+    StyleProperty_Padding      = 2,
+    StyleProperty_Spacing      = 3,
+    StyleProperty_Font         = 4,
+    StyleProperty_FontSize     = 5,
+    StyleProperty_Softness     = 6,
+    StyleProperty_BorderColor  = 7,
+    StyleProperty_BorderWidth  = 8,
+    StyleProperty_CornerRadius = 9,
+    StyleProperty_TextColor    = 10,
+
+    StyleProperty_Count        = 11,
+    StyleProperty_None         = 666,
+} StyleProperty_Type;
+
+typedef enum StyleEffect_Type
+{
+    StyleEffect_Base  = 0,
+    StyleEffect_Hover = 1,
+    StyleEffect_Click = 2,
+    StyleEffect_None  = 3,
+
+    StyleEffect_Count = 3,
+} StyleEffect_Type;
 
 // [CORE TYPES]
 
-typedef struct ui_style
+typedef struct style_property style_property;
+struct style_property
 {
-    // Color
-    ui_color Color;
-    f32      Opacity;
+    b32             IsSet;
+    style_property *Next;
 
-    // Layout
-    vec2_unit  Size;
-    ui_padding Padding;
-    ui_spacing Spacing;
-
-    // Borders/Corners
-    ui_color         BorderColor;
-    ui_corner_radius CornerRadius;
-    f32              Softness;
-    f32              BorderWidth;
-
-    // Font
-    f32 FontSize;
+    StyleProperty_Type Type;
     union
     {
-        ui_font *Ref;
-        byte_string Name;
-    } Font;
+        f32              Float32;
+        vec2_unit        Vec2;
+        ui_spacing       Spacing;
+        ui_padding       Padding;
+        ui_color         Color;
+        ui_corner_radius CornerRadius;
+        void            *Pointer;
+        byte_string      String;
+    };
+};
 
-    // Effects
-    ui_style *ClickOverride;
-    ui_style *HoverOverride;
-
-    // Misc
-    u32       BaseVersion;
-    bit_field Flags;
-} ui_style;
+typedef struct style_property_list
+{
+    style_property *First;
+    style_property *Last;
+    u32             Count;
+} style_property_list;
 
 typedef struct ui_cached_style ui_cached_style;
 struct ui_cached_style
 {
-    u32              Index;
-    ui_cached_style *Next;
-    ui_style         Value;
-
-    // Nodes References
-    ui_layout_node *First;
-    ui_layout_node *Last;
-    u32             RefCount;
+    // Properties (Not very memory efficient)
+    style_property Properties[StyleEffect_Count][StyleProperty_Count];
 
     // Misc
-    b32 FontReferenceIsSet;
+    bit_field Flags;
 };
 
 typedef struct ui_style_subregistry ui_style_subregistry;
 typedef struct ui_style_subregistry
 {
-    // Misc
-    b32                   HadError;
-    u32                   StyleCount;
-    ui_style_subregistry *Next;
-    u8                    FileName[OS_MAX_PATH];
-    u64                   FileNameSize;
+    u32              StyleCount;
+    u32              StyleCapacity;
+    ui_cached_style *Styles;
 
-    // Heap-Data (Styles, Names)
-    ui_style_name *CachedNames;
-    ui_cached_style *CachedStyles;
-    ui_cached_style *Sentinels;
-    u8 *StringBuffer;
-    u64              StringBufferOffset;
+    ui_style_subregistry *Next;
 } ui_style_subregistry;
 
 typedef struct ui_style_registry
@@ -103,12 +91,16 @@ typedef struct ui_style_registry
     ui_style_subregistry *Last;
 } ui_style_registry;
 
-// [API]
+// [Properties]
 
-internal void SetLayoutNodeStyle(ui_cached_style *CachedStyle, ui_layout_node *Node, bit_field Flags);
+internal f32               UIGetBorderWidth   (ui_cached_style *Cached);
+internal f32               UIGetSoftness      (ui_cached_style *Cached);
+internal f32               UIGetFontSize      (ui_cached_style *Cached);
+internal ui_color          UIGetColor         (ui_cached_style *Cached);
+internal ui_color          UIGetBorderColor   (ui_cached_style *Cached);
+internal ui_color          UIGetTextColor     (ui_cached_style *Cached);
+internal byte_string       UIGetFontName      (ui_cached_style *Cached);
+internal ui_corner_radius  UIGetCornerRadius  (ui_cached_style *Cached);
+internal ui_font         * UIGetFont          (ui_cached_style *Cached);
 
-internal ui_cached_style * UIGetStyleSentinel               (byte_string   Name, ui_style_subregistry *Registry);
-internal ui_style_name      UIGetCachedName                 (byte_string   Name, ui_style_registry    *Registry);
-internal ui_style_name      UIGetCachedNameFromSubregistry  (byte_string   Name, ui_style_subregistry *Registry);
-internal ui_cached_style * UIGetStyle                       (ui_style_name Name, ui_style_registry    *Registry);
-internal ui_cached_style * UIGetStyleFromSubregistry        (ui_style_name Name, ui_style_subregistry *Registry);
+internal void              UISetFont          (ui_cached_style *Cached, ui_font *Font);

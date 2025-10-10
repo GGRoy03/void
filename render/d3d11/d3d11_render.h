@@ -53,10 +53,10 @@ typedef struct d3d11_backend
     ID3D11Buffer *VBuffer64KB;
 
     // Pipelines
-    ID3D11InputLayout  *ILayouts[RenderPass_Type_Count];
-    ID3D11VertexShader *VShaders[RenderPass_Type_Count];
-    ID3D11PixelShader  *PShaders[RenderPass_Type_Count];
-    ID3D11Buffer       *UBuffers[RenderPass_Type_Count];
+    ID3D11InputLayout  *ILayouts[RenderPass_Count];
+    ID3D11VertexShader *VShaders[RenderPass_Count];
+    ID3D11PixelShader  *PShaders[RenderPass_Count];
+    ID3D11Buffer       *UBuffers[RenderPass_Count];
 
     // State
     vec2_i32 LastResolution;

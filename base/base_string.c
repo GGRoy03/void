@@ -23,6 +23,23 @@ IsValidByteString(byte_string Input)
     return Result;
 }
 
+internal b32
+IsAsciiString(byte_string Input)
+{
+    b32 Result = 1;
+
+    for(u32 Idx = 0; Idx < Input.Size; ++Idx)
+    {
+        if(Input.String[Idx] > 0x7F)
+        {
+            Result = 0;
+            break;
+        }
+    }
+
+    return Result;
+}
+
 internal b32 
 ByteStringMatches(byte_string Str1, byte_string Str2, bit_field Flags)
 {

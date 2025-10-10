@@ -1,13 +1,13 @@
 // [PRODUCER API]
 
 internal void
-ConsoleWriteMessage(console_queue_node *Node, console_queue *Queue)
+ConsolePushMessage(console_queue_node *Node, console_queue *Queue)
 {
-    ConsoleWriteMessageList(Node, Node, Queue);
+    ConsolePushMessageList(Node, Node, Queue);
 }
 
 internal void
-ConsoleWriteMessageList(console_queue_node *First, console_queue_node *Last, console_queue *Queue)
+ConsolePushMessageList(console_queue_node *First, console_queue_node *Last, console_queue *Queue)
 {
     atomic_store_explicit(&Last->Next, 0, memory_order_relaxed);
     console_queue_node *Prev = atomic_exchange_explicit(&Queue->Head, Last, memory_order_acq_rel);
@@ -15,7 +15,7 @@ ConsoleWriteMessageList(console_queue_node *First, console_queue_node *Last, con
 }
 
 internal void
-ConsoleWriteMessageBatch(u64 NodeCount, console_queue_node *Nodes[], console_queue *Queue)
+ConsolePushMessageBatch(u64 NodeCount, console_queue_node *Nodes[], console_queue *Queue)
 {
     if(NodeCount == 0)
     {
@@ -31,7 +31,7 @@ ConsoleWriteMessageBatch(u64 NodeCount, console_queue_node *Nodes[], console_que
         atomic_store_explicit(&Node->Next, Nodes[Idx + 1], memory_order_relaxed);
     }
 
-    ConsoleWriteMessageList(First, Last, Queue);
+    ConsolePushMessageList(First, Last, Queue);
 }
 
 // [CONSUMER API]
@@ -112,7 +112,7 @@ PollConsoleMessageQueue(console_queue_node **OutNode, console_queue *Queue)
     }
 
     // Re-Orders the list such that: (T->SH)
-    ConsoleWriteMessage(&Queue->Sentinel, Queue);
+    ConsolePushMessage(&Queue->Sentinel, Queue);
 
     // Reloads next such that we read the most recent work.
     // Most of the time, it will be (T->SH), meaning we are setting
@@ -169,24 +169,23 @@ GetTimeStamp(void)
 // producer allocates and consumer frees. This also uses a malloc/free
 // instead of the classic OSReserve/OSCommit/OSRelease which is annoying.
 
-internal console_queue_node *
-AllocateConsoleNode(byte_string Message, ConsoleMessage_Severity Severity)
+external void
+ConsoleWriteMessage(byte_string Message, ConsoleMessage_Severity Severity, console_queue *Queue)
 {
     u64 MessageSize = Message.Size;
     u64 Footprint   = sizeof(console_queue_node) + MessageSize;
 
-    console_queue_node *Result = malloc(Footprint);
-
-    if(Result)
+    console_queue_node *Node = malloc(Footprint);
+    if(Node)
     {
-        Result->Value.Severity  = Severity;
-        Result->Value.TimeStamp = GetTimeStamp();
-        Result->Value.TextSize  = MessageSize;
+        Node->Value.Severity  = Severity;
+        Node->Value.TimeStamp = GetTimeStamp();
+        Node->Value.TextSize  = MessageSize;
 
-        memcpy(Result->Value.Text, Message.String, Message.Size);
+        memcpy(Node->Value.Text, Message.String, Message.Size);
+
+        ConsolePushMessage(Node, Queue);
     }
-
-    return Result;
 }
 
 internal void

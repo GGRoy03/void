@@ -34,7 +34,7 @@ PeekFilePointer(os_read_file *File)
 }
 
 internal u8
-PeekFile(os_read_file *File, u32 Offset)
+PeekFile(os_read_file *File, i32 Offset)
 {
     u8 Result = 0;
 

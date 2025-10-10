@@ -42,6 +42,7 @@ internal wide_string WideString  (u16 *String, u64 Size);
 // [String Utilities]
 
 internal b32         IsValidByteString       (byte_string Input);
+internal b32         IsAsciiString           (byte_string Input);
 internal b32         ByteStringMatches       (byte_string Str1, byte_string Str2, bit_field Flags);
 internal byte_string ByteStringCopy          (byte_string String, memory_arena *Arena);
 internal byte_string ByteStringAppendBefore  (byte_string Pre, byte_string Post, memory_arena *Arena);

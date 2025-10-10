@@ -17,13 +17,6 @@ typedef enum UIIntent_Type
     UIIntent_Drag     = 5,
 } UIIntent_Type;
 
-typedef enum UIConstant_Type
-{
-    MAXIMUM_STYLE_NAME_LENGTH            = 32,
-    MAXIMUM_STYLE_COUNT_PER_SUB_REGISTRY = 128,
-    MAXIMUM_STYLE_FILE_SIZE              = Gigabyte(1),
-} UIConstant_Type;
-
 // [FORWARD DECLARATIONS]
 
 typedef struct ui_style       ui_style;
@@ -110,28 +103,26 @@ typedef struct ui_style_name
 
 typedef struct ui_pipeline_params
 {
-    byte_string  *ThemeFiles;
-    u32           ThemeCount;
-    u32           TreeDepth;
-    u32           TreeNodeCount;
-    render_handle RendererHandle;
+    byte_string *ThemeFiles;
+    u32          ThemeCount;
+    u32          TreeDepth;
+    u32          TreeNodeCount;
 } ui_pipeline_params;
 
 typedef struct ui_pipeline
 {
+    // State
     ui_layout_tree    *LayoutTree;
     ui_style_registry *Registry;
+    ui_layout_node    *CapturedNode;
+    UIIntent_Type      Intent;
 
-    ui_layout_node *CapturedNode;
-    UIIntent_Type   Intent;
-
-    render_handle RendererHandle;
-
+    // Memory
     memory_arena *FrameArena;
     memory_arena *StaticArena;
 } ui_pipeline;
 
-// [State]
+// One of the three program global (GAME, UI, RENDERER)
 
 typedef struct ui_state
 {
@@ -143,6 +134,8 @@ typedef struct ui_state
     memory_arena *StaticData;
 } ui_state;
 
+global ui_state UIState;
+
 // [Helpers]
 
 internal ui_color         UIColor         (f32 R, f32 G, f32 B, f32 A);
@@ -152,17 +145,6 @@ internal ui_corner_radius UICornerRadius  (f32 TopLeft, f32 TopRight, f32 BotLef
 internal vec2_unit        Vec2Unit        (ui_unit U0, ui_unit U1);
 
 internal b32 IsNormalizedColor(ui_color Color);
-
-// [Components]
-
-internal void             UIWindow      (ui_style_name StyleName, ui_pipeline *Pipeline);
-internal void             UIButton      (ui_style_name StyleName, ui_click_callback *Callback, ui_pipeline *Pipeline);
-internal void             UILabel       (ui_style_name StyleName, byte_string Text, ui_pipeline *Pipeline, ui_state *UIState);
-internal void             UIHeader      (ui_style_name StyleName, ui_pipeline *Pipeline);
-internal ui_layout_node * UIScrollView  (ui_style_name StyleName, ui_pipeline *Pipeline);
-
-#define UIHeaderEx(StyleName, Pipeline)           DeferLoop(UIHeader(StyleName, Pipeline)    , PopLayoutNodeParent(Pipeline->LayoutTree))
-#define UIScrollViewEx(Node, StyleName, Pipeline) DeferLoop(Node = UIScrollView(StyleName, Pipeline), PopLayoutNodeParent(Pipeline->LayoutTree))
 
 // [Pipeline]
 

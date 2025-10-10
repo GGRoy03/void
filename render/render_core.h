@@ -10,7 +10,7 @@ typedef enum RenderPass_Type
 {
     RenderPass_UI = 0,
 
-    RenderPass_Type_Count = 1,
+    RenderPass_Count = 1,
 } RenderPass_Type;
 
 // [FORWARD DECLARATIONS]
@@ -121,6 +121,15 @@ typedef struct render_pass_list
     render_pass_node *Last;
 } render_pass_list;
 
+// One of the three globals (GAME, UI, RENDERER)
+
+typedef struct render_state
+{
+    render_handle Renderer;
+} render_state;
+
+global render_state RenderState;
+
 // [Globals]
 
 read_only global u32 UIPassDefaultBatchCount       = 10;
@@ -137,8 +146,6 @@ read_only global u64 RenderPassDataSizeTable[] =
 // [FORWARD DECLARATIONS]
 
 typedef struct gpu_font_objects gpu_font_objects;
-
-// [CORE API]
 
 // [Handles]
 
