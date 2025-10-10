@@ -60,7 +60,11 @@ typedef struct style_file_debug_info
 {
     byte_string  FileName;
     os_read_file FileContent;
-    u32          ErrorCount;
+
+    u32 CurrentLineInFile;
+
+    u32 ErrorCount;
+    u32 WarningCount;
 } style_file_debug_info;
 
 typedef struct tokenized_style_file
@@ -208,7 +212,7 @@ read_only global style_property_table_entry StylePropertyTable[] =
 // [Runtime API]
 
 internal ui_style_registry    * CreateStyleRegistry     (byte_string *FileNames, u32 Count, memory_arena *OutputArena);
-internal ui_style_subregistry * CreateStyleSubregistry  (byte_string FileName, memory_arena *OutputArena);
+internal ui_style_subregistry * CreateStyleSubregistry  (byte_string FileName, memory_arena *RoutineArena, memory_arena *OutputArena);
 
 // [Helpers]
 
@@ -219,20 +223,21 @@ internal ui_color ToNormalizedColor        (vec4_unit Vec);
 
 internal style_token        * GetStyleToken      (style_token_buffer *Buffer, i64 Index);
 internal style_token        * EmitStyleToken     (style_token_buffer *Buffer, StyleToken_Type Type, u32 AtLine, u8 *InFile);
-internal style_token        * PeekStyleToken     (style_token_buffer *Buffer, i32 Offset);
+internal style_token        * PeekStyleToken     (style_token_buffer *Buffer, i32 Offset, style_file_debug_info *Debug);
 internal void                 EatStyleTokens     (style_token_buffer *Buffer, u32 Count);
-internal ui_unit              ReadUnit           (os_read_file *File, byte_string FileName, u32 LineInFile);
+internal ui_unit              ReadUnit           (os_read_file *File, style_file_debug_info *Debug);
 internal byte_string          ReadIdentifier     (os_read_file *File);
-internal vec4_unit            ReadVector         (os_read_file *File, byte_string FileName, u32 LineInFile);
+internal vec4_unit            ReadVector         (os_read_file *File, style_file_debug_info *Debug);
 internal tokenized_style_file TokenizeStyleFile  (os_read_file File, memory_arena *Arena, style_file_debug_info *Debug);
 
 // [Parsing Routines]
 
-internal ui_style_subregistry * ParseStyleFile       (tokenized_style_file *File, memory_arena *Arena);
-internal style_header           ParseStyleHeader     (byte_string FileName, style_token_buffer *Buffer);
-internal style_block            ParseStyleBlock      (byte_string FileName, style_token_buffer *Buffer, style_var_table *VarTable);
-internal style_attribute        ParseStyleAttribute  (byte_string FileName, style_token_buffer *Buffer, style_var_table *VarTable);
-internal style_variable         ParseStyleVariable   (byte_string FileName, style_token_buffer *Buffer);
+internal ui_style_subregistry * ParseStyleFile       (tokenized_style_file *File, memory_arena *Arena, style_file_debug_info *Debug);
+internal style_header           ParseStyleHeader     (style_token_buffer *Buffer, style_file_debug_info *Debug);
+internal style_effect           ParseStyleEffect     (style_token_buffer *Buffer, style_file_debug_info *Debug);
+internal style_block            ParseStyleBlock      (style_token_buffer *Buffer, style_var_table *VarTable, style_file_debug_info *Debug);
+internal style_attribute        ParseStyleAttribute  (style_token_buffer *Buffer, style_var_table *VarTable, style_file_debug_info *debug);
+internal style_variable         ParseStyleVariable   (style_token_buffer *Buffer, style_file_debug_info *Debug);
 
 // [Variables]
 
@@ -246,12 +251,12 @@ internal size_t            GetStyleVarTableFootprint   (style_var_table_params P
 
 // [Caching]
 
-internal void           ValidateAttributeFormatting  (byte_string FileName, style_attribute *Attribute);
+internal void           ValidateAttributeFormatting  (style_attribute *Attribute, style_file_debug_info *Debug);
 internal style_property ConvertAttributeToProperty   (style_attribute Attribute);
-internal void           CacheStyle                   (byte_string FileName, style *ParsedStyle, ui_style_subregistry *Registry);
+internal void           CacheStyle                   (style *ParsedStyle, ui_style_subregistry *Registry, style_file_debug_info *Debug);
 
 // [Error Handling]
 
-internal void  SynchronizeParser       (style_token_buffer *Buffer, StyleToken_Type StopAt);
-internal void  ReportStyleParserError  (ConsoleMessage_Severity Severity, byte_string Message);
-internal void  ReportStyleFileError    (byte_string FileName, u32 Line, ConsoleMessage_Severity Severity, byte_string Message);
+internal void  SynchronizeParser       (style_token_buffer *Buffer, StyleToken_Type StopAt, style_file_debug_info *Debug);
+internal void  ReportStyleParserError  (style_file_debug_info *Debug, ConsoleMessage_Severity Severity, byte_string Message);
+internal void  ReportStyleFileError    (style_file_debug_info *Debug, ConsoleMessage_Severity Severity, byte_string Message);

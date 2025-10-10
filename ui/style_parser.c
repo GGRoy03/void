@@ -59,7 +59,7 @@ CreateStyleRegistry(byte_string *FileNames, u32 Count, memory_arena *OutputArena
         {
             for (u32 Idx = 0; Idx < Count; ++Idx)
             {
-                ui_style_subregistry *Registry = CreateStyleSubregistry(FileNames[Idx], RoutineArena OutputArena);
+                ui_style_subregistry *Registry = CreateStyleSubregistry(FileNames[Idx], RoutineArena, OutputArena);
                 if(Registry)
                 {
                     AppendToLinkedList(Result, Registry, Result->Count);
@@ -68,10 +68,12 @@ CreateStyleRegistry(byte_string *FileNames, u32 Count, memory_arena *OutputArena
         }
         else
         {
+            ConsoleWriteMessage(byte_string_literal("Allocation Failure: CreateStyleRegistry"), ConsoleMessage_Error, &Console);
         }
     }
     else
     {
+        ConsoleWriteMessage(byte_string_literal("Allocation Failure: CreateStyleRegistry"), ConsoleMessage_Error, &Console);
     }
 
     return Result;
@@ -140,7 +142,7 @@ EmitStyleToken(style_token_buffer *Buffer, StyleToken_Type Type, u32 AtLine, u8 
 }
 
 internal style_token *
-PeekStyleToken(style_token_buffer *Buffer, i32 Offset)
+PeekStyleToken(style_token_buffer *Buffer, i32 Offset, style_file_debug_info *Debug)
 {
     style_token *Result = GetStyleToken(Buffer, (Buffer->At - 1));
 
@@ -148,6 +150,8 @@ PeekStyleToken(style_token_buffer *Buffer, i32 Offset)
     if (Index >= 0 && Index < Buffer->Count)
     {
         Result = GetStyleToken(Buffer, Index);
+
+        Debug->CurrentLineInFile = Result->LineInFile;
     }
 
     return Result;
@@ -168,7 +172,7 @@ EatStyleToken(style_token_buffer *Buffer, u32 Count)
 }
 
 internal ui_unit
-ReadUnit(os_read_file *File, byte_string FileName, u32 LineInFile)
+ReadUnit(os_read_file *File, style_file_debug_info *Debug)
 {
     ui_unit Result = {0};
     f64     Number = 0;
@@ -223,8 +227,7 @@ ReadUnit(os_read_file *File, byte_string FileName, u32 LineInFile)
                     }
                     else
                     {
-                        byte_string Message = byte_string_literal("Percent value must be: 0% <= Value <= 100%");
-                        ReportStyleFileError(FileName, LineInFile, ConsoleMessage_Error, Message);
+                        ReportStyleFileError(Debug, error_message("Percent value must be: 0% <= Value <= 100%"));
                     }
                 }
                 else
@@ -245,8 +248,7 @@ ReadUnit(os_read_file *File, byte_string FileName, u32 LineInFile)
             }
             else
             {
-                byte_string Message = byte_string_literal("Percent value must be: 0% <= Value <= 100%");
-                ReportStyleFileError(FileName, LineInFile, ConsoleMessage_Error, Message);
+                ReportStyleFileError(Debug, error_message("Percent value must be: 0% <= Value <= 100%"));
             }
         }
         else
@@ -282,7 +284,7 @@ ReadIdentifier(os_read_file *File)
 }
 
 internal vec4_unit
-ReadVector(os_read_file *File, byte_string FileName, u32 LineInFile)
+ReadVector(os_read_file *File, style_file_debug_info *Debug)
 {
     vec4_unit Result = (vec4_unit){0};
 
@@ -298,7 +300,7 @@ ReadVector(os_read_file *File, byte_string FileName, u32 LineInFile)
             u8 Character = PeekFile(File, 0);
             if(IsDigit(Character))
             {
-                ui_unit Unit = ReadUnit(File, FileName, LineInFile);
+                ui_unit Unit = ReadUnit(File, Debug);
                 if(Unit.Type != UIUnit_None)
                 {
                     Result.Values[VectorSize++] = Unit;
@@ -324,16 +326,14 @@ ReadVector(os_read_file *File, byte_string FileName, u32 LineInFile)
             }
             else
             {
-                byte_string Message = byte_string_literal("A vector must only contain numerical values.");
-                ReportStyleFileError(FileName, LineInFile, ConsoleMessage_Error, Message);
+                ReportStyleFileError(Debug, error_message("A vector must only contain numerical values."));
                 break;
             }
         }
     }
     else
     {
-        byte_string Message = byte_string_literal("Expected '[' when calling ReadVector");
-        ReportStyleFileError(FileName, LineInFile, ConsoleMessage_Error, Message);
+        ReportStyleFileError(Debug, error_message("Expected '[' when calling ReadVector"));
     }
 
     return Result;
@@ -398,7 +398,7 @@ TokenizeStyleFile(os_read_file File, memory_arena *Arena, style_file_debug_info 
             style_token *Token = EmitStyleToken(&Result.Buffer, StyleToken_Unit, AtLine, InFile);
             if (Token)
             {
-                ui_unit Unit = ReadUnit(&File, FileName, AtLine);
+                ui_unit Unit = ReadUnit(&File, Debug);
                 if(Unit.Type != UIUnit_None)
                 {
                     Token->Unit = Unit;
@@ -434,8 +434,7 @@ TokenizeStyleFile(os_read_file File, memory_arena *Arena, style_file_debug_info 
             }
             else
             {
-                byte_string Message = byte_string_literal("Stray ':' did you mean ':=' ?");
-                ReportStyleFileError(FileName, AtLine, ConsoleMessage_Error, Message);
+                ReportStyleFileError(Debug, error_message("Stray ':' did you mean ':=' ?"));
             }
 
             continue;
@@ -446,7 +445,7 @@ TokenizeStyleFile(os_read_file File, memory_arena *Arena, style_file_debug_info 
             style_token *Token = EmitStyleToken(&Result.Buffer, StyleToken_Vector, AtLine, InFile);
             if (Token)
             {
-                Token->Vector = ReadVector(&File, FileName, AtLine);
+                Token->Vector = ReadVector(&File, Debug);
             }
 
             continue;
@@ -472,8 +471,7 @@ TokenizeStyleFile(os_read_file File, memory_arena *Arena, style_file_debug_info 
                 }
                 else
                 {
-                    byte_string Message = byte_string_literal("Found invalid character in string");
-                    ReportStyleFileError(FileName, AtLine, ConsoleMessage_Error, Message);
+                    ReportStyleFileError(Debug, error_message("Found invalid character in string"));
                 }
             }
 
@@ -490,7 +488,7 @@ TokenizeStyleFile(os_read_file File, memory_arena *Arena, style_file_debug_info 
 
         // NOTE: Break? Seems wrong... Because 1 wrong token = invalid file??
 
-        ReportStyleFileError(FileName, AtLine, ConsoleMessage_Error, byte_string_literal("Found invalid character"));
+        ReportStyleFileError(Debug, error_message("Found invalid character"));
         break;
     }
 
@@ -504,14 +502,14 @@ TokenizeStyleFile(os_read_file File, memory_arena *Arena, style_file_debug_info 
 // [Parser]
 
 internal style_effect
-ParseStyleEffect(byte_string FileName, style_token_buffer *Buffer)
+ParseStyleEffect(style_token_buffer *Buffer, style_file_debug_info *Debug)
 {
     style_effect Effect = {0};
 
-    style_token *AtSymbol = PeekStyleToken(Buffer, 0);
+    style_token *AtSymbol = PeekStyleToken(Buffer, 0, Debug);
     if(AtSymbol->Type == StyleToken_AtSymbol)
     {
-        style_token *Name = PeekStyleToken(Buffer, 1);
+        style_token *Name = PeekStyleToken(Buffer, 1, Debug);
         if(Name->Type == StyleToken_Identifier)
         {
             StyleEffect_Type EffectType = StyleEffect_None;
@@ -532,14 +530,12 @@ ParseStyleEffect(byte_string FileName, style_token_buffer *Buffer)
             }
             else
             {
-                byte_string Message = byte_string_literal("Found invalid effect. Must be: [base OR hover OR click]");
-                ReportStyleFileError(FileName, AtSymbol->LineInFile, ConsoleMessage_Error, Message);
+                ReportStyleFileError(Debug, error_message("Found invalid effect. Must be: [base OR hover OR click]"));
             }
         }
         else
         {
-            byte_string Message = byte_string_literal("Expected an identifier after trying to set an effect with @");
-            ReportStyleFileError(FileName, AtSymbol->LineInFile, ConsoleMessage_Error, Message);
+            ReportStyleFileError(Debug, error_message("Expected an identifier after trying to set an effect with @"));
         }
     }
 
@@ -547,11 +543,11 @@ ParseStyleEffect(byte_string FileName, style_token_buffer *Buffer)
 }
 
 internal style_attribute
-ParseStyleAttribute(byte_string FileName, style_token_buffer *Buffer, style_var_table *VarTable)
+ParseStyleAttribute(style_token_buffer *Buffer, style_var_table *VarTable, style_file_debug_info *Debug)
 {
     style_attribute Attribute = {0};
 
-    style_token *Name = PeekStyleToken(Buffer, 0);
+    style_token *Name = PeekStyleToken(Buffer, 0, Debug);
     {
         if(Name->Type == StyleToken_Identifier)
         {
@@ -573,8 +569,7 @@ ParseStyleAttribute(byte_string FileName, style_token_buffer *Buffer, style_var_
             }
             else
             {
-                byte_string Message = byte_string_literal("Found an invalid attribute. (Token 1)");
-                ReportStyleFileError(FileName, Name->LineInFile, ConsoleMessage_Error, Message);
+                ReportStyleFileError(Debug, error_message("Found an invalid attribute. (Token 1)"));
 
                 Attribute.HadError = 1;
             }
@@ -583,16 +578,15 @@ ParseStyleAttribute(byte_string FileName, style_token_buffer *Buffer, style_var_
         }
         else
         {
-            byte_string Message = byte_string_literal("Expected an identifier. (Token 1)");
-            ReportStyleFileError(FileName, Name->LineInFile, ConsoleMessage_Error, Message);
+            ReportStyleFileError(Debug, error_message("Expected an identifier. (Token 1)"));
 
-            SynchronizeParser(Buffer, StyleToken_SemiColon);
+            SynchronizeParser(Buffer, StyleToken_SemiColon, Debug);
             Attribute.HadError = 1;
             return Attribute;
         }
     }
 
-    style_token *Assignment = PeekStyleToken(Buffer, 0);
+    style_token *Assignment = PeekStyleToken(Buffer, 0, Debug);
     {
         if (Assignment->Type == StyleToken_Assignment)
         {
@@ -600,16 +594,15 @@ ParseStyleAttribute(byte_string FileName, style_token_buffer *Buffer, style_var_
         }
         else
         {
-            byte_string Message = byte_string_literal("Expected an assignment (:=). (Token 2)");
-            ReportStyleFileError(FileName, Name->LineInFile, ConsoleMessage_Error, Message);
+            ReportStyleFileError(Debug, error_message("Expected an assignment (:=). (Token 2)"));
 
-            SynchronizeParser(Buffer, StyleToken_SemiColon);
+            SynchronizeParser(Buffer, StyleToken_SemiColon, Debug);
             Attribute.HadError = 1;
             return Attribute;
         }
     }
 
-    style_token *Value = PeekStyleToken(Buffer, 0);
+    style_token *Value = PeekStyleToken(Buffer, 0, Debug);
     {
         if(Value->Type == StyleToken_Identifier)
         {
@@ -621,8 +614,7 @@ ParseStyleAttribute(byte_string FileName, style_token_buffer *Buffer, style_var_
             }
             else
             {
-                byte_string Message = byte_string_literal("Found unknown variable. (Token 3)");
-                ReportStyleFileError(FileName, Name->LineInFile, ConsoleMessage_Error, Message);
+                ReportStyleFileError(Debug, error_message("Found unknown variable. (Token 3)"));
 
                 Attribute.HadError = 1;
             }
@@ -637,16 +629,15 @@ ParseStyleAttribute(byte_string FileName, style_token_buffer *Buffer, style_var_
         }
         else
         {
-            byte_string Message = byte_string_literal("Expected a value. (Token 3)");
-            ReportStyleFileError(FileName, Name->LineInFile, ConsoleMessage_Error, Message);
+            ReportStyleFileError(Debug, error_message("Expected a value. (Token 3)"));
 
-            SynchronizeParser(Buffer, StyleToken_SemiColon);
+            SynchronizeParser(Buffer, StyleToken_SemiColon, Debug);
             Attribute.HadError = 1;
             return Attribute;
         }
     }
 
-    style_token *End = PeekStyleToken(Buffer, 0);
+    style_token *End = PeekStyleToken(Buffer, 0, Debug);
     {
         if (End->Type == StyleToken_SemiColon)
         {
@@ -654,10 +645,9 @@ ParseStyleAttribute(byte_string FileName, style_token_buffer *Buffer, style_var_
         }
         else
         {
-            byte_string Message = byte_string_literal("Expected ';' to terminate the expression. (Token 4)");
-            ReportStyleFileError(FileName, Name->LineInFile, ConsoleMessage_Error, Message);
+            ReportStyleFileError(Debug, error_message("Expected ';' to terminate the expression. (Token 4)"));
 
-            SynchronizeParser(Buffer, StyleToken_SemiColon);
+            SynchronizeParser(Buffer, StyleToken_SemiColon, Debug);
             Attribute.HadError = 1;
             return Attribute;
         }
@@ -667,11 +657,11 @@ ParseStyleAttribute(byte_string FileName, style_token_buffer *Buffer, style_var_
 }
 
 internal style_block
-ParseStyleBlock(byte_string FileName, style_token_buffer *Buffer, style_var_table *VarTable)
+ParseStyleBlock(style_token_buffer *Buffer, style_var_table *VarTable, style_file_debug_info *Debug)
 {
     style_block Result = {0};
 
-    style_token *Next = PeekStyleToken(Buffer, 0);
+    style_token *Next = PeekStyleToken(Buffer, 0, Debug);
     if(Next->Type == StyleToken_OpenBrace)
     {
         EatStyleToken(Buffer, 1);
@@ -680,7 +670,7 @@ ParseStyleBlock(byte_string FileName, style_token_buffer *Buffer, style_var_tabl
 
         while(1)
         {
-            Next = PeekStyleToken(Buffer, 0);
+            Next = PeekStyleToken(Buffer, 0, Debug);
 
             if(StyleTokenMatch(Next, StyleToken_EndOfFile))
             {
@@ -696,14 +686,14 @@ ParseStyleBlock(byte_string FileName, style_token_buffer *Buffer, style_var_tabl
             // Try to parse an @Effect if we find one, set it, otherwise
             // we found an attribute. At least, that's what we expect.
 
-            style_effect Effect = ParseStyleEffect(FileName, Buffer);
+            style_effect Effect = ParseStyleEffect(Buffer, Debug);
             if(Effect.Type != StyleEffect_None)
             {
                 CurrentEffect = Effect.Type;
             }
             else
             {
-                style_attribute Attribute = ParseStyleAttribute(FileName, Buffer, VarTable);
+                style_attribute Attribute = ParseStyleAttribute(Buffer, VarTable, Debug);
                 if(!Attribute.HadError)
                 {
                     if(!Result.Attributes[CurrentEffect][Attribute.PropertyType].IsSet)
@@ -713,8 +703,7 @@ ParseStyleBlock(byte_string FileName, style_token_buffer *Buffer, style_var_tabl
                     }
                     else
                     {
-                        byte_string Message = byte_string_literal("Attribute has already been set for this effect.");
-                        ReportStyleFileError(FileName, Attribute.LineInFile, ConsoleMessage_Warn, Message);
+                        ReportStyleFileError(Debug, warn_message("Attribute has already been set for this effect."));
                     }
                 }
             }
@@ -723,18 +712,18 @@ ParseStyleBlock(byte_string FileName, style_token_buffer *Buffer, style_var_tabl
     }
     else
     {
-        ReportStyleFileError(FileName, Next->LineInFile, ConsoleMessage_Error, byte_string_literal("Expected '{' after header"));
+        ReportStyleFileError(Debug, error_message("Expected '{' after header"));
     }
 
     return Result;
 }
 
 internal style_header
-ParseStyleHeader(byte_string FileName, style_token_buffer *Buffer)
+ParseStyleHeader(style_token_buffer *Buffer, style_file_debug_info *Debug)
 {
     style_header Header = {0};
 
-    style_token *Style = PeekStyleToken(Buffer, 0);
+    style_token *Style = PeekStyleToken(Buffer, 0, Debug);
     {
         if (Style->Type == StyleToken_Style)
         {
@@ -742,15 +731,14 @@ ParseStyleHeader(byte_string FileName, style_token_buffer *Buffer)
         }
         else
         {
-            byte_string Message = byte_string_literal("Unknown token when declaring a header. Expected 'Style'.");
-            ReportStyleFileError(FileName, Style->LineInFile, ConsoleMessage_Error, Message);
+            ReportStyleFileError(Debug, error_message("Expected 'Style' as the first token."));
 
             Header.HadError = 1;
             return Header;
         }
     }
 
-    style_token *Name = PeekStyleToken(Buffer, 0);
+    style_token *Name = PeekStyleToken(Buffer, 0, Debug);
     {
         if (Name->Type == StyleToken_String)
         {
@@ -759,8 +747,7 @@ ParseStyleHeader(byte_string FileName, style_token_buffer *Buffer)
         }
         else
         {
-            byte_string Message = byte_string_literal("Unknown token when declaring a header. Expected 'string' (style name).");
-            ReportStyleFileError(FileName, Name->LineInFile, ConsoleMessage_Error, Message);
+            ReportStyleFileError(Debug, error_message("Expected 'Name' after 'style'. Must be a string."));
 
             Header.HadError = 1;
             return Header;
@@ -771,11 +758,11 @@ ParseStyleHeader(byte_string FileName, style_token_buffer *Buffer)
 }
 
 internal style_variable
-ParseStyleVariable(byte_string FileName, style_token_buffer *Buffer)
+ParseStyleVariable(style_token_buffer *Buffer, style_file_debug_info *Debug)
 {
     style_variable Variable = {0};
 
-    style_token *Var = PeekStyleToken(Buffer, 0);
+    style_token *Var = PeekStyleToken(Buffer, 0, Debug);
     {
         if(Var->Type == StyleToken_Var)
         {
@@ -788,7 +775,7 @@ ParseStyleVariable(byte_string FileName, style_token_buffer *Buffer)
         }
     }
 
-    style_token *Name = PeekStyleToken(Buffer, 0);
+    style_token *Name = PeekStyleToken(Buffer, 0, Debug);
     {
         if(Name->Type == StyleToken_Identifier)
         {
@@ -797,13 +784,12 @@ ParseStyleVariable(byte_string FileName, style_token_buffer *Buffer)
         }
         else
         {
-            byte_string Message = byte_string_literal("Exptected an identifier when setting the variable's name.");
-            ReportStyleFileError(FileName, Name->LineInFile, ConsoleMessage_Error, Message);
+            ReportStyleFileError(Debug, error_message("Expected a name for variable. Name must be [a..z][A..Z][_]"));
             Variable.IsValid = 0;
         }
     }
 
-    style_token *Assignment = PeekStyleToken(Buffer, 0);
+    style_token *Assignment = PeekStyleToken(Buffer, 0, Debug);
     {
         if(Assignment->Type == StyleToken_Assignment)
         {
@@ -811,13 +797,12 @@ ParseStyleVariable(byte_string FileName, style_token_buffer *Buffer)
         }
         else
         {
-            byte_string Message = byte_string_literal("Exptected an assignment (:=) after setting the variable's name");
-            ReportStyleFileError(FileName, Assignment->LineInFile, ConsoleMessage_Error, Message);
+            ReportStyleFileError(Debug, error_message("Exptected an assignment (:=) after setting the variable's name"));
             Variable.IsValid = 0;
         }
     }
 
-    style_token *Value = PeekStyleToken(Buffer, 0);
+    style_token *Value = PeekStyleToken(Buffer, 0, Debug);
     {
         if (Value->Type == StyleToken_Unit || Value->Type == StyleToken_String || Value->Type == StyleToken_Vector)
         {
@@ -826,13 +811,12 @@ ParseStyleVariable(byte_string FileName, style_token_buffer *Buffer)
         }
         else
         {
-            byte_string Message = byte_string_literal("Exptected a value after the assignment.");
-            ReportStyleFileError(FileName, Value->LineInFile, ConsoleMessage_Error, Message);
+            ReportStyleFileError(Debug, error_message("Exptected a value after the assignment."));
             Variable.IsValid = 0;
         }
     }
 
-    style_token *End = PeekStyleToken(Buffer, 0);
+    style_token *End = PeekStyleToken(Buffer, 0, Debug);
     {
         if(End->Type == StyleToken_SemiColon)
         {
@@ -840,8 +824,7 @@ ParseStyleVariable(byte_string FileName, style_token_buffer *Buffer)
         }
         else
         {
-            byte_string Message = byte_string_literal("Exptected ';' after creating a variable.");
-            ReportStyleFileError(FileName, End->LineInFile, ConsoleMessage_Error, Message);
+            ReportStyleFileError(Debug, error_message("Exptected ';' after creating a variable."));
             Variable.IsValid = 0;
         }
     }
@@ -850,7 +833,7 @@ ParseStyleVariable(byte_string FileName, style_token_buffer *Buffer)
 }
 
 internal ui_style_subregistry *
-ParseStyleFile(style_file *File, memory_arena *Arena)
+ParseStyleFile(tokenized_style_file *File, memory_arena *Arena, style_file_debug_info *Debug)
 {
     ui_style_subregistry *Result = PushArray(Arena, ui_style_subregistry, 1);
 
@@ -874,10 +857,10 @@ ParseStyleFile(style_file *File, memory_arena *Arena)
 
         if(VarTable)
         {
-            style_token *Next = PeekStyleToken(&File->Buffer, 0);
+            style_token *Next = PeekStyleToken(&File->Buffer, 0, Debug);
             while (Next->Type != StyleToken_EndOfFile)
             {
-                style_variable Variable = ParseStyleVariable(File->Name, &File->Buffer);
+                style_variable Variable = ParseStyleVariable(&File->Buffer, Debug);
                 while (Variable.IsValid) 
                 {
                     style_var_hash   Hash  = HashStyleVar(Variable.Name);
@@ -889,37 +872,36 @@ ParseStyleFile(style_file *File, memory_arena *Arena)
                     }
                     else
                     {
-                        byte_string Message = byte_string_literal("Two variables cannot have the same name");
-                        ReportStyleFileError(File->Name, Variable.LineInFile, ConsoleMessage_Error, Message);
+                        ReportStyleFileError(Debug, error_message("Two variables cannot have the same name"));
                     }
 
-                    Variable = ParseStyleVariable(File->Name, &File->Buffer);
+                    Variable = ParseStyleVariable(&File->Buffer, Debug);
                 };
 
                 style Style = {0};
-                Style.Header = ParseStyleHeader(File->Name, &File->Buffer);
-                Style.Block  = ParseStyleBlock(File->Name , &File->Buffer, VarTable);
+                Style.Header = ParseStyleHeader(&File->Buffer, Debug);
+                Style.Block  = ParseStyleBlock(&File->Buffer, VarTable, Debug);
 
                 // TODO: Kinda have to create an empty style...
 
                 if(!Style.Header.HadError && Style.Block.AttributesCount > 0)
                 {
-                    CacheStyle(File->Name, &Style, Result);
+                    CacheStyle(&Style, Result, Debug);
                 }
 
-                Next = PeekStyleToken(&File->Buffer, 0);
+                Next = PeekStyleToken(&File->Buffer, 0, Debug);
             }
         }
         else
         {
-            ReportStyleParserError(ConsoleMessage_Error, byte_string_literal("Could not allocate style_var_table."));
+            ReportStyleParserError(Debug, error_message("Could not allocate style_var_table."));
         }
 
         LeaveMemoryRegion(TransientData);
     }
     else
     {
-        ReportStyleParserError(ConsoleMessage_Error, byte_string_literal("Could not allocate subregistry."));
+        ReportStyleParserError(Debug, error_message("Could not allocate subregistry."));
     }
 
     return Result;
@@ -990,7 +972,6 @@ PopFreeStyleVarEntry(style_var_table *Table)
 
     if (!Sentinel->NextWithSameHash)
     {
-        ReportStyleParserError(ConsoleMessage_Error, byte_string_literal("Maximum amount of variables exceeded for file."));
         return 0;
     }
 
@@ -1035,8 +1016,6 @@ FindStyleVarEntry(style_var_hash Hash, style_var_table *Table)
         }
     }
 
-    Assert(Result);
-
     return Result;
 }
 
@@ -1060,7 +1039,7 @@ GetStyleVarTableFootprint(style_var_table_params Params)
 // [CACHING]
 
 internal void
-ValidateAttributeFormatting(byte_string FileName, style_attribute *Attribute)
+ValidateAttributeFormatting(style_attribute *Attribute, style_file_debug_info *Debug)
 {
     Assert(!Attribute->HadError && Attribute->IsSet);
 
@@ -1203,7 +1182,7 @@ ValidateAttributeFormatting(byte_string FileName, style_attribute *Attribute)
 
     if(IsValidByteString(ErrorMessage))
     {
-        ReportStyleFileError(FileName, Attribute->LineInFile, ConsoleMessage_Error, ErrorMessage);
+        ReportStyleFileError(Debug, error_message((char *)ErrorMessage.String));
 
         Attribute->IsSet = 0;
     }
@@ -1281,7 +1260,7 @@ ConvertAttributeToProperty(style_attribute Attribute)
 }
 
 internal void
-CacheStyle(byte_string FileName, style *ParsedStyle, ui_style_subregistry *Registry)
+CacheStyle(style *ParsedStyle, ui_style_subregistry *Registry, style_file_debug_info *Debug)
 {
     Assert(Registry->StyleCount < Registry->StyleCapacity);
 
@@ -1300,7 +1279,7 @@ CacheStyle(byte_string FileName, style *ParsedStyle, ui_style_subregistry *Regis
             style_attribute Attribute = Block->Attributes[Effect][Property];
             if(Attribute.IsSet)
             {
-                ValidateAttributeFormatting(FileName, &Attribute);
+                ValidateAttributeFormatting(&Attribute, Debug);
                 if(Attribute.IsSet)
                 {
                     CachedStyle->Properties[Effect][Property] = ConvertAttributeToProperty(Attribute);
@@ -1315,30 +1294,46 @@ CacheStyle(byte_string FileName, style *ParsedStyle, ui_style_subregistry *Regis
 // [Error Handling]
 
 internal void
-SynchronizeParser(style_token_buffer *Buffer, StyleToken_Type StopAt)
+SynchronizeParser(style_token_buffer *Buffer, StyleToken_Type StopAt, style_file_debug_info *Debug)
 {
-    while(PeekStyleToken(Buffer, 0)->Type != StopAt)
+    style_token *Next = PeekStyleToken(Buffer, 0, Debug);
+    while(1)
     {
+        if(StyleTokenMatch(Next, StopAt) || StyleTokenMatch(Next, StyleToken_EndOfFile))
+        {
+            break;
+        }
+
         EatStyleToken(Buffer, 1);
+        Next = PeekStyleToken(Buffer, 0, Debug);
     }
 
     EatStyleToken(Buffer, 1);
 }
 
 internal void
-ReportStyleFileError(byte_string FileName, u32 Line, ConsoleMessage_Severity Severity, byte_string Message)
+ReportStyleFileError(style_file_debug_info *Debug, ConsoleMessage_Severity Severity, byte_string Message)
 {
     u8          Buffer[Kilobyte(4)] = {0};
     byte_string Error               = ByteString(Buffer, 0);
 
-    Error.Size += snprintf((char *)Error.String             , sizeof(Buffer), "[File %s | Line: %u]", FileName.String, Line);
+    Error.Size += snprintf((char *)Error.String             , sizeof(Buffer), "[File %s | Line: %u]", Debug->FileName.String, Debug->CurrentLineInFile);
     Error.Size += snprintf((char *)Error.String + Error.Size, sizeof(Buffer), "[%s]", Message.String);
 
-    ReportStyleParserError(Severity, Error);
+    ReportStyleParserError(Debug, Severity, Error);
 }
 
 internal void
-ReportStyleParserError(ConsoleMessage_Severity Severity, byte_string Message)
+ReportStyleParserError(style_file_debug_info *Debug, ConsoleMessage_Severity Severity, byte_string Message)
 {
+    if(Severity == ConsoleMessage_Error)
+    {
+        Debug->ErrorCount++;
+    }
+    else if(Severity == ConsoleMessage_Warn)
+    {
+        Debug->WarningCount++;
+    }
+
     ConsoleWriteMessage(Message, Severity, &Console);
 }

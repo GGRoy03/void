@@ -26,6 +26,9 @@ typedef enum ConsoleMessage_Constant
     ConsoleMessage_MaximumLength = 512,
 } ConsoleMessage_Constant;
 
+#define error_message(Message) ConsoleMessage_Error, byte_string_literal(Message)
+#define warn_message(Message)  ConsoleMessage_Warn , byte_string_literal(Message)
+
 // [CORE TYPES]
 
 typedef struct console_message console_message;
