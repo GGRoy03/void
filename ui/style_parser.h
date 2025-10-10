@@ -29,6 +29,8 @@ enum StyleParser_Constant
 
 // [CORE TYPES]
 
+// Tokens genrated by the tokenizer and used by the parser
+
 typedef struct style_token
 {
     u32 LineInFile;
@@ -48,15 +50,25 @@ typedef struct style_token_buffer
 {
     style_token *Tokens;
     u64          At;
+    u64          Count;
     u64          Size;
 } style_token_buffer;
 
-typedef struct style_file
+// Parsing Context
+
+typedef struct style_file_debug_info
 {
-    byte_string        Name;
-    u64                StyleCount;
+    byte_string  FileName;
+    os_read_file FileContent;
+    u32          ErrorCount;
+} style_file_debug_info;
+
+typedef struct tokenized_style_file
+{
+    b32                CanBeParsed;
+    u32                StyleCount;
     style_token_buffer Buffer;
-} style_file;
+} tokenized_style_file;
 
 // Style Primitives
 // The diffrent primitives that compose a style file.
@@ -99,7 +111,7 @@ typedef struct style_effect
 
 typedef struct style_block
 {
-    u32             AttributeCount;
+    u32             AttributesCount;
     style_attribute Attributes[StyleEffect_Count][StyleProperty_Count];
 } style_block;
 
@@ -163,12 +175,6 @@ typedef struct style_property_table_entry
     StyleProperty_Type PropertyType;
 } style_property_table_entry;
 
-typedef struct style_parser_error_entry
-{
-    byte_string             Message;
-    ConsoleMessage_Severity Severity;
-} style_parser_error_entry;
-
 // [GLOBALS]
 
 read_only global style_keyword_table_entry StyleKeywordTable[] = 
@@ -207,23 +213,22 @@ internal ui_style_subregistry * CreateStyleSubregistry  (byte_string FileName, m
 // [Helpers]
 
 internal b32      IsValidStyleTokenBuffer  (style_token_buffer *Buffer);
-internal b32      IsValidStyleFile         (style_file *File);
 internal ui_color ToNormalizedColor        (vec4_unit Vec);
 
 // [Tokenizer]
 
-internal style_token * GetStyleToken       (style_token_buffer *Buffer, u64 Index);
-internal style_token * EmitStyleToken      (style_token_buffer *Buffer, StyleToken_Type Type, u32 AtLine, u8 *InFile);
-internal style_token * PeekStyleToken      (style_token_buffer *Buffer, i32 Offset);
-internal void          ConsumeStyleTokens  (style_token_buffer *Buffer, u32 Count);
-internal ui_unit       ReadUnit            (os_read_file *File, byte_string FileName, u32 LineInFile);
-internal byte_string   ReadIdentifier      (os_read_file *File);
-internal vec4_unit     ReadVector          (os_read_file *File, byte_string FileName, u32 LineInFile);
-internal style_file    TokenizeStyleFile   (byte_string FileName, os_read_file File, memory_arena *Arena);
+internal style_token        * GetStyleToken      (style_token_buffer *Buffer, i64 Index);
+internal style_token        * EmitStyleToken     (style_token_buffer *Buffer, StyleToken_Type Type, u32 AtLine, u8 *InFile);
+internal style_token        * PeekStyleToken     (style_token_buffer *Buffer, i32 Offset);
+internal void                 EatStyleTokens     (style_token_buffer *Buffer, u32 Count);
+internal ui_unit              ReadUnit           (os_read_file *File, byte_string FileName, u32 LineInFile);
+internal byte_string          ReadIdentifier     (os_read_file *File);
+internal vec4_unit            ReadVector         (os_read_file *File, byte_string FileName, u32 LineInFile);
+internal tokenized_style_file TokenizeStyleFile  (os_read_file File, memory_arena *Arena, style_file_debug_info *Debug);
 
 // [Parsing Routines]
 
-internal ui_style_subregistry * ParseStyleFile       (style_file *File, memory_arena *Arena);
+internal ui_style_subregistry * ParseStyleFile       (tokenized_style_file *File, memory_arena *Arena);
 internal style_header           ParseStyleHeader     (byte_string FileName, style_token_buffer *Buffer);
 internal style_block            ParseStyleBlock      (byte_string FileName, style_token_buffer *Buffer, style_var_table *VarTable);
 internal style_attribute        ParseStyleAttribute  (byte_string FileName, style_token_buffer *Buffer, style_var_table *VarTable);

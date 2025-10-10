@@ -3,7 +3,7 @@ extern "C"
 #include "base/base_inc.h"
 #include "os/os_inc.h"
 #include "render/render_inc.h"
-#include "ui/ui_core.h"
+#include "ui/core.h"
 #include "editor/console.h"
 #include "third_party/stb_rect_pack.h"
 }
