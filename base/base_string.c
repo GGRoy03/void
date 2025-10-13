@@ -106,6 +106,45 @@ ByteStringAppendBefore(byte_string Pre, byte_string Post, memory_arena *Arena)
     return Result;
 }
 
+internal byte_string
+ByteStringAppend(byte_string Target, byte_string Source, u64 At, memory_arena *Arena)
+{
+    byte_string Result = ByteString(0, 0);
+
+    if(At < Target.Size)
+    {
+        u64 Size = Target.Size + Source.Size;
+        u8 *Str  = PushArray(Arena, u8, Size);
+
+        Result = ByteString(Str, Size);
+
+        // Copy from target[0]..At into the result buffer.
+
+        for(u32 Idx = 0; Idx < At; ++Idx)
+        {
+            Result.String[Idx] = Target.String[Idx];
+        }
+
+        // Append the source string into the result buffer.
+
+        u32 SourceIdx = 0;
+        for(u32 Idx = At; Idx < Source.Size; ++Idx)
+        {
+            Result.String[Idx] = Source.String[SourceIdx++];
+        }
+
+        // Copy the rest of target into the result buffer.
+
+        u32 TargetIdx = At;
+        for(u32 Idx = At + Source.Size; TargetIdx < Target.Size; ++Idx)
+        {
+            Result.String[Idx] = Target.String[TargetIdx++];
+        }
+    }
+
+    return Result;
+}
+
 external b32
 IsValidWideString(wide_string Input)
 {
@@ -127,28 +166,35 @@ WideStringAppendBefore(wide_string Pre, wide_string Post, memory_arena *Arena)
 
 // [Character Utilities]
 
-static b32
+internal b32
 IsAlpha(u8 Char)
 {
     b32 Result = (Char >= 'A' && Char <= 'Z') || (Char >= 'a' && Char <= 'z');
     return Result;
 }
 
-static b32
+internal b32
 IsDigit(u8 Char)
 {
     b32 Result = (Char >= '0' && Char <= '9');
     return Result;
 }
 
-static b32
+internal b32
 IsWhiteSpace(u8 Char)
 {
     b32 Result = (Char == ' ') || (Char == '\t');
     return Result;
 }
 
-static u8 
+internal b32
+IsNewLine(u8 Char)
+{
+    b32 Result = (Char == '\n' || Char == '\r');
+    return Result;
+}
+
+internal u8 
 ToLowerChar(u8 Char)
 {
     Assert(IsAlpha(Char));

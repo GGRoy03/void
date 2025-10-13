@@ -6,6 +6,14 @@
 #define OS_MouseButtonCount 5
 #define OS_MAX_PATH 256
 
+typedef enum OSConstant_Type
+{
+
+    OSConstant_MouseButtonCount    = 5,
+    OSConstant_KeyboardButtonCount = 256,
+    OSConstant_MaxPath             = 256,
+} OSConstant_Type;
+
 typedef enum OSMouseButton_Type
 {
     OSMouseButton_None  = 0,
@@ -56,6 +64,7 @@ typedef struct os_button_state
 
 typedef struct os_inputs
 {
+    b32             IsActiveFrame;
     os_button_state KeyboardButtons[OS_KeyboardButtonCount];
     f32             ScrollDelta;
     vec2_f32        MousePosition;
@@ -96,14 +105,16 @@ internal void         OSReleaseFile  (os_handle Handle);
 
 // [OS State]
 
-internal os_system_info *OSGetSystemInfo     (void);
-internal vec2_i32        OSGetClientSize     (void);
-internal vec2_f32        OSGetMousePosition  (void);
-internal vec2_f32        OSGetMouseDelta     (void);
-internal b32             OSIsMouseClicked    (OSMouseButton_Type Button);
-internal b32             OSIsMouseHeld       (OSMouseButton_Type Button);
-internal b32             OSIsMouseReleased   (OSMouseButton_Type Button);
-internal void            OSClearInputs       (void);
+internal os_system_info * OSGetSystemInfo     (void);
+internal os_inputs      * OSGetInputs         (void);
+internal vec2_i32         OSGetClientSize     (void);
+internal b32              OSIsActiveFrame     (void);
+internal vec2_f32         OSGetMousePosition  (void);
+internal vec2_f32         OSGetMouseDelta     (void);
+internal b32              OSIsMouseClicked    (OSMouseButton_Type Button);
+internal b32              OSIsMouseHeld       (OSMouseButton_Type Button);
+internal b32              OSIsMouseReleased   (OSMouseButton_Type Button);
+internal void             OSClearInputs       (void);
 
 // [Memory]
 

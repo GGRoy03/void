@@ -373,7 +373,7 @@ TokenizeStyleFile(os_read_file File, memory_arena *Arena, style_file_debug_info 
             continue;
         }
 
-        if (Char == '\r' || Char == '\n')
+        if (IsNewLine(Char))
         {
             u8 Next = PeekFile(&File, 1);
             if (Char == '\r' && Next == '\n')
@@ -448,6 +448,18 @@ TokenizeStyleFile(os_read_file File, memory_arena *Arena, style_file_debug_info 
         {
             AdvanceFile(&File, 1);
             EmitStyleToken(&Result.Buffer, (StyleToken_Type)Char, AtLine, AtByte);
+
+            continue;
+        }
+
+        if(Char == '#')
+        {
+            AdvanceFile(&File, 1);
+
+            while(!IsNewLine(PeekFile(&File, 0)))
+            {
+                AdvanceFile(&File, 1);
+            }
 
             continue;
         }

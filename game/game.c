@@ -32,19 +32,25 @@ GameEntryPoint()
 
     while(OSUpdateWindow())
     {
+        UIBeginFrame();
+
         ShowEditorUI();
 
-        SubmitRenderCommands();
+        UIEndFrame();
 
         OSClearInputs();
         OSSleep(5);
     }
 
     // NOTE: This shouldn't be needed but the debug layer for D3D is triggering
-    // an error if the resources aren't released. So this is for convenience.
-    // There are warnings still, but at least it doesn't crash.
-    for (ui_font *Font = UIState.First; Font != 0; Font = Font->Next)
+    // an error and preventing the window from closing if the resources
+    // related to fonts aren't released. So this is for convenience :)
     {
-        OSReleaseFontObjects(&Font->OSFontObjects);
+        ui_font_list *FontList = &UIState.Fonts;
+
+        IterateLinkedList(FontList->First, ui_font *, Font)
+        {
+            OSReleaseFontObjects(&Font->OSFontObjects);
+        }
     }
 }

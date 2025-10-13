@@ -16,9 +16,9 @@ typedef struct game_state game_state;
 typedef struct editor_console_ui
 {
     memory_arena *Arena;
-    ui_pipeline   Pipeline;
+    ui_pipeline  *Pipeline;
     b32           IsInitialized;
 } editor_console_ui;
 
 internal void ConsoleUI            (editor_console_ui *Console);
-external void ConsolePrintMessage  (byte_string Message, ConsoleMessage_Severity Severity);
+external void ConsolePrintMessage  (byte_string Message, ConsoleMessage_Severity Severity, ui_layout_node *Node);

@@ -46,63 +46,159 @@ IsNormalizedColor(ui_color Color)
     return Result;
 }
 
-// [Pipeline]
+// [Frame Context]
 
-internal ui_pipeline
-UICreatePipeline(ui_pipeline_params Params)
+internal void
+UIBeginFrame()
 {
-    ui_pipeline Result = {0};
+    ui_state *State = &UIState;
 
-    // Arena (TODO: Params Alloc)
+    b32 MouseReleased = OSIsMouseReleased(OSMouseButton_Left);
+    if(MouseReleased)
     {
-        {
-            memory_arena_params ArenaParams = {0};
-            ArenaParams.AllocatedFromFile = __FILE__;
-            ArenaParams.AllocatedFromLine = __LINE__;
-            ArenaParams.ReserveSize       = Megabyte(1);
-            ArenaParams.CommitSize        = Kilobyte(1);
+        State->CapturedNode = 0;
+        State->Intent       = UIIntent_None;
+    }
 
-            Result.FrameArena = AllocateArena(ArenaParams);
+    ui_pipeline_list *PipelineList  = &State->Pipelines;
+    b32               IsActiveFrame = OSIsActiveFrame();
+    IterateLinkedList(PipelineList->First, ui_pipeline *, Pipeline)
+    {
+        Pipeline->IsStale = IsActiveFrame;
+    }
+}
+
+// TODO: Lerp the drag-delta or something if vsync is activated. Also, figure
+// out if this introduces too much delay on the cursor and whatnot.
+
+internal void
+UIEndFrame()
+{
+    ui_state *State = &UIState;
+
+    // Set the correct cursor
+
+    vec2_f32 MouseDelta = OSGetMouseDelta();
+    b32      MouseMoved = (MouseDelta.X != 0 || MouseDelta.Y != 0);
+
+    switch (State->Intent)
+    {
+
+    default:
+    {
+        OSSetCursor(OSCursor_Default);
+    } break;
+
+    case UIIntent_Drag:
+    {
+        if (State->CapturedNode && MouseMoved)
+        {
+            DragUISubtree(MouseDelta, State->CapturedNode, State->TargetPipeline);
+            OSSetCursor(OSCursor_GrabHand);
+        }
+        else
+        {
+            OSSetCursor(OSCursor_Default);
+        }
+    } break;
+
+    case UIIntent_ResizeX:
+    {
+        if (State->CapturedNode && MouseMoved)
+        {
+            ResizeUISubtree(Vec2F32(MouseDelta.X, 0.f), State->CapturedNode, State->TargetPipeline);
         }
 
+        OSSetCursor(OSCursor_ResizeHorizontal);
+    } break;
+
+    case UIIntent_ResizeY:
+    {
+        if (State->CapturedNode && MouseMoved)
+        {
+            ResizeUISubtree(Vec2F32(0.f, MouseDelta.Y), State->CapturedNode, State->TargetPipeline);
+        }
+
+        OSSetCursor(OSCursor_ResizeVertical);
+    } break;
+
+    case UIIntent_ResizeXY:
+    {
+        if (State->CapturedNode && MouseMoved)
+        {
+            ResizeUISubtree(MouseDelta, State->CapturedNode, State->TargetPipeline);
+        }
+
+        OSSetCursor(OSCursor_ResizeDiagonalLeftToRight);
+    } break;
+
+    }
+
+    SubmitRenderCommands();
+}
+
+// [Pipeline]
+
+internal ui_pipeline *
+UICreatePipeline(ui_pipeline_params Params)
+{
+    ui_state    *State  = &UIState;
+    ui_pipeline *Result = PushArray(State->StaticData, ui_pipeline, 1);
+
+    if(Result)
+    {
+        // Frame Data
         {
             memory_arena_params ArenaParams = { 0 };
             ArenaParams.AllocatedFromFile = __FILE__;
             ArenaParams.AllocatedFromLine = __LINE__;
-            ArenaParams.ReserveSize       = Megabyte(1);
-            ArenaParams.CommitSize        = Kilobyte(1);
+            ArenaParams.ReserveSize = Megabyte(1);
+            ArenaParams.CommitSize = Kilobyte(1);
 
-            Result.StaticArena = AllocateArena(ArenaParams);
+            Result->FrameArena = AllocateArena(ArenaParams);
         }
-    }
 
-    // Layout Tree
-    {
-        ui_layout_tree_params TreeParams = {0};
-        TreeParams.Depth     = Params.TreeDepth;
-        TreeParams.NodeCount = Params.TreeNodeCount;
+        // Static Data
+        {
+            memory_arena_params ArenaParams = { 0 };
+            ArenaParams.AllocatedFromFile = __FILE__;
+            ArenaParams.AllocatedFromLine = __LINE__;
+            ArenaParams.ReserveSize = Megabyte(1);
+            ArenaParams.CommitSize = Kilobyte(1);
 
-        u64   Footprint = GetLayoutTreeFootprint(TreeParams);
-        void *Memory    = PushArray(Result.StaticArena, u8, Footprint);
+            Result->StaticArena = AllocateArena(ArenaParams);
+        }
 
-        Result.LayoutTree = PlaceLayoutTreeInMemory(TreeParams, Memory);
-    }
+        // Layout Tree
+        {
+            ui_layout_tree_params TreeParams = {0};
+            TreeParams.NodeCount = Params.TreeNodeCount;
+            TreeParams.NodeDepth = Params.TreeNodeDepth;
 
-    // Node Id Table
-    {
-        ui_node_id_table_params Params = {0};
-        Params.GroupSize  = NodeIdTable_GroupSize;
-        Params.GroupCount = 32;
+            u64   Footprint = GetLayoutTreeFootprint(TreeParams);
+            void *Memory    = PushArray(Result->StaticArena, u8, Footprint);
 
-        u64   Footprint = GetNodeIdTableFootprint(Params);
-        void *Memory    = PushArray(Result.StaticArena, u8, Footprint);
+            Result->LayoutTree = PlaceLayoutTreeInMemory(TreeParams, Memory);
+        }
 
-        Result.IdTable = PlaceNodeIdTableInMemory(Params, Memory);
-    }
+        // Node Id Table
+        {
+            ui_node_id_table_params Params = { 0 };
+            Params.GroupSize = NodeIdTable_GroupSize;
+            Params.GroupCount = 32;
 
-    // Others
-    {
-        Result.Registry = CreateStyleRegistry(Params.ThemeFile, Result.StaticArena);
+            u64   Footprint = GetNodeIdTableFootprint(Params);
+            void *Memory    = PushArray(Result->StaticArena, u8, Footprint);
+
+            Result->IdTable = PlaceNodeIdTableInMemory(Params, Memory);
+        }
+
+        // Registry
+        {
+            Result->Registry = CreateStyleRegistry(Params.ThemeFile, Result->StaticArena);
+        }
+
+        AppendToLinkedList((&State->Pipelines), Result, State->Pipelines.Count);
     }
 
     return Result;
@@ -121,19 +217,24 @@ UIPipelineExecute(ui_pipeline *Pipeline)
 {
     Assert(Pipeline);
 
+    // NOTE: The stale optimization is not yet possible because the renderer doesn't
+    // really allow a "command list" approach. Unsure, how I need to structure it such
+    // that we can omit the pipeline rendering in the case that it isn't stale.
+
     // Unpacking
+    ui_state *State = &UIState;
     ui_layout_node *LayoutRoot = &Pipeline->LayoutTree->Nodes[0];
-    render_pass    *RenderPass = GetRenderPass(Pipeline->FrameArena, RenderPass_UI);
+    render_pass *RenderPass = GetRenderPass(Pipeline->FrameArena, RenderPass_UI);
 
     // Layout
     {
         // NOTE: We set the root values to it's absolute width/height.
         // Which is probably a mistake in the long run, but works fine for now.
 
-        Assert(LayoutRoot->Value.Width.Type  == UIUnit_Float32);
+        Assert(LayoutRoot->Value.Width.Type == UIUnit_Float32);
         Assert(LayoutRoot->Value.Height.Type == UIUnit_Float32);
 
-        LayoutRoot->Value.FinalWidth  = LayoutRoot->Value.Width.Float32;
+        LayoutRoot->Value.FinalWidth = LayoutRoot->Value.Width.Float32;
         LayoutRoot->Value.FinalHeight = LayoutRoot->Value.Height.Float32;
 
         PreOrderMeasure(LayoutRoot, Pipeline);
@@ -143,17 +244,13 @@ UIPipelineExecute(ui_pipeline *Pipeline)
         PreOrderPlace(LayoutRoot, Pipeline);
     }
 
-    vec2_f32 MouseDelta     = OSGetMouseDelta();
-    b32      MouseMoved     = (MouseDelta.X != 0 || MouseDelta.Y != 0);
-    b32      MouseIsClicked = OSIsMouseClicked(OSMouseButton_Left);
-    b32      MouseReleased  = OSIsMouseReleased(OSMouseButton_Left);
-
-    UIIntent_Type Intent = Pipeline->Intent;
-
-    if (!Pipeline->CapturedNode)
+    if (!State->CapturedNode)
     {
-        ui_hit_test Hit = HitTestLayout(OSGetMousePosition(), LayoutRoot, Pipeline);
-        if(Hit.Success)
+        b32      MouseIsClicked = OSIsMouseClicked(OSMouseButton_Left);
+        vec2_f32 MousePosition = OSGetMousePosition();
+
+        ui_hit_test Hit = HitTestLayout(MousePosition, LayoutRoot, Pipeline);
+        if (Hit.Success)
         {
             Assert(Hit.Node);
             Assert(Hit.Intent != UIIntent_None);
@@ -165,105 +262,23 @@ UIPipelineExecute(ui_pipeline *Pipeline)
                     // TODO: Callback or something?
                 }
 
+                State->CapturedNode = Hit.Node;
+                State->Intent = Hit.Intent;
+                State->TargetPipeline = Pipeline;
+
                 SetFlag(Hit.Node->Flags, UILayoutNode_IsClicked);
             }
-
-            switch(Hit.Intent)
-            {
-
-            default: break;
-
-            case UIIntent_Drag:
-            {
-                if(MouseIsClicked)
-                {
-                    Pipeline->CapturedNode = Hit.Node;
-                    Pipeline->Intent       = Hit.Intent;
-                }
-                SetFlag(Hit.Node->Flags, UILayoutNode_IsHovered);
-            } break;
-
-            case UIIntent_ResizeX:
-            case UIIntent_ResizeY:
-            case UIIntent_ResizeXY:
-            {
-                if (MouseIsClicked)
-                {
-                    Pipeline->CapturedNode = Hit.Node;
-                    Pipeline->Intent       = Hit.Intent;
-                }
-            } break;
-
-            }
         }
 
-        Intent = Hit.Intent;
+        State->Intent = Hit.Intent;
     }
 
-    if (MouseReleased)
-    {
-        Pipeline->CapturedNode = 0;
-        Pipeline->Intent       = UIIntent_None;
-    }
-
-    switch (Intent)
-    {
-
-    default:
-    {
-        OSSetCursor(OSCursor_Default);
-    } break;
-
-    case UIIntent_Drag:
-    {
-        if (Pipeline->CapturedNode && MouseMoved)
-        {
-            DragUISubtree(MouseDelta, Pipeline->CapturedNode, Pipeline);
-            OSSetCursor(OSCursor_GrabHand);
-        }
-        else
-        {
-            OSSetCursor(OSCursor_Default);
-        }
-    } break;
-
-    case UIIntent_ResizeX:
-    {
-        if (Pipeline->CapturedNode && MouseMoved)
-        {
-            ResizeUISubtree(Vec2F32(MouseDelta.X, 0.f), Pipeline->CapturedNode, Pipeline);
-        }
-
-        OSSetCursor(OSCursor_ResizeHorizontal);
-    } break;
-
-    case UIIntent_ResizeY:
-    {
-        if (Pipeline->CapturedNode && MouseMoved)
-        {
-            ResizeUISubtree(Vec2F32(0.f, MouseDelta.Y), Pipeline->CapturedNode, Pipeline);
-        }
-
-        OSSetCursor(OSCursor_ResizeVertical);
-    } break;
-
-    case UIIntent_ResizeXY:
-    {
-        if (Pipeline->CapturedNode && MouseMoved)
-        {
-            ResizeUISubtree(MouseDelta, Pipeline->CapturedNode, Pipeline);
-        }
-
-        OSSetCursor(OSCursor_ResizeDiagonalLeftToRight);
-    } break;
-
-    }
-
-    UIPipelineBuildDrawList(Pipeline, RenderPass, LayoutRoot);
+    BuildDrawList(Pipeline, RenderPass, LayoutRoot);
+    
 }
 
 internal void
-UIPipelineBuildDrawList(ui_pipeline *Pipeline, render_pass *Pass, ui_layout_node *LayoutRoot)
+BuildDrawList(ui_pipeline *Pipeline, render_pass *Pass, ui_layout_node *LayoutRoot)
 {
     ui_layout_box *Box = &LayoutRoot->Value;
 
@@ -310,18 +325,26 @@ UIPipelineBuildDrawList(ui_pipeline *Pipeline, render_pass *Pass, ui_layout_node
     ui_cached_style *BaseStyle  = LayoutRoot->CachedStyle;
     ui_cached_style  FinalStyle = *BaseStyle;
     {
-        if(HasFlag(LayoutRoot->Flags, UILayoutNode_IsClicked) && HasFlag(BaseStyle->Flags, CachedStyle_HasClickStyle))
+        if(HasFlag(LayoutRoot->Flags, UILayoutNode_IsClicked))
         {
-            FinalStyle = SuperposeStyle(BaseStyle, StyleEffect_Click);
             ClearFlag(LayoutRoot->Flags, UILayoutNode_IsClicked);
-            goto Draw;
+
+            if(HasFlag(BaseStyle->Flags, CachedStyle_HasClickStyle))
+            {
+                FinalStyle = SuperposeStyle(BaseStyle, StyleEffect_Click);
+                goto Draw;
+            }
         }
 
-        if(HasFlag(LayoutRoot->Flags, UILayoutNode_IsHovered) && HasFlag(BaseStyle->Flags, CachedStyle_HasHoverStyle))
+        if(HasFlag(LayoutRoot->Flags, UILayoutNode_IsHovered))
         {
-            FinalStyle = SuperposeStyle(BaseStyle, StyleEffect_Hover);
             ClearFlag(LayoutRoot->Flags, UILayoutNode_IsHovered);
-            goto Draw;
+
+            if(HasFlag(BaseStyle->Flags, CachedStyle_HasHoverStyle))
+            {
+                FinalStyle = SuperposeStyle(BaseStyle, StyleEffect_Hover);
+                goto Draw;
+            }
         }
     }
 
@@ -361,8 +384,8 @@ Draw:
         }
     }
 
-    for (ui_layout_node *Child = LayoutRoot->First; Child != 0; Child = Child->Next)
+    IterateLinkedList(LayoutRoot->First, ui_layout_node *, Child)
     {
-        UIPipelineBuildDrawList(Pipeline, Pass, Child);
+        BuildDrawList(Pipeline, Pass, Child);
     }
 }

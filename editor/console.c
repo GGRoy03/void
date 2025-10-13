@@ -1,15 +1,13 @@
 external void
-ConsolePrintMessage(byte_string Message, ConsoleMessage_Severity Severity)
+ConsolePrintMessage(byte_string Message, ConsoleMessage_Severity Severity, ui_layout_node *ScrollBuffer)
 {
     editor_console_ui *ConsoleUI = &EditorUI.ConsoleUI;
-    ui_pipeline       *Pipeline  = &ConsoleUI->Pipeline;
 
     ui_color    TextColor = UIColor(1.f, 1.f, 1.f, 1.f);
-    byte_string Prefix    = byte_string_literal("[Text]  => ");
+    byte_string Prefix    = ByteString(0, 0);
+
     switch(Severity)
     {
-
-    default: break;
 
     case ConsoleMessage_Info:
     {
@@ -35,18 +33,18 @@ ConsolePrintMessage(byte_string Message, ConsoleMessage_Severity Severity)
         Prefix    = byte_string_literal("[Fatal] => ");
     } break;
 
+    default: break;
+
     }
 
-    // NOTE: We have to implement two things.
-    // 1) Attaching children nodes
-    // 2) Overriding a property
+    byte_string FormattedMessage = ByteStringAppend(Message, Prefix, 0, ConsoleUI->Pipeline->FrameArena);
 
-    ui_layout_node *ScrollBuffer = UIFindNodeById(ui_id("Console_ScrollBuffer"), Pipeline);
-
-    UILabelAttach(ConsoleStyle_Message, Message, ScrollBuffer, Pipeline);
+    UISubtreeBlock(ScrollBuffer, ConsoleUI->Pipeline)
+    {
+        UILabel(ConsoleStyle_Message, FormattedMessage, ConsoleUI->Pipeline);
+    }
 
     Useless(TextColor);
-    Useless(Prefix);
 }
 
 internal void
@@ -56,13 +54,11 @@ ConsoleUI(editor_console_ui *ConsoleUI)
     {
         ui_pipeline_params PipelineParams = {0};
         {
-            PipelineParams.ThemeFile     = byte_string_literal("styles/editor_console.cim"),
-            PipelineParams.TreeDepth     = 4;
-            PipelineParams.TreeNodeCount = 16;
+            PipelineParams.ThemeFile = byte_string_literal("styles/editor_console.cim");
         }
         ConsoleUI->Pipeline = UICreatePipeline(PipelineParams);
 
-        memory_arena_params ArenaParams = { 0 };
+        memory_arena_params ArenaParams = {0};
         {
             ArenaParams.AllocatedFromFile = __FILE__;
             ArenaParams.AllocatedFromLine = __LINE__;
@@ -71,13 +67,13 @@ ConsoleUI(editor_console_ui *ConsoleUI)
         }
         ConsoleUI->Arena = AllocateArena(ArenaParams);
 
-        ui_pipeline *Pipeline = &ConsoleUI->Pipeline;
-
-        // Layout
-        UIWindow(ConsoleStyle_Window, Pipeline);
+        UISubtreeBlock(0, ConsoleUI->Pipeline)
         {
-            UIScrollViewBlockID(ui_id("Console_ScrollBuffer"), ConsoleStyle_MessageView, Pipeline)
+            UIWindowBlock(ConsoleStyle_Window, ConsoleUI->Pipeline)
             {
+                UIScrollViewBlockID(ui_id("Console_ScrollBuffer"), ConsoleStyle_MessageView, ConsoleUI->Pipeline)
+                {
+                }
             }
         }
 
@@ -86,17 +82,18 @@ ConsoleUI(editor_console_ui *ConsoleUI)
         ConsoleUI->IsInitialized = 1;
     }
 
-    UIPipelineBegin(&ConsoleUI->Pipeline);
+    UIPipelineBegin(ConsoleUI->Pipeline);
 
     // Drain The Queue
     {
+        ui_layout_node *ScrollBuffer = UIFindNodeById(ui_id("Console_ScrollBuffer"), ConsoleUI->Pipeline);
         console_queue_node *Node = 0;
         while((Node = PopConsoleMessageQueue(&Console)))
         {
-            ConsolePrintMessage(ByteString(Node->Value.Text, Node->Value.TextSize), Node->Value.Severity);
+            ConsolePrintMessage(ByteString(Node->Value.Text, Node->Value.TextSize), Node->Value.Severity, ScrollBuffer);
             FreeConsoleNode(Node);
         }
     }
 
-    UIPipelineExecute(&ConsoleUI->Pipeline);
+    UIPipelineExecute(ConsoleUI->Pipeline);
 }

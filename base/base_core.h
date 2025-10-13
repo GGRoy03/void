@@ -28,6 +28,8 @@
 #define Useless(x) (void)(x)
 #define ArrayCount(Array) (sizeof(Array) / sizeof(Array[0]))
 #define IsPowerOfTwo(Value) (((Value) & ((Value) - 1)) == 0)
+#define Concat(a, b) Concat2(a, b)
+#define Concat2(a, b) a##b
 
 // [Units]
 
@@ -67,7 +69,11 @@
 // [Loop Macros]
 
 #define ForEachEnum(Type, Count, It)  for(Type It = (Type)0; It < Count; It = (Type)(It + 1))
-#define DeferLoop(Begin, End)  for(i32 _i = ((Begin), 0); !_i; _i++, (End))
+#define DeferLoop(Begin, End) for(i32 Concat(_defer_, __LINE__) = ((Begin), 0); !Concat(_defer_, __LINE__); Concat(_defer_, __LINE__)++, (End))
+
+// Helper macro for token pasting
+#define CONCAT(a, b) CONCAT_IMPL(a, b)
+#define CONCAT_IMPL(a, b) a##b
 
 // [Compiler Warnings]
 

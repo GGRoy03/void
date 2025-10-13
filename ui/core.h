@@ -100,32 +100,52 @@ typedef struct ui_rect
 typedef struct ui_pipeline_params
 {
     byte_string ThemeFile;
-    u32         TreeDepth;
-    u32         TreeNodeCount;
+    u64         TreeNodeCount;
+    u64         TreeNodeDepth;
 } ui_pipeline_params;
 
-typedef struct ui_pipeline
+typedef struct ui_pipeline ui_pipeline;
+struct ui_pipeline
 {
+    ui_pipeline *Next;
+
     // State
+    b32                IsStale;
     ui_layout_tree    *LayoutTree;
     ui_style_registry *Registry;
     ui_node_id_table  *IdTable;
-    ui_layout_node    *CapturedNode;
-    UIIntent_Type      Intent;
 
     // Memory
     memory_arena *FrameArena;
     memory_arena *StaticArena;
-} ui_pipeline;
+};
 
 // One of the three program global (GAME, UI, RENDERER)
 
-typedef struct ui_state
+typedef struct ui_font_list
 {
-    // Fonts
     ui_font *First;
     ui_font *Last;
-    u32      FontCount;
+    u32      Count;
+} ui_font_list;
+
+typedef struct ui_pipeline_list
+{
+    ui_pipeline *First;
+    ui_pipeline *Last;
+    u32          Count;
+} ui_pipeline_list;
+
+typedef struct ui_state
+{
+    // Resources
+    ui_font_list     Fonts;
+    ui_pipeline_list Pipelines;
+
+    // State
+    ui_pipeline    *TargetPipeline;
+    ui_layout_node *CapturedNode;
+    UIIntent_Type   Intent;
 
     memory_arena *StaticData;
 } ui_state;
@@ -143,7 +163,7 @@ internal b32              IsNormalizedColor  (ui_color Color);
 
 // [Pipeline]
 
-internal ui_pipeline UICreatePipeline         (ui_pipeline_params Params);
-internal void        UIPipelineBegin          (ui_pipeline *Pipeline);
-internal void        UIPipelineExecute        (ui_pipeline *Pipeline);
-internal void        UIPipelineBuildDrawList  (ui_pipeline *Pipeline, render_pass *Pass, ui_layout_node *LayoutRoot);
+internal ui_pipeline * UICreatePipeline   (ui_pipeline_params Params);
+internal void          UIPipelineBegin    (ui_pipeline *Pipeline);
+internal void          UIPipelineExecute  (ui_pipeline *Pipeline);
+internal void          BuildDrawList      (ui_pipeline *Pipeline, render_pass *Pass, ui_layout_node *LayoutRoot);

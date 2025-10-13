@@ -18,6 +18,7 @@ UILoadFont(byte_string Name, f32 Size)
     // Global Access
     render_handle Renderer = RenderState.Renderer;
     memory_arena *Arena    = UIState.StaticData;
+    ui_font_list *FontList = &UIState.Fonts;
 
     if(IsValidByteString(Name) && Size && IsValidRenderHandle(Renderer))
     {
@@ -42,7 +43,7 @@ UILoadFont(byte_string Name, f32 Size)
                     if(OSAcquireFontObjects(Name, Size, &Result->GPUFontObjects, &Result->OSFontObjects))
                     {
                         Result->LineHeight = OSGetLineHeight(Result->Size, &Result->OSFontObjects);
-                        AppendToLinkedList((&UIState), Result, UIState.FontCount);
+                        AppendToLinkedList(FontList, Result, FontList->Count);
                     }
                     else
                     {
@@ -74,7 +75,10 @@ UIQueryFont(byte_string FontName, f32 FontSize)
 {
     ui_font *Result = 0;
 
-    for (ui_font *Font = UIState.First; Font != 0; Font = Font->Next)
+    // Global Access
+    ui_font_list *FontList = &UIState.Fonts;
+
+    IterateLinkedList(FontList->First, ui_font *, Font)
     {
         if (Font->Size == FontSize && ByteStringMatches(Font->Name, FontName, NoFlag))
         {
@@ -151,6 +155,8 @@ CreateGlyphRun(byte_string Text, ui_font *Font, memory_arena *Arena)
 
         for(u32 Idx = 0; Idx < Text.Size; ++Idx)
         {
+            // NOTE: What kind of dogshit is this?
+
             byte_string UTF8Stream = ByteString(&Text.String[Idx], 1);
 
             glyph_state *State = 0;

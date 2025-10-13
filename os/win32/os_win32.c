@@ -11,39 +11,6 @@ OSWin32GetNativeHandle(os_handle Handle)
     return Result;
 }
 
-internal void
-OSWin32SetConsoleColor(byte_string ANSISequence, WORD WinAttributes)
-{
-    b32  SupportsVT    = OSWin32State.ConsoleSupportsVT;
-    HWND ConsoleHandle = OSWin32State.ConsoleHandle;
-
-    if (SupportsVT)
-    {
-        OSWin32WriteToConsole(ANSISequence);
-    }
-    else if(ConsoleHandle != INVALID_HANDLE_VALUE)
-    {
-        SetConsoleTextAttribute(ConsoleHandle, WinAttributes);
-    }
-}
-
-internal void
-OSWin32WriteToConsole(byte_string ANSISequence)
-{
-    HWND          ConsoleHandle = OSWin32State.ConsoleHandle;
-    memory_arena *Arena         = OSWin32State.Arena;
-
-    if (ConsoleHandle != INVALID_HANDLE_VALUE)
-    {
-        wide_string WideString = ByteStringToWideString(Arena, ANSISequence);
-
-        DWORD Written;
-        WriteConsoleW(ConsoleHandle, WideString.String, (DWORD)WideString.Size, &Written, 0);
-
-        PopArena(Arena, WideString.Size * sizeof(u16));
-    }
-}
-
 internal LRESULT CALLBACK
 OSWin32WindowProc(HWND Handle, UINT Message, WPARAM WParam, LPARAM LParam)
 {
@@ -67,6 +34,8 @@ OSWin32WindowProc(HWND Handle, UINT Message, WPARAM WParam, LPARAM LParam)
 
         Inputs->MousePosition.X = (f32)MouseX;
         Inputs->MousePosition.Y = (f32)MouseY;
+
+        Inputs->IsActiveFrame = 1;
     } break;
 
     case WM_KEYDOWN:
@@ -81,27 +50,32 @@ OSWin32WindowProc(HWND Handle, UINT Message, WPARAM WParam, LPARAM LParam)
         if (WasDown != IsDown && VKCode < OS_KeyboardButtonCount)
         {
             ProcessInputMessage(&Inputs->KeyboardButtons[VKCode], IsDown);
+            Inputs->IsActiveFrame = 1;
         }
     } break;
 
     case WM_LBUTTONDOWN:
     {
         ProcessInputMessage(&Inputs->MouseButtons[OSMouseButton_Left], 1);
+        Inputs->IsActiveFrame = 1;
     } break;
 
     case WM_LBUTTONUP:
     {
         ProcessInputMessage(&Inputs->MouseButtons[OSMouseButton_Left], 0);
+        Inputs->IsActiveFrame = 1;
     } break;
 
     case WM_RBUTTONDOWN:
     {
         ProcessInputMessage(&Inputs->MouseButtons[OSMouseButton_Right], 1);
+        Inputs->IsActiveFrame = 1;
     } break;
 
     case WM_RBUTTONUP:
     {
         ProcessInputMessage(&Inputs->MouseButtons[OSMouseButton_Right], 0);
+        Inputs->IsActiveFrame = 1;
     } break;
 
     case WM_CLOSE:
@@ -213,36 +187,6 @@ OSRelease(void *Memory)
 
 // [File Implementation - OS Specific]
 
-internal byte_string
-OSAppendToLaunchDirectory(byte_string Input, memory_arena *Arena)
-{
-    byte_string Result = ByteString(0, 0);
-
-    u8    Directory[OS_MAX_PATH];
-    DWORD Size = GetModuleFileNameA(0, (LPSTR)Directory, OS_MAX_PATH);
-    if (Size)
-    { 
-        PathRemoveFileSpecA((LPSTR)Directory);
-
-        u64 FinalSize = Size + Input.Size + 1;
-        if (FinalSize <= OS_MAX_PATH)
-        {
-            Result.String = PushArray(Arena, u8, FinalSize);
-            Result.Size   = FinalSize;
-
-            snprintf((char *)Result.String, FinalSize, "%s/%s", Directory, Input.String);
-        }
-        else
-        {
-        }
-    }
-    else
-    {
-    }
-
-    return Result;
-}
-
 internal os_handle
 OSFindFile(byte_string Path)
 {
@@ -297,7 +241,7 @@ OSReadFile(os_handle Handle, memory_arena *Arena)
             BOOL  Success      = 1;
             u64   FileSize     = FileSizeWin32.QuadPart;
             u64   ToRead       = FileSize;
-            u32   ReadSize     = Kilobyte(8);
+            u32   ReadSize     = Kilobyte(16);
             u8   *WritePointer = 0;
 
             Result.Content.Size   = FileSize;
@@ -337,7 +281,8 @@ OSReleaseFile(os_handle Handle)
 
 internal void
 OSSetCursor(OSCursor_Type Type)
-{   Assert(Type >= OSCursor_Default && Type <= OSCursor_GrabHand);
+{
+    Assert(Type >= OSCursor_Default && Type <= OSCursor_GrabHand);
 
     HCURSOR Cursor = 0;
 
@@ -415,6 +360,13 @@ OSGetClientSize(void)
     return Result;
 }
 
+internal b32
+OSIsActiveFrame(void)
+{
+    b32 Result = OSWin32State.Inputs.IsActiveFrame;
+    return Result;
+}
+
 internal vec2_f32
 OSGetMousePosition(void)
 {
@@ -461,8 +413,9 @@ OSClearInputs(void)
 {
     os_inputs *Inputs = &OSWin32State.Inputs;
 
-    Inputs->ScrollDelta = 0.f;
-    Inputs->MouseDelta  = Vec2F32(0.f, 0.f);
+    Inputs->ScrollDelta   = 0.f;
+    Inputs->MouseDelta    = Vec2F32(0.f, 0.f);
+    Inputs->IsActiveFrame = 0;
 
     for (u32 Idx = 0; Idx < OS_KeyboardButtonCount; Idx++)
     {

@@ -39,8 +39,8 @@ typedef enum UILayoutNode_Flag
 
 typedef enum LayoutTree_Constant
 {
-    LayoutTree_DefaultDepth     = 16,
-    LayoutTree_DefaultCapacity  = 500,
+    LayoutTree_DefaultNodeCount = 4000,
+    LayoutTree_DefaultNodeDepth = 16,
     LayoutTree_InvalidNodeIndex = 0xFFFFFFFF,
 } LayoutTree_Constant;
 
@@ -106,24 +106,22 @@ struct ui_layout_node
 
 typedef struct ui_layout_tree_params
 {
-    // NOTE: Both of these are problematic, because they set a hard limit on trees.
-    // Unsure what the correct approach is.
-
-    u32 Depth;
-    u32 NodeCount;
+    u64 NodeCount;
+    u64 NodeDepth;
 } ui_layout_tree_params;
+
+DEFINE_TYPED_STACK(LayoutParent, layout_parent, ui_layout_node *)
 
 typedef struct ui_layout_tree
 {
     // Nodes
-    u32             NodeCapacity;
-    u32             NodeCount;
+    u64             NodeDepth;
+    u64             NodeCapacity;
+    u64             NodeCount;
     ui_layout_node *Nodes;
 
     // Depth
-    u32              ParentTop;
-    u32              MaximumDepth;
-    ui_layout_node **ParentStack;
+    layout_parent_stack Parents;
 } ui_layout_tree;
 
 // A hashmap is used to query nodes per ID
@@ -172,18 +170,21 @@ internal void        PreOrderPlace     (ui_layout_node *LayoutRoot, ui_pipeline 
 
 // [Layout Tree/Nodes]
 
-internal u64              GetLayoutTreeFootprint   (ui_layout_tree_params Params);
-internal ui_layout_tree * PlaceLayoutTreeInMemory  (ui_layout_tree_params Params, void *Memory);
-internal b32              IsValidLayoutNode        (ui_layout_node *Node);
-internal void             PopLayoutNodeParent      (ui_layout_tree *Tree);
-internal void             PushLayoutNodeParent     (ui_layout_node *Node, ui_layout_tree*Tree);
-internal ui_layout_node * InitializeLayoutNode     (ui_cached_style *Style, UILayoutNode_Type Type, ui_layout_node *Parent, bit_field ConstantFlags, byte_string Id, ui_pipeline *Pipeline);
-internal ui_layout_node * GetLayoutNodeParent      (ui_layout_tree *Tree);
-internal ui_layout_node * GetFreeLayoutNode        (ui_layout_tree *Tree, UILayoutNode_Type Type);
+internal u64                   GetLayoutTreeFootprint   (ui_layout_tree_params Params);
+internal ui_layout_tree_params SetDefaultTreeParams     (ui_layout_tree_params Params);
+internal ui_layout_tree      * PlaceLayoutTreeInMemory  (ui_layout_tree_params Params, void *Memory);
+internal b32                   IsValidLayoutNode        (ui_layout_node *Node);
+internal ui_layout_node      * InitializeLayoutNode     (ui_cached_style *Style, UILayoutNode_Type Type, bit_field ConstantFlags, byte_string Id, ui_pipeline *Pipeline);
+internal ui_layout_node      * GetFreeLayoutNode        (ui_layout_tree *Tree, UILayoutNode_Type Type);
 
 // [Binds]
 
 internal void BindText  (ui_layout_node *Node, byte_string Text, ui_font *Font, memory_arena *Arena);
+
+// [Context]
+
+internal void UIBeginSubtree  (ui_layout_node *Parent, ui_pipeline *Pipeline);
+internal void UIEndSubtree    (ui_pipeline *Pipeline);
 
 // [Node Id]
 

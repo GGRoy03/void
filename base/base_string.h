@@ -41,22 +41,22 @@ internal wide_string WideString  (u16 *String, u64 Size);
 
 // [String Utilities]
 
-internal b32         IsValidByteString       (byte_string Input);
-internal b32         IsAsciiString           (byte_string Input);
-internal b32         ByteStringMatches       (byte_string Str1, byte_string Str2, bit_field Flags);
-internal byte_string ByteStringCopy          (byte_string String, memory_arena *Arena);
-internal byte_string ByteStringAppendBefore  (byte_string Pre, byte_string Post, memory_arena *Arena);
+internal b32         IsValidByteString  (byte_string Input);
+internal b32         IsAsciiString      (byte_string Input);
+internal b32         ByteStringMatches  (byte_string A, byte_string B, bit_field Flags);
+internal byte_string ByteStringCopy     (byte_string String, memory_arena *Arena);
+internal byte_string ByteStringAppend   (byte_string Target, byte_string Source, u64 At,memory_arena *Arena);
 
-external b32         IsValidWideString       (wide_string Input);
-internal b32         WideStringMatches       (wide_string A, wide_string B, bit_field Flags);
-internal wide_string WideStringAppendBefore  (wide_string Pre, wide_string Post, memory_arena *Arena);
+external b32         IsValidWideString  (wide_string Input);
+internal b32         WideStringMatches  (wide_string A, wide_string B, bit_field Flags);
 
 // [Character Utilities]
 
-internal b32  IsAlpha       (u8 Char);
-internal b32  IsDigit       (u8 Char);
-internal b32  IsWhiteSpace  (u8 Char);
-internal u8   ToLowerChar   (u8 Char);
+internal b32 IsAlpha       (u8 Char);
+internal b32 IsDigit       (u8 Char);
+internal b32 IsWhiteSpace  (u8 Char);
+internal b32 IsNewLine     (u8 Char);
+internal u8  ToLowerChar   (u8 Char);
 
 // [Encoding/Decoding]
 

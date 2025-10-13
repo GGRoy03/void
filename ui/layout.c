@@ -18,12 +18,31 @@ IsValidLayoutNode(ui_layout_node *Node)
     return Result;
 }
 
+internal ui_layout_tree_params
+SetDefaultTreeParams(ui_layout_tree_params Params)
+{
+    ui_layout_tree_params Result = {0};
+
+    if(Params.NodeCount == 0)
+    {
+        Result.NodeCount = LayoutTree_DefaultNodeCount;
+    }
+
+    if(Params.NodeDepth == 0)
+    {
+        Result.NodeDepth = LayoutTree_DefaultNodeDepth;
+    }
+
+    return Result;
+}
+
 internal u64
 GetLayoutTreeFootprint(ui_layout_tree_params Params)
 {
-    u64 StackSize = Params.Depth     * sizeof(ui_layout_node *);
-    u64 ArraySize = Params.NodeCount * sizeof(ui_layout_node *);
-    u64 Result    = sizeof(ui_layout_tree) + StackSize + ArraySize;
+    Params = SetDefaultTreeParams(Params);
+
+    u64 ArraySize = Params.NodeCount * sizeof(ui_layout_node);
+    u64 Result    = sizeof(ui_layout_tree) + ArraySize;
 
     return Result;
 }
@@ -31,54 +50,21 @@ GetLayoutTreeFootprint(ui_layout_tree_params Params)
 internal ui_layout_tree *
 PlaceLayoutTreeInMemory(ui_layout_tree_params Params, void *Memory)
 {
-    Assert(Params.NodeCount > 0 && Params.Depth > 0);
-
     ui_layout_tree *Result = 0;
 
     if (Memory)
     {
+        Params = SetDefaultTreeParams(Params);
+
         Result = (ui_layout_tree *)Memory;
-        Result->Nodes        = (ui_layout_node *) (Result + 1);
-        Result->ParentStack  = (ui_layout_node **)(Result->Nodes + Params.NodeCount);
-        Result->MaximumDepth = Params.Depth;
+        Result->Nodes        = (ui_layout_node *)(Result + 1);
+        Result->NodeDepth    = Params.NodeDepth;
         Result->NodeCapacity = Params.NodeCount;
 
         for (u32 Idx = 0; Idx < Result->NodeCapacity; Idx++)
         {
             Result->Nodes[Idx].Index = LayoutTree_InvalidNodeIndex;
         }
-    }
-
-    return Result;
-}
-
-
-internal void
-PopLayoutNodeParent(ui_layout_tree*Tree)
-{
-    if (Tree->ParentTop > 0)
-    {
-        --Tree->ParentTop;
-    }
-}
-
-internal void
-PushLayoutNodeParent(ui_layout_node *Node, ui_layout_tree*Tree)
-{
-    if (Tree->ParentTop < Tree->MaximumDepth)
-    {
-        Tree->ParentStack[Tree->ParentTop++] = Node;
-    }
-}
-
-internal ui_layout_node *
-GetLayoutNodeParent(ui_layout_tree *Tree)
-{
-    ui_layout_node *Result = 0;
-
-    if (Tree->ParentTop)
-    {
-        Result = Tree->ParentStack[Tree->ParentTop - 1];
     }
 
     return Result;
@@ -102,7 +88,7 @@ GetFreeLayoutNode(ui_layout_tree *Tree, UILayoutNode_Type Type)
 }
 
 internal ui_layout_node *
-InitializeLayoutNode(ui_cached_style *Style, UILayoutNode_Type Type, ui_layout_node *Parent, bit_field ConstantFlags, byte_string Id, ui_pipeline *Pipeline)
+InitializeLayoutNode(ui_cached_style *Style, UILayoutNode_Type Type, bit_field ConstantFlags, byte_string Id, ui_pipeline *Pipeline)
 {
     ui_layout_tree *Tree = Pipeline->LayoutTree;
     ui_layout_node *Node = GetFreeLayoutNode(Tree, Type);
@@ -121,15 +107,7 @@ InitializeLayoutNode(ui_cached_style *Style, UILayoutNode_Type Type, ui_layout_n
             Node->Last   = 0;
             Node->Next   = 0;
             Node->First  = 0;
-
-            if(Parent)
-            {
-                Node->Parent = Parent;
-            }
-            else
-            {
-                Node->Parent = GetLayoutNodeParent(Tree);
-            }
+            Node->Parent = PeekLayoutParentStack(&Tree->Parents);
 
             if(Node->Parent)
             {
@@ -138,7 +116,7 @@ InitializeLayoutNode(ui_cached_style *Style, UILayoutNode_Type Type, ui_layout_n
 
             if(HasFlag(Node->Flags, UILayoutNode_IsParent))
             {
-                PushLayoutNodeParent(Node, Tree);
+                PushLayoutParentStack(&Tree->Parents, Node);
             }
         }
 
@@ -187,7 +165,8 @@ HitTestLayout(vec2_f32 MousePosition, ui_layout_node *LayoutRoot, ui_pipeline *P
     f32 TargetSDF = RoundedRectSDF(LocalPosition, FullHalfSize, Radius);
     if(TargetSDF <= 0.f)
     {
-        // Recurse into all of the children. Respects draw order.
+        // Recurse into all of the children. Respects draw order by iterating backwards
+
         for(ui_layout_node *Child = LayoutRoot->Last; Child != 0; Child = Child->Prev)
         {
             Result = HitTestLayout(MousePosition, Child, Pipeline);
@@ -510,6 +489,41 @@ BindText(ui_layout_node *Node, byte_string Text, ui_font *Font, memory_arena *Ar
             SetFlag(Node->Flags, UILayoutNode_TextIsBound);
         }
     }
+}
+
+// [Context]
+
+internal void
+UIEnterSubtree(ui_layout_node *Parent, ui_pipeline *Pipeline)
+{
+    ui_layout_tree *Tree = Pipeline->LayoutTree;
+
+    Assert(MemoryCompare(&Tree->Parents, &(layout_parent_stack){0}, sizeof(typed_stack)) == 0);
+
+    typed_stack_params Params = {0};
+    {
+        Params.StackSize = Tree->NodeDepth;
+    }
+
+    Tree->Parents = BeginLayoutParentStack(Params, Pipeline->FrameArena);
+
+    if(Parent)
+    {
+        PushLayoutParentStack(&Tree->Parents, Parent);
+    }
+}
+
+internal void
+UILeaveSubtree(ui_pipeline *Pipeline)
+{
+    ui_layout_tree *Tree = Pipeline->LayoutTree;
+
+    Assert(MemoryCompare(&Tree->Parents, &(layout_parent_stack){0}, sizeof(typed_stack)) != 0);
+
+    // NOTE: Does not leak memory, because it is allocated from the pipeline's frame
+    // arena. Just clear the state internally.
+
+    Tree->Parents = (layout_parent_stack){0};
 }
 
 // [Node ID Hashmap]
