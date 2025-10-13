@@ -89,16 +89,18 @@ typedef struct ui_glyph
 
 typedef struct ui_glyph_run
 {
-    f32       LineHeight;
-    rect_f32  BoundsLastFrame;
-    ui_glyph *Glyphs;
-    u32       GlyphCount;
+    render_handle Atlas;
+    vec2_f32      AtlasSize;
+    f32           LineHeight;
+    rect_f32      BoundsLastFrame;
+    ui_glyph     *Glyphs;
+    u32           GlyphCount;
 } ui_glyph_run;
 
 // [Fonts]
 
 internal ui_font * UILoadFont   (byte_string Name, f32 Size);
-internal ui_font * UIQueryFont  (ui_cached_style *Style);
+internal ui_font * UIQueryFont  (byte_string Name, f32 Size);
 
 // [Glyphs]
 

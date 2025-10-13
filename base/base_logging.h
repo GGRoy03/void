@@ -78,5 +78,5 @@ internal void                       FreeConsoleMessageNode         (console_queu
 // [NON-ATOMIC API]
 
 internal u64   GetTimeStamp         (void);
-external void  ConsoleWriteMessage  (byte_string Message, ConsoleMessage_Severity Severity, console_queue *Queue);
+external void  ConsoleWriteMessage  (ConsoleMessage_Severity Severity, byte_string Message, console_queue *Queue);
 internal void  FreeConsoleNode      (console_queue_node *Node);

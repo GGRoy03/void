@@ -14,45 +14,38 @@ AlignGlyph(vec2_f32 Position, f32 LineHeight, ui_glyph *Glyph)
 internal b32 
 IsValidLayoutNode(ui_layout_node *Node)
 {
-    b32 Result = Node && Node->Index != InvalidLayoutNodeIndex;
+    b32 Result = Node && Node->Index != LayoutTree_InvalidNodeIndex;
+    return Result;
+}
+
+internal u64
+GetLayoutTreeFootprint(ui_layout_tree_params Params)
+{
+    u64 StackSize = Params.Depth     * sizeof(ui_layout_node *);
+    u64 ArraySize = Params.NodeCount * sizeof(ui_layout_node *);
+    u64 Result    = sizeof(ui_layout_tree) + StackSize + ArraySize;
+
     return Result;
 }
 
 internal ui_layout_tree *
-AllocateLayoutTree(ui_layout_tree_params Params)
+PlaceLayoutTreeInMemory(ui_layout_tree_params Params, void *Memory)
 {
     Assert(Params.NodeCount > 0 && Params.Depth > 0);
 
     ui_layout_tree *Result = 0;
 
-    memory_arena *Arena = 0;
+    if (Memory)
     {
-        u64 StackSize = Params.Depth     * sizeof(Result->ParentStack[0]);
-        u64 ArraySize = Params.NodeCount * sizeof(Result->Nodes[0]);
-        u64 QueueSize = Params.NodeCount * sizeof(Result->Nodes[0]);
-        u64 Footprint = sizeof(ui_layout_tree) + StackSize + ArraySize + QueueSize;
-
-        memory_arena_params ArenaParams = { 0 };
-        ArenaParams.AllocatedFromFile = __FILE__;
-        ArenaParams.AllocatedFromLine = __LINE__;
-        ArenaParams.ReserveSize       = Footprint;
-        ArenaParams.CommitSize        = Footprint;
-
-        Arena = AllocateArena(ArenaParams);
-    }
-
-    if (Arena)
-    {
-        Result = PushArena(Arena, sizeof(ui_layout_tree), AlignOf(ui_layout_tree));
-        Result->Arena        = Arena;
-        Result->Nodes        = PushArray(Arena, ui_layout_node, Params.NodeCount);
-        Result->ParentStack  = PushArray(Arena, ui_layout_node *, Params.Depth);
+        Result = (ui_layout_tree *)Memory;
+        Result->Nodes        = (ui_layout_node *) (Result + 1);
+        Result->ParentStack  = (ui_layout_node **)(Result->Nodes + Params.NodeCount);
         Result->MaximumDepth = Params.Depth;
         Result->NodeCapacity = Params.NodeCount;
 
         for (u32 Idx = 0; Idx < Result->NodeCapacity; Idx++)
         {
-            Result->Nodes[Idx].Index = InvalidLayoutNodeIndex;
+            Result->Nodes[Idx].Index = LayoutTree_InvalidNodeIndex;
         }
     }
 
@@ -109,8 +102,9 @@ GetFreeLayoutNode(ui_layout_tree *Tree, UILayoutNode_Type Type)
 }
 
 internal ui_layout_node *
-InitializeLayoutNode(ui_cached_style *Style, UILayoutNode_Type Type, bit_field ConstantFlags, ui_layout_tree *Tree)
+InitializeLayoutNode(ui_cached_style *Style, UILayoutNode_Type Type, ui_layout_node *Parent, bit_field ConstantFlags, byte_string Id, ui_pipeline *Pipeline)
 {
+    ui_layout_tree *Tree = Pipeline->LayoutTree;
     ui_layout_node *Node = GetFreeLayoutNode(Tree, Type);
     if(Node)
     {
@@ -127,7 +121,15 @@ InitializeLayoutNode(ui_cached_style *Style, UILayoutNode_Type Type, bit_field C
             Node->Last   = 0;
             Node->Next   = 0;
             Node->First  = 0;
-            Node->Parent = GetLayoutNodeParent(Tree);
+
+            if(Parent)
+            {
+                Node->Parent = Parent;
+            }
+            else
+            {
+                Node->Parent = GetLayoutNodeParent(Tree);
+            }
 
             if(Node->Parent)
             {
@@ -140,6 +142,7 @@ InitializeLayoutNode(ui_cached_style *Style, UILayoutNode_Type Type, bit_field C
             }
         }
 
+        // Draw Flags
         if(Style)
         {
             ui_color BackgroundColor = UIGetColor(Style);
@@ -156,6 +159,12 @@ InitializeLayoutNode(ui_cached_style *Style, UILayoutNode_Type Type, bit_field C
                 Assert(!HasFlag(Node->Flags, UILayoutNode_DrawBorders));
                 SetFlag(Node->Flags, UILayoutNode_DrawBorders);
             }
+        }
+
+        // Id
+        if(IsValidByteString(Id))
+        {
+            SetNodeId(Id, Node, Pipeline->IdTable);
         }
     }
 
@@ -274,7 +283,7 @@ PreOrderPlace(ui_layout_node *LayoutRoot, ui_pipeline *Pipeline)
 {
     if (Pipeline->LayoutTree && Pipeline->LayoutTree->NodeCount)
     {
-        memory_region Region = EnterMemoryRegion(Pipeline->LayoutTree->Arena);
+        memory_region Region = EnterMemoryRegion(Pipeline->FrameArena);
 
         node_queue Queue = { 0 };
         {
@@ -375,7 +384,7 @@ PreOrderMeasure(ui_layout_node *LayoutRoot, ui_pipeline *Pipeline)
         return;
     }
 
-    memory_region Region = EnterMemoryRegion(Pipeline->LayoutTree->Arena);
+    memory_region Region = EnterMemoryRegion(Pipeline->FrameArena);
 
     node_queue Queue = { 0 };
     {
@@ -488,12 +497,258 @@ BindText(ui_layout_node *Node, byte_string Text, ui_font *Font, memory_arena *Ar
     Assert(Font);
     Assert(Arena);
 
-    ui_glyph_run *Result = PushArena(Arena, sizeof(ui_glyph_run), AlignOf(ui_glyph_run));
-    if(Result)
+    ui_glyph_run *Run = PushArena(Arena, sizeof(ui_glyph_run), AlignOf(ui_glyph_run));
+    if(Run)
     {
-        Result[0] = CreateGlyphRun(Text, Font, Arena);
+        Run[0] = CreateGlyphRun(Text, Font, Arena);
 
-        Node->Value.DisplayText = Result;
-        SetFlag(Node->Flags, UILayoutNode_TextIsBound);
+        b32 Valid = (Run[0].Glyphs && Run[0].GlyphCount);
+
+        if(Valid)
+        {
+            Node->Value.DisplayText = Run;
+            SetFlag(Node->Flags, UILayoutNode_TextIsBound);
+        }
     }
+}
+
+// [Node ID Hashmap]
+
+internal u64
+GetNodeIdTableFootprint(ui_node_id_table_params Params)
+{
+    u64 GroupTotal = Params.GroupSize * Params.GroupCount;
+
+    u64 MetaDataSize = GroupTotal * sizeof(u8);
+    u64 BucketsSize  = GroupTotal * sizeof(ui_node_id_entry);
+    u64 Result       = sizeof(ui_node_id_table) + MetaDataSize + BucketsSize;
+
+    return Result;
+}
+
+internal ui_node_id_table *
+PlaceNodeIdTableInMemory(ui_node_id_table_params Params, void *Memory)
+{
+    Assert(Params.GroupSize == 16);
+    Assert(Params.GroupCount > 0 && IsPowerOfTwo(Params.GroupCount));
+
+    ui_node_id_table *Result = 0;
+
+    if(Memory)
+    {
+        u64 GroupTotal = Params.GroupSize * Params.GroupCount;
+
+        u8 *              MetaData = (u8 *)Memory;
+        ui_node_id_entry *Entries  = (ui_node_id_entry *)(MetaData + GroupTotal);
+
+        Result = (ui_node_id_table *)(Entries + GroupTotal);
+        Result->MetaData   = MetaData;
+        Result->Buckets    = Entries;
+        Result->GroupSize  = Params.GroupSize;
+        Result->GroupCount = Params.GroupCount;
+        Result->HashMask   = Params.GroupCount - 1;
+
+        for(u32 Idx = 0; Idx < GroupTotal; ++Idx)
+        {
+            Result->MetaData[Idx] = NodeIdTable_EmptyMask;
+        }
+    }
+
+    return Result;
+}
+
+internal b32
+IsValidNodeIdTable(ui_node_id_table *Table)
+{
+    b32 Result = (Table && Table->MetaData && Table->Buckets && Table->GroupCount);
+    return Result;
+}
+
+internal u32
+GetNodeIdGroupIndexFromHash(ui_node_id_hash Hash, ui_node_id_table *Table)
+{
+    u32 Result = Hash.Value & Table->HashMask;
+    return Result;
+}
+
+internal u8
+GetNodeIdTagFromHash(ui_node_id_hash Hash)
+{
+    u8 Result = Hash.Value & NodeIdTable_TagMask;
+    return Result;
+}
+
+internal ui_node_id_hash
+ComputeNodeIdHash(byte_string Id)
+{
+    // WARN: Again, unsure if this hash is strong enough since hash-collisions
+    // are fatal. Fatal in the sense that they will return invalid data.
+
+    ui_node_id_hash Result = {HashByteString(Id)};
+    return Result;
+}
+
+internal ui_node_id_entry *
+FindNodeIdEntry(ui_node_id_hash Hash, ui_node_id_table *Table)
+{
+    u32 ProbeCount = 0;
+    u32 GroupIndex = GetNodeIdGroupIndexFromHash(Hash, Table);
+
+    while(1)
+    {
+        u8 *Meta = Table->MetaData + (GroupIndex * Table->GroupSize);
+        u8  Tag  = GetNodeIdTagFromHash(Hash);
+
+        __m128i MetaVector = _mm_loadu_si128((__m128i *)Meta);
+        __m128i TagVector  = _mm_set1_epi8(Tag);
+
+        // Uses a 6 bit tags to search a matching tag thorugh the meta-data
+        // using vectors of bytes instead of comparing full hashes directly.
+
+        i32 TagMask = _mm_movemask_epi8(_mm_cmpeq_epi8(MetaVector, TagVector));
+        while(TagMask)
+        {
+            u32 Lane  = FindFirstBit(TagMask);
+            u32 Index = Lane + (GroupIndex * Table->GroupSize);
+
+            ui_node_id_entry *Entry = Table->Buckets + Index;
+            if(Hash.Value == Entry->Hash.Value)
+            {
+                return Entry;
+            }
+
+            TagMask &= TagMask - 1;
+        }
+
+        // Check for slots that have never been used. If we find any it means that
+        // our value has never been inserted in the map, since, otherwise, it would
+        // have been inserted in that free slot. Keep proving if no never-used slot
+        // have been found.
+
+        __m128i EmptyVector = _mm_set1_epi8(NodeIdTable_EmptyMask);
+        i32     EmptyMask   = _mm_movemask_epi8(_mm_cmpeq_epi8(MetaVector, EmptyVector));
+
+        if(!EmptyMask)
+        {
+            ProbeCount++;
+            GroupIndex = (GroupIndex + (ProbeCount * ProbeCount)) & (Table->GroupCount - 1);
+        }
+        else
+        {
+            break;
+        }
+    }
+
+    return 0;
+}
+
+internal void
+InsertNodeId(ui_node_id_hash Hash, ui_layout_node *Target, ui_node_id_table *Table)
+{
+    u32 ProbeCount = 0;
+    u32 GroupIndex = GetNodeIdGroupIndexFromHash(Hash, Table);
+
+    while(1)
+    {
+        u8     *Meta       = Table->MetaData + (GroupIndex * Table->GroupSize);
+        __m128i MetaVector = _mm_loadu_si128((__m128i *)Meta);
+
+        // First check for empty entries (never-used), if one is found insert it and
+        // set the meta-data to the tag (which will clear all state bits)
+
+        __m128i EmptyVector = _mm_set1_epi8(NodeIdTable_EmptyMask);
+        i32     EmptyMask   = _mm_movemask_epi8(_mm_cmpeq_epi8(MetaVector, EmptyVector));
+
+        if(EmptyMask)
+        {
+            u32 Lane  = FindFirstBit(EmptyMask);
+            u32 Index = Lane + (GroupIndex * Table->GroupSize);
+
+            ui_node_id_entry *Entry = Table->Buckets + Index;
+            Entry->Hash   = Hash;
+            Entry->Target = Target;
+
+            Meta[Lane] = GetNodeIdTagFromHash(Hash);
+
+            break;
+        }
+
+        // Then check for dead entries in the meta-vector, if one is found insert it and
+        // set the meta-data to the tag which will clear all state bits
+
+        __m128i DeadVector = _mm_set1_epi8(NodeIdTable_DeadMask);
+        i32     DeadMask   = _mm_movemask_epi8(_mm_cmpeq_epi8(MetaVector, DeadVector));
+
+        if(DeadMask)
+        {
+            u32 Lane  = FindFirstBit(DeadMask);
+            u32 Index = Lane + (GroupIndex * Table->GroupSize);
+
+            ui_node_id_entry *Entry = Table->Buckets + Index;
+            Entry->Hash   = Hash;
+            Entry->Target = Target;
+
+            Meta[Lane] = GetNodeIdTagFromHash(Hash);
+
+            break;
+        }
+
+        ProbeCount++;
+        GroupIndex = (GroupIndex + (ProbeCount * ProbeCount)) & (Table->GroupCount - 1);
+    }
+}
+
+internal void
+SetNodeId(byte_string Id, ui_layout_node *Node, ui_node_id_table *Table)
+{
+    if(!IsValidNodeIdTable(Table) && !IsValidLayoutNode(Node))
+    {
+        return;
+    }
+
+    ui_node_id_hash   Hash  = ComputeNodeIdHash(Id);
+    ui_node_id_entry *Entry = FindNodeIdEntry(Hash, Table);
+
+    if(!Entry)
+    {
+        InsertNodeId(Hash, Node, Table);
+    }
+    else
+    {
+        // TODO: Show which ID is faulty.
+
+        ConsoleWriteMessage(warn_message("ID could not be set because it already exists for this pipeline"), &Console);
+    }
+}
+
+// NOTE: Maybe we don't want to return the raw node...
+// Because we should disallow mutation by the user.
+
+internal ui_layout_node *
+UIFindNodeById(byte_string Id, ui_pipeline *Pipeline)
+{
+    ui_layout_node   *Result = 0;
+    ui_node_id_table *Table  = Pipeline->IdTable;
+
+    if(IsValidNodeIdTable(Table))
+    {
+        ui_node_id_hash   Hash  = ComputeNodeIdHash(Id);
+        ui_node_id_entry *Entry = FindNodeIdEntry(Hash, Table);
+
+        if(Entry)
+        {
+            Result = Entry->Target;
+        }
+        else
+        {
+            // TODO: Show which ID is faulty.
+            ConsoleWriteMessage(warn_message("Could not find queried node."), &Console);
+        }
+    }
+    else
+    {
+        ConsoleWriteMessage(warn_message("Internal Error. Id table is not allocated correctly for this pipeline."), &Console);
+    }
+
+    return Result;
 }

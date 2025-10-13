@@ -8,9 +8,12 @@ typedef struct game_state
 
     // Rendering
     render_pass_list RenderPassList;
-    render_handle    Renderer;
 } game_state;
 
-// [Core API]
+// [Global]
+
+global game_state GameState;
+
+// [Entry Points]
 
 internal void GameEntryPoint();

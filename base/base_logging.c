@@ -170,7 +170,7 @@ GetTimeStamp(void)
 // instead of the classic OSReserve/OSCommit/OSRelease which is annoying.
 
 external void
-ConsoleWriteMessage(byte_string Message, ConsoleMessage_Severity Severity, console_queue *Queue)
+ConsoleWriteMessage(ConsoleMessage_Severity Severity, byte_string Message, console_queue *Queue)
 {
     u64 MessageSize = Message.Size;
     u64 Footprint   = sizeof(console_queue_node) + MessageSize;

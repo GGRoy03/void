@@ -19,10 +19,11 @@ typedef enum UIIntent_Type
 
 // [FORWARD DECLARATIONS]
 
-typedef struct ui_style       ui_style;
-typedef struct ui_layout_node ui_layout_node;
-typedef struct ui_layout_tree ui_layout_tree;
-typedef struct ui_pipeline    ui_pipeline;
+typedef struct ui_style         ui_style;
+typedef struct ui_layout_node   ui_layout_node;
+typedef struct ui_layout_tree   ui_layout_tree;
+typedef struct ui_node_id_table ui_node_id_table;
+typedef struct ui_pipeline      ui_pipeline;
 
 typedef void ui_click_callback(ui_layout_node *Node, ui_pipeline *Pipeline);
 
@@ -108,6 +109,7 @@ typedef struct ui_pipeline
     // State
     ui_layout_tree    *LayoutTree;
     ui_style_registry *Registry;
+    ui_node_id_table  *IdTable;
     ui_layout_node    *CapturedNode;
     UIIntent_Type      Intent;
 
@@ -132,17 +134,16 @@ global ui_state UIState;
 
 // [Helpers]
 
-internal ui_color         UIColor         (f32 R, f32 G, f32 B, f32 A);
-internal ui_spacing       UISpacing       (f32 Horizontal, f32 Vertical);
-internal ui_padding       UIPadding       (f32 Left, f32 Top, f32 Right, f32 Bot);
-internal ui_corner_radius UICornerRadius  (f32 TopLeft, f32 TopRight, f32 BotLeft, f32 BotRight);
-internal vec2_unit        Vec2Unit        (ui_unit U0, ui_unit U1);
-
-internal b32 IsNormalizedColor(ui_color Color);
+internal ui_color         UIColor            (f32 R, f32 G, f32 B, f32 A);
+internal ui_spacing       UISpacing          (f32 Horizontal, f32 Vertical);
+internal ui_padding       UIPadding          (f32 Left, f32 Top, f32 Right, f32 Bot);
+internal ui_corner_radius UICornerRadius     (f32 TopLeft, f32 TopRight, f32 BotLeft, f32 BotRight);
+internal vec2_unit        Vec2Unit           (ui_unit U0, ui_unit U1);
+internal b32              IsNormalizedColor  (ui_color Color);
 
 // [Pipeline]
 
 internal ui_pipeline UICreatePipeline         (ui_pipeline_params Params);
 internal void        UIPipelineBegin          (ui_pipeline *Pipeline);
-internal void        UIPipelineExecute        (ui_pipeline *Pipeline, render_pass_list *PassList);
+internal void        UIPipelineExecute        (ui_pipeline *Pipeline);
 internal void        UIPipelineBuildDrawList  (ui_pipeline *Pipeline, render_pass *Pass, ui_layout_node *LayoutRoot);

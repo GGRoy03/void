@@ -55,56 +55,31 @@ UILoadFont(byte_string Name, f32 Size)
                     ReleaseGlyphCache(&Result->GPUFontObjects);
                 }
             }
-
         }
         else
         {
-            byte_string Message = byte_string_literal("Failed to allocate memory when calling UILoadFont");
-            ConsoleWriteMessage(Message, ConsoleMessage_Error, &Console);
+            ConsoleWriteMessage(error_message("Failed to allocate memory when calling UILoadFont."), &Console);
         }
     }
     else
     {
-        byte_string Message = byte_string_literal("One or more arguments given to UILoadFont is invalid.");
-        ConsoleWriteMessage(Message, ConsoleMessage_Error, &Console);
+        ConsoleWriteMessage(error_message("One or more arguments given to UILoadFont is invalid."), &Console);
     }
 
     return Result;
 }
 
 internal ui_font *
-UIQueryFont(ui_cached_style *Style)
+UIQueryFont(byte_string FontName, f32 FontSize)
 {
-    ui_font *Result = UIGetFont(Style);
+    ui_font *Result = 0;
 
-    if(!Result)
+    for (ui_font *Font = UIState.First; Font != 0; Font = Font->Next)
     {
-        byte_string FontName = UIGetFontName(Style);
-        f32         FontSize = UIGetFontSize(Style);
-        Assert(IsValidByteString(FontName) && FontSize > 0.f); // NOTE: Assert or explicit check?
-
-        for (ui_font *Font = UIState.First; Font != 0; Font = Font->Next)
+        if (Font->Size == FontSize && ByteStringMatches(Font->Name, FontName, NoFlag))
         {
-            if (Font->Size == FontSize && ByteStringMatches(Font->Name, FontName, StringMatch_NoFlag))
-            {
-                Result = Font;
-                break;
-            }
-        }
-
-        if (Result)
-        {
-            UISetFont(Style, Result);
-            SetFlag(Style->Flags, CachedStyle_FontIsLoaded);
-        }
-        else
-        {
-           Result = UILoadFont(FontName, FontSize);
-           if(Result)
-           {
-                UISetFont(Style, Result);
-                SetFlag(Style->Flags, CachedStyle_FontIsLoaded);
-            }
+            Result = Font;
+            break;
         }
     }
 
@@ -171,6 +146,8 @@ CreateGlyphRun(byte_string Text, ui_font *Font, memory_arena *Arena)
         Result.Glyphs     = PushArray(Arena, ui_glyph, Text.Size);
         Result.LineHeight = Font->LineHeight;
         Result.GlyphCount = Text.Size;
+        Result.Atlas      = GetFontAtlas(Font);
+        Result.AtlasSize  = Font->TextureSize;
 
         for(u32 Idx = 0; Idx < Text.Size; ++Idx)
         {
@@ -216,8 +193,7 @@ CreateGlyphRun(byte_string Text, ui_font *Font, memory_arena *Arena)
                 }
                 else
                 {
-                    byte_string Message = byte_string_literal("Could not pack glyph in texture in CreateGlyphRun");
-                    ConsoleWriteMessage(Message, ConsoleMessage_Warn, &Console);
+                    ConsoleWriteMessage(warn_message("Could not pack glyph inside the texture in CreateGlyphRun"), &Console);
                 }
             }
 
@@ -228,8 +204,7 @@ CreateGlyphRun(byte_string Text, ui_font *Font, memory_arena *Arena)
     }
     else
     {
-        byte_string Message = byte_string_literal("One or more arguments passed to CreateGlyphRun is invalid.");
-        ConsoleWriteMessage(Message, ConsoleMessage_Warn, &Console);
+        ConsoleWriteMessage(warn_message("One or more arguments passed to CreateGlyphRun is invalid"), &Console);
     }
 
     return Result;

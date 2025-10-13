@@ -1,7 +1,7 @@
 internal void
 GameEntryPoint()
 {
-    game_state GameState = {0};
+    // Game State
     {
         memory_arena_params Params = { 0 };
         Params.AllocatedFromFile = __FILE__;
@@ -10,10 +10,9 @@ GameEntryPoint()
         Params.CommitSize        = Kilobyte(64);
 
         GameState.StaticData = AllocateArena(Params);
-        GameState.Renderer   = InitializeRenderer(GameState.StaticData);
     }
 
-    ui_state UIState = {0};
+    // UI State
     {
         memory_arena_params Params = { 0 };
         Params.AllocatedFromFile = __FILE__;
@@ -24,13 +23,18 @@ GameEntryPoint()
         UIState.StaticData = AllocateArena(Params);
     }
 
+    // Render State
+    {
+        RenderState.Renderer = InitializeRenderer(GameState.StaticData);
+    }
+
     InitializeConsoleMessageQueue(&Console);
 
     while(OSUpdateWindow())
     {
-        ShowEditorUI(&GameState);
+        ShowEditorUI();
 
-        SubmitRenderCommands(&GameState.RenderPassList, GameState.Renderer);
+        SubmitRenderCommands();
 
         OSClearInputs();
         OSSleep(5);

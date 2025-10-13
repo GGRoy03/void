@@ -264,51 +264,42 @@ ReadVector(os_read_file *File, style_file_debug_info *Debug)
 {
     style_vector Result = {0};
 
-    if(PeekFile(File, 0) == '[')
+    while(Result.Size < 4)
     {
-        AdvanceFile(File, 1);
+        SkipWhiteSpaces(File);
 
-        while(Result.Size < 4)
+        u8 Character = PeekFile(File, 0);
+        if(IsDigit(Character))
         {
-            SkipWhiteSpaces(File);
-
-            u8 Character = PeekFile(File, 0);
-            if(IsDigit(Character))
+            ui_unit Unit = ReadUnit(File, Debug);
+            if(Unit.Type != UIUnit_None)
             {
-                ui_unit Unit = ReadUnit(File, Debug);
-                if(Unit.Type != UIUnit_None)
+                Result.V.Values[Result.Size++] = Unit;
+
+                SkipWhiteSpaces(File);
+
+                Character = PeekFile(File, 0);
+                if(Character == ',')
                 {
-                    Result.V.Values[Result.Size++] = Unit;
-
-                    SkipWhiteSpaces(File);
-
-                    Character = PeekFile(File, 0);
-                    if(Character == ',')
-                    {
-                        AdvanceFile(File, 1);
-                        continue;
-                    }
-                    else if(Character == ']')
-                    {
-                        AdvanceFile(File, 1);
-                        break;
-                    }
-                    else
-                    {
-                        break;
-                    }
+                    AdvanceFile(File, 1);
+                    continue;
+                }
+                else if(Character == ']')
+                {
+                    AdvanceFile(File, 1);
+                    break;
+                }
+                else
+                {
+                    break;
                 }
             }
-            else
-            {
-                ReportStyleFileError(Debug, error_message("A vector must only contain numerical values."));
-                break;
-            }
         }
-    }
-    else
-    {
-        ReportStyleFileError(Debug, error_message("Expected '[' when calling ReadVector"));
+        else
+        {
+            ReportStyleFileError(Debug, error_message("A vector must only contain numerical values."));
+            break;
+        }
     }
 
     return Result;
@@ -416,10 +407,12 @@ TokenizeStyleFile(os_read_file File, memory_arena *Arena, style_file_debug_info 
 
         if (Char == '[')
         {
+            AdvanceFile(&File, 1); // Consumes '['
+
             style_token *Token = EmitStyleToken(&Result.Buffer, StyleToken_Vector, AtLine, AtByte);
             if (Token)
             {
-                Token->Vector = ReadVector(&File, Debug);
+                 Token->Vector = ReadVector(&File, Debug);
             }
 
             continue;
@@ -434,7 +427,6 @@ TokenizeStyleFile(os_read_file File, memory_arena *Arena, style_file_debug_info 
             {
                 if(PeekFile(&File, 0) == '"')
                 {
-
                     style_token *Token = EmitStyleToken(&Result.Buffer, StyleToken_String, AtLine, AtByte);
                     if (Token)
                     {
@@ -815,7 +807,6 @@ ParseStyleFile(tokenized_style_file *File, memory_arena *RoutineArena, memory_ar
 
     if(Result)
     {
-        // Persistent Allocations
         Result->StylesCount    = 0;
         Result->StylesCapacity = File->StylesCount;
         Result->Styles         = PushArray(OutputArena, ui_cached_style, File->StylesCount);
@@ -824,7 +815,7 @@ ParseStyleFile(tokenized_style_file *File, memory_arena *RoutineArena, memory_ar
         {
             style_var_table_params Params = {0};
             Params.EntryCount = StyleParser_MaximumVarPerFile;
-            Params.HashCount  = StyleParser_HashEntryPerFile;
+            Params.HashCount  = StyleParser_VarHashEntryPerFile;
 
             size_t Footprint      = GetStyleVarTableFootprint(Params);
             u8    *VarTableMemory = PushArray(RoutineArena, u8, Footprint);
@@ -1203,8 +1194,8 @@ ConvertAttributeToProperty(style_attribute Attribute)
             Property.Spacing.Vertical   = Attribute.Vector.V.Y.Float32;
         } break;
 
-        case StyleProperty_FontSize:
         case StyleProperty_Softness:
+        case StyleProperty_FontSize:
         case StyleProperty_BorderWidth:
         {
             Property.Float32 = Attribute.Unit.Float32;
@@ -1218,14 +1209,8 @@ ConvertAttributeToProperty(style_attribute Attribute)
             Property.CornerRadius.BotLeft  = Attribute.Vector.V.W.Float32;
         } break;
 
-        case StyleProperty_Font:
-        {
-            // Assert(!"Implement this");
-        } break;
-
         default:
         {
-            Property.IsSet = 0;
         } break;
     }
 
@@ -1270,6 +1255,8 @@ CacheStyle(style *ParsedStyle, ui_style_subregistry *Registry, style_file_debug_
             }
         }
 
+        // Set the correct flag for the runtime.
+
         if(AtLeastOneIsSet)
         {
             if(Effect == StyleEffect_Base)
@@ -1283,6 +1270,31 @@ CacheStyle(style *ParsedStyle, ui_style_subregistry *Registry, style_file_debug_
             if (Effect == StyleEffect_Click)
             {
                 SetFlag(CachedStyle->Flags, CachedStyle_HasClickStyle);
+            }
+        }
+
+        // Load Fonts
+
+        if(PropertyIsSet(CachedStyle, Effect, StyleProperty_Font))
+        {
+            if(PropertyIsSet(CachedStyle, Effect, StyleProperty_FontSize))
+            {
+                byte_string FontName = Block->Attributes[Effect][StyleProperty_Font].String;
+                f32         FontSize = UIGetFontSize(CachedStyle);
+                if(IsValidByteString(FontName) && FontSize > 0.f)
+                {
+                    ui_font *Font = UIQueryFont(FontName, FontSize);
+                    if(!Font)
+                    {
+                        Font = UILoadFont(FontName, FontSize);
+                    }
+
+                    CachedStyle->Properties[Effect][StyleProperty_Font].Pointer = Font;
+                    SetFlag(CachedStyle->Flags, CachedStyle_FontIsLoaded);
+                }
+            }
+            else
+            {
             }
         }
     }
@@ -1334,5 +1346,5 @@ ReportStyleParserError(style_file_debug_info *Debug, ConsoleMessage_Severity Sev
         Debug->WarningCount++;
     }
 
-    ConsoleWriteMessage(Message, Severity, &Console);
+    ConsoleWriteMessage(Severity, Message, &Console);
 }

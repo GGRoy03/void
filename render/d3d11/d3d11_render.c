@@ -281,12 +281,13 @@ InitializeRenderer(memory_arena *Arena)
 }
 
 internal void 
-SubmitRenderCommands(render_pass_list *RenderPassList, render_handle BackendHandle)
+SubmitRenderCommands(void)
 {
-    d3d11_backend          *Backend       = (d3d11_backend *)BackendHandle.u64[0];
-    ID3D11DeviceContext    *DeviceContext = Backend->DeviceContext;
-    ID3D11RenderTargetView *RenderView    = Backend->RenderView; 
-    IDXGISwapChain1        *SwapChain     = Backend->SwapChain;
+    d3d11_backend          *Backend        = (d3d11_backend *)RenderState.Renderer.u64[0];
+    render_pass_list       *RenderPassList = &RenderState.PassList;
+    ID3D11DeviceContext    *DeviceContext  = Backend->DeviceContext;
+    ID3D11RenderTargetView *RenderView     = Backend->RenderView; 
+    IDXGISwapChain1        *SwapChain      = Backend->SwapChain;
 
     // Update State
     vec2_i32 Resolution = Backend->LastResolution;

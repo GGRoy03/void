@@ -125,7 +125,8 @@ typedef struct render_pass_list
 
 typedef struct render_state
 {
-    render_handle Renderer;
+    render_handle    Renderer;
+    render_pass_list PassList;
 } render_state;
 
 global render_state RenderState;
@@ -156,13 +157,13 @@ internal b32           RenderHandleMatches    (render_handle H1, render_handle H
 // [Batches]
 
 internal void        * PushDataInBatchList  (memory_arena *Arena, render_batch_list *BatchList);
-internal render_pass * GetRenderPass        (memory_arena *Arena, render_pass_list *List, RenderPass_Type Type);
+internal render_pass * GetRenderPass        (memory_arena *Arena, RenderPass_Type Type);
 internal b32           CanMergeGroupParams  (rect_group_params *Old, rect_group_params *New);
 
 // [PER-RENDERER API]
 
 internal render_handle InitializeRenderer    (memory_arena *Arena);
-internal void          SubmitRenderCommands  (render_pass_list *List, render_handle BackendHandle);
+internal void          SubmitRenderCommands  (void);
 
 // [Text]
 

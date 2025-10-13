@@ -26,12 +26,10 @@ enum StyleParser_Constant
     StyleParser_MaximumTokenPerFile = 100000,
     StyleParser_MaximumFileSize     = Gigabyte(1),
     StyleParser_MaximumVarPerFile   = 1024,
-    StyleParser_HashEntryPerFile    = 256,
+    StyleParser_VarHashEntryPerFile = 256,
 };
 
-// [CORE TYPES]
-
-// Tokens genrated by the tokenizer and used by the parser
+// Basic tokens.
 
 typedef struct style_vector
 {
@@ -206,8 +204,8 @@ read_only global style_property_table_entry StylePropertyTable[] =
     {byte_string_compile("color")       , StyleProperty_Color       },
     {byte_string_compile("padding")     , StyleProperty_Padding     },
     {byte_string_compile("spacing")     , StyleProperty_Spacing     },
+    {byte_string_compile("font")        , StyleProperty_Font        },
     {byte_string_compile("fontsize")    , StyleProperty_FontSize    },
-    {byte_string_compile("fontname")    , StyleProperty_Font        },
     {byte_string_compile("softness")    , StyleProperty_Softness    },
     {byte_string_compile("textcolor")   , StyleProperty_TextColor   },
     {byte_string_compile("borderwidth") , StyleProperty_BorderWidth },

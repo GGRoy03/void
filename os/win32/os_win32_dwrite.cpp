@@ -190,24 +190,21 @@ OSGetGlyphInfo(byte_string UTF8, os_font_objects *OSFontObjects, f32 FontSize)
 
     if(!OSBackend || !OSBackend->DWriteFactory || !OSFontObjects->FontFace)
     {
-        byte_string Message = byte_string_literal("");
-        ConsoleWriteMessage(Message, ConsoleMessage_Error, &Console);
+        ConsoleWriteMessage(error_message("One or more text objects is invalid | OSGetGlyphInfo (Win32)"), &Console);
         return Result;
     }
 
     unicode_decode DecodedUTF8 = DecodeByteString(UTF8.String, UTF8.Size);
     if(DecodedUTF8.Codepoint == _UI32_MAX)
     {
-        byte_string Message = byte_string_literal("");
-        ConsoleWriteMessage(Message, ConsoleMessage_Error, &Console);
+        ConsoleWriteMessage(error_message("Could not decode UTF-8 string | OSGetGlyphInfo (Win32)"), &Console);
         return Result;
     }
 
     wide_string UTF16 = ByteStringToWideString(OSArena, UTF8);
     if(!IsValidWideString(UTF16))
     {
-        byte_string Message = byte_string_literal("");
-        ConsoleWriteMessage(Message, ConsoleMessage_Error, &Console);
+        ConsoleWriteMessage(error_message("Could not convert the byte string to a wide string | OSGetGlyphInfo (Win32)"), &Console);
         return Result;
     }
 
@@ -223,8 +220,7 @@ OSGetGlyphInfo(byte_string UTF8, os_font_objects *OSFontObjects, f32 FontSize)
 
     if(!TextLayout)
     {
-        byte_string Message = byte_string_literal("");
-        ConsoleWriteMessage(Message, ConsoleMessage_Error, &Console);
+        ConsoleWriteMessage(error_message("Failed to create Text Layout | OSGetGlyphInfo (Win32)"), &Console);
         return Result;
     }
 
@@ -249,8 +245,7 @@ OSGetGlyphInfo(byte_string UTF8, os_font_objects *OSFontObjects, f32 FontSize)
 
         if(FAILED(Error))
         {
-            byte_string Message = byte_string_literal("");
-            ConsoleWriteMessage(Message, ConsoleMessage_Error, &Console);
+            ConsoleWriteMessage(error_message("Failed to query glyph index | OSGetGlyphInfo (Win32)"), &Console);
             return Result;
         }
     }
@@ -260,8 +255,7 @@ OSGetGlyphInfo(byte_string UTF8, os_font_objects *OSFontObjects, f32 FontSize)
         HRESULT Error = OSFontObjects->FontFace->GetDesignGlyphMetrics(&GlyphIndex, 1, &GlyphMetrics, 0);
         if(FAILED(Error))
         {
-            byte_string Message = byte_string_literal("");
-            ConsoleWriteMessage(Message, ConsoleMessage_Error, &Console);
+            ConsoleWriteMessage(error_message("Failed to query glyph metrics | OSGetGlyphInfo (Win32)"), &Console);
             return Result;
         }
     }

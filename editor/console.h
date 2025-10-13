@@ -20,5 +20,5 @@ typedef struct editor_console_ui
     b32           IsInitialized;
 } editor_console_ui;
 
-internal void ConsoleUI            (editor_console_ui *Console, game_state *GameState);
+internal void ConsoleUI            (editor_console_ui *Console);
 external void ConsolePrintMessage  (byte_string Message, ConsoleMessage_Severity Severity);

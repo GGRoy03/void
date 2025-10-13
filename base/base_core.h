@@ -75,12 +75,24 @@
 #define DisableWarning(Code) __pragma (warning(disable: Code))
 #endif
 
-// [Flags]
+// [Bits Handling]
 
 #define SetFlag(v, f)    ((v) |=  (f))
 #define ClearFlag(v, f)  ((v) &= ~(f))
 #define ToggleFlag(v, f) ((v) ^=  (f))
 #define HasFlag(v, f)    ((v) &   (f))
+
+#ifdef MSVC_COMPILER
+#define FindFirstBit(Mask) _tzcnt_u32(Mask)
+#elif defined(CLANG_COMPILER)
+#define FindFirstBit(Mask) __builtin_ctz(Mask)
+#elif defined(GCC_COMPILER)
+#define FindFirstBit(Mask) __builtin_ctz(Mask)
+#else
+#error  FindFirstBit not defined for this compiler.
+#endif
+
+#define NoFlag 0
 
 // [Linked List]
 

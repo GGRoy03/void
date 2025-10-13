@@ -1,5 +1,5 @@
 internal void
-UIWindow(u32 StyleIndex, ui_pipeline *Pipeline)
+UIWindow_(byte_string Id, u32 StyleIndex, ui_layout_node *Parent, ui_pipeline *Pipeline)
 {
     ui_cached_style *Style = GetCachedStyle(Pipeline->Registry, StyleIndex);
     bit_field        Flags = 0;
@@ -12,11 +12,11 @@ UIWindow(u32 StyleIndex, ui_pipeline *Pipeline)
         SetFlag(Flags, UILayoutNode_IsParent);
     }
 
-    InitializeLayoutNode(Style, UILayoutNode_Window, Flags, Pipeline->LayoutTree);
+    InitializeLayoutNode(Style, UILayoutNode_Window, Parent, Flags, Id, Pipeline);
 }
 
 internal void
-UIButton(u32 StyleIndex, ui_click_callback *Callback, ui_pipeline *Pipeline)
+UIButton_(byte_string Id, u32 StyleIndex, ui_layout_node *Parent, ui_click_callback *Callback, ui_pipeline *Pipeline)
 {
     ui_cached_style *Style = GetCachedStyle(Pipeline->Registry, StyleIndex);
     bit_field        Flags = 0;
@@ -24,11 +24,11 @@ UIButton(u32 StyleIndex, ui_click_callback *Callback, ui_pipeline *Pipeline)
     // TODO: Figure out what we want to do with callbacks.
     Useless(Callback);
 
-    InitializeLayoutNode(Style, UILayoutNode_Button, Flags, Pipeline->LayoutTree);
+    InitializeLayoutNode(Style, UILayoutNode_Button, Parent, Flags, Id, Pipeline);
 }
 
 internal void
-UIHeader(u32 StyleIndex, ui_pipeline *Pipeline)
+UIHeader_(byte_string Id, u32 StyleIndex, ui_layout_node *Parent, ui_pipeline *Pipeline)
 {
     ui_cached_style *Style = GetCachedStyle(Pipeline->Registry, StyleIndex);
     bit_field        Flags = 0;
@@ -38,11 +38,11 @@ UIHeader(u32 StyleIndex, ui_pipeline *Pipeline)
         SetFlag(Flags, UILayoutNode_PlaceChildrenX);
     }
 
-    InitializeLayoutNode(Style, UILayoutNode_Header, Flags, Pipeline->LayoutTree);
+    InitializeLayoutNode(Style, UILayoutNode_Header, Parent, Flags, Id, Pipeline);
 }
 
 internal void
-UIScrollView(u32 StyleIndex, ui_pipeline *Pipeline)
+UIScrollView_(byte_string Id, u32 StyleIndex, ui_layout_node *Parent, ui_pipeline *Pipeline)
 {
     ui_cached_style *Style = GetCachedStyle(Pipeline->Registry, StyleIndex);
     bit_field        Flags = 0;
@@ -53,26 +53,23 @@ UIScrollView(u32 StyleIndex, ui_pipeline *Pipeline)
         SetFlag(Flags, UILayoutNode_IsParent);
     }
 
-    InitializeLayoutNode(Style, UILayoutNode_ScrollView, Flags, Pipeline->LayoutTree);
+    InitializeLayoutNode(Style, UILayoutNode_ScrollView, Parent, Flags, Id, Pipeline);
 }
 
 internal void
-UILabel(u32 StyleIndex, byte_string Text, ui_pipeline *Pipeline)
+UILabel_(byte_string Id, u32 StyleIndex, ui_layout_node *Parent, byte_string Text, ui_pipeline *Pipeline)
 {
     ui_cached_style *Style = GetCachedStyle(Pipeline->Registry, StyleIndex);
     bit_field        Flags = 0;
 
-    // Constants Flags
-    {
-        if(IsValidByteString(Text))
-        {
-            SetFlag(Flags, UILayoutNode_TextIsBound);
-        }
-    }
-
-    ui_layout_node *Node = InitializeLayoutNode(Style, UILayoutNode_Label, Flags, Pipeline->LayoutTree);
+    ui_layout_node *Node = InitializeLayoutNode(Style, UILayoutNode_Label, Parent, Flags, Id, Pipeline);
     if(IsValidLayoutNode(Node))
     {
-        BindText(Node, Text, UIQueryFont(Style), Pipeline->StaticArena);
+        BindText(Node, Text, UIGetFont(Style), Pipeline->StaticArena);
+
+        if(HasFlag(Node->Flags, UILayoutNode_TextIsBound))
+        {
+            SetFlag(Node->Flags, UILayoutNode_DrawText);
+        }
     }
 }

@@ -6,6 +6,6 @@ typedef struct editor_ui
     b32               ShowFileBrowser;
 } editor_ui;
 
-global editor_ui EditorUI;
+global editor_ui EditorUI; // TODO: Move this as part of the UI state
 
-internal void ShowEditorUI  (game_state *GameState);
+internal void ShowEditorUI  (void);

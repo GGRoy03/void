@@ -59,8 +59,9 @@ PushDataInBatchList(memory_arena *Arena, render_batch_list *BatchList)
 }
 
 internal render_pass *
-GetRenderPass(memory_arena *Arena, render_pass_list *List, RenderPass_Type Type)
+GetRenderPass(memory_arena *Arena,  RenderPass_Type Type)
 {
+    render_pass_list *List   = &RenderState.PassList;
     render_pass_node *Result = List->Last;
 
     if (!Result || Result->Value.Type != Type)

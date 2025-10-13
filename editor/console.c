@@ -1,5 +1,3 @@
-// WARN: WIP
-
 external void
 ConsolePrintMessage(byte_string Message, ConsoleMessage_Severity Severity)
 {
@@ -43,15 +41,16 @@ ConsolePrintMessage(byte_string Message, ConsoleMessage_Severity Severity)
     // 1) Attaching children nodes
     // 2) Overriding a property
 
-    // UILabel(ConsoleStyle_Message, byte_string_literal(""), Pipeline);
+    ui_layout_node *ScrollBuffer = UIFindNodeById(ui_id("Console_ScrollBuffer"), Pipeline);
 
-    Useless(Pipeline);
+    UILabelAttach(ConsoleStyle_Message, Message, ScrollBuffer, Pipeline);
+
     Useless(TextColor);
     Useless(Prefix);
 }
 
 internal void
-ConsoleUI(editor_console_ui *ConsoleUI, game_state *GameState)
+ConsoleUI(editor_console_ui *ConsoleUI)
 {
     if(!ConsoleUI->IsInitialized)
     {
@@ -77,10 +76,12 @@ ConsoleUI(editor_console_ui *ConsoleUI, game_state *GameState)
         // Layout
         UIWindow(ConsoleStyle_Window, Pipeline);
         {
-            UIScrollView_(ConsoleStyle_MessageView, Pipeline)
+            UIScrollViewBlockID(ui_id("Console_ScrollBuffer"), ConsoleStyle_MessageView, Pipeline)
             {
             }
         }
+
+        ConsoleWriteMessage(error_message("This is a test message."), &Console);
 
         ConsoleUI->IsInitialized = 1;
     }
@@ -97,5 +98,5 @@ ConsoleUI(editor_console_ui *ConsoleUI, game_state *GameState)
         }
     }
 
-    UIPipelineExecute(&ConsoleUI->Pipeline, &GameState->RenderPassList);
+    UIPipelineExecute(&ConsoleUI->Pipeline);
 }

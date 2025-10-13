@@ -82,7 +82,22 @@ UICreatePipeline(ui_pipeline_params Params)
         TreeParams.Depth     = Params.TreeDepth;
         TreeParams.NodeCount = Params.TreeNodeCount;
 
-        Result.LayoutTree = AllocateLayoutTree(TreeParams);
+        u64   Footprint = GetLayoutTreeFootprint(TreeParams);
+        void *Memory    = PushArray(Result.StaticArena, u8, Footprint);
+
+        Result.LayoutTree = PlaceLayoutTreeInMemory(TreeParams, Memory);
+    }
+
+    // Node Id Table
+    {
+        ui_node_id_table_params Params = {0};
+        Params.GroupSize  = NodeIdTable_GroupSize;
+        Params.GroupCount = 32;
+
+        u64   Footprint = GetNodeIdTableFootprint(Params);
+        void *Memory    = PushArray(Result.StaticArena, u8, Footprint);
+
+        Result.IdTable = PlaceNodeIdTableInMemory(Params, Memory);
     }
 
     // Others
@@ -102,18 +117,21 @@ UIPipelineBegin(ui_pipeline *Pipeline)
 }
 
 internal void
-UIPipelineExecute(ui_pipeline *Pipeline, render_pass_list *PassList)
+UIPipelineExecute(ui_pipeline *Pipeline)
 {
-    Assert(Pipeline && PassList);
+    Assert(Pipeline);
 
     // Unpacking
     ui_layout_node *LayoutRoot = &Pipeline->LayoutTree->Nodes[0];
-    render_pass    *RenderPass = GetRenderPass(Pipeline->FrameArena, PassList, RenderPass_UI);
+    render_pass    *RenderPass = GetRenderPass(Pipeline->FrameArena, RenderPass_UI);
 
     // Layout
     {
         // NOTE: We set the root values to it's absolute width/height.
-        // Which is probably a mistake in the long run.
+        // Which is probably a mistake in the long run, but works fine for now.
+
+        Assert(LayoutRoot->Value.Width.Type  == UIUnit_Float32);
+        Assert(LayoutRoot->Value.Height.Type == UIUnit_Float32);
 
         LayoutRoot->Value.FinalWidth  = LayoutRoot->Value.Width.Float32;
         LayoutRoot->Value.FinalHeight = LayoutRoot->Value.Height.Float32;
@@ -260,7 +278,8 @@ UIPipelineBuildDrawList(ui_pipeline *Pipeline, render_pass *Pass, ui_layout_node
         {
             if(HasFlag(LayoutRoot->Flags, UILayoutNode_TextIsBound))
             {
-                // NOTE: IDK...
+                NewParams.AtlasTextureView = LayoutRoot->Value.DisplayText->Atlas;
+                NewParams.AtlasTextureSize = LayoutRoot->Value.DisplayText->AtlasSize;
             }
 
             CanMerge = CanMergeGroupParams(&Node->Params, &NewParams);
@@ -329,13 +348,16 @@ Draw:
 
     if (HasFlag(LayoutRoot->Flags, UILayoutNode_DrawText))
     {
+        ui_color TextColor = UIGetTextColor(&FinalStyle);
+
         for (u32 Idx = 0; Idx < Box->DisplayText->GlyphCount; ++Idx)
         {
             ui_rect *Rect = PushDataInBatchList(Pipeline->FrameArena, List);
             Rect->SampleAtlas       = 1.f;
             Rect->AtlasSampleSource = Box->DisplayText->Glyphs[Idx].Source;
             Rect->RectBounds        = Box->DisplayText->Glyphs[Idx].Position;
-            Rect->Color             = UIGetTextColor(&FinalStyle);
+            Rect->Color             = TextColor;
+            Rect->Softness          = 1.f;
         }
     }
 

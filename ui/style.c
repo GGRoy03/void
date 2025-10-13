@@ -49,19 +49,6 @@ UIGetTextColor(ui_cached_style *Cached)
     return Result;
 }
 
-internal byte_string
-UIGetFontName(ui_cached_style *Cached)
-{
-    byte_string Result = ByteString(0, 0);
-
-    if(!(HasFlag(Cached->Flags, CachedStyle_FontIsLoaded)))
-    {
-        Result = Cached->Properties[StyleEffect_Base][StyleProperty_Font].String;
-    }
-
-    return Result;
-}
-
 internal ui_padding
 UIGetPadding(ui_cached_style *Cached)
 {
@@ -146,5 +133,12 @@ internal b32
 IsVisibleColor(ui_color Color)
 {
     b32 Result = (Color.A > 0.f);
+    return Result;
+}
+
+internal b32
+PropertyIsSet(ui_cached_style *Style, StyleEffect_Type Effect, StyleProperty_Type Property)
+{
+    b32 Result = Style->Properties[Effect][Property].IsSet;
     return Result;
 }

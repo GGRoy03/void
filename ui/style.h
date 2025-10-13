@@ -54,7 +54,6 @@ typedef struct style_property
         ui_color         Color;
         ui_corner_radius CornerRadius;
         void            *Pointer;
-        byte_string      String;
     };
 } style_property;
 
@@ -83,7 +82,6 @@ internal vec2_unit         UIGetSize          (ui_cached_style *Cached);
 internal ui_color          UIGetColor         (ui_cached_style *Cached);
 internal ui_color          UIGetBorderColor   (ui_cached_style *Cached);
 internal ui_color          UIGetTextColor     (ui_cached_style *Cached);
-internal byte_string       UIGetFontName      (ui_cached_style *Cached);
 internal ui_padding        UIGetPadding       (ui_cached_style *Cached);
 internal ui_spacing        UIGetSpacing       (ui_cached_style *Cached);
 internal ui_corner_radius  UIGetCornerRadius  (ui_cached_style *Cached);
@@ -99,3 +97,4 @@ internal ui_cached_style * GetCachedStyle  (ui_style_registry *Registry, u32 Ind
 // [Helpers]
 
 internal b32 IsVisibleColor  (ui_color Color);
+internal b32 PropertyIsSet   (ui_cached_style *Style, StyleEffect_Type Effect, StyleProperty_Type Property);
