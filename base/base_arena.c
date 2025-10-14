@@ -106,6 +106,7 @@ internal void
 ClearArena(memory_arena *Arena)
 {
     PopArenaTo(Arena, 0);
+    MemorySet((Arena + 1), 0, (Arena->Committed - Arena->Position));
 }
 
 external void

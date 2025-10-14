@@ -83,12 +83,6 @@ UIGetFont(ui_cached_style *Cached)
     return Result;
 }
 
-internal void
-UISetFont(ui_cached_style *Cached, ui_font *Font)
-{
-    Cached->Properties[StyleEffect_Base][StyleProperty_Font].Pointer = Font;
-}
-
 // [Styles]
 
 internal ui_cached_style
@@ -109,6 +103,23 @@ SuperposeStyle(ui_cached_style *Style, StyleEffect_Type Effect)
         {
             Result.Properties[StyleEffect_Base][Type] = Style->Properties[Effect][Type];
         }
+    }
+
+    return Result;
+}
+
+internal ui_node_style *
+GetNodeStyle(u32 Index, ui_pipeline *Pipeline)
+{
+    ui_node_style *Result = 0;
+
+    // WARN:
+    // Will become faulty logic once we implement some sort of free-list
+    // for the tree. Maybe we just check against the node capacity?
+
+    if(Index < Pipeline->LayoutTree->NodeCount)
+    {
+        Result = Pipeline->NodesStyle + Index;
     }
 
     return Result;

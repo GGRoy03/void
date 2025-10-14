@@ -94,13 +94,12 @@ InitializeLayoutNode(ui_cached_style *Style, UILayoutNode_Type Type, bit_field C
     ui_layout_node *Node = GetFreeLayoutNode(Tree, Type);
     if(Node)
     {
-        Node->Flags       = ConstantFlags;
-        Node->CachedStyle = Style;
-
         Node->Value.Width   = UIGetSize(Style).X;
         Node->Value.Height  = UIGetSize(Style).Y;
         Node->Value.Padding = UIGetPadding(Style);
         Node->Value.Spacing = UIGetSpacing(Style);
+
+        Node->Flags = ConstantFlags;
 
         // Tree Hierarchy
         {
@@ -144,6 +143,14 @@ InitializeLayoutNode(ui_cached_style *Style, UILayoutNode_Type Type, bit_field C
         {
             SetNodeId(Id, Node, Pipeline->IdTable);
         }
+
+        // Style Info
+        {
+            ui_node_style NodeStyle = {0};
+            NodeStyle.CachedStyleIndex = Style->CachedIndex;
+
+            Pipeline->NodesStyle[Node->Index] = NodeStyle;
+        }
     }
 
     return Node;
@@ -182,7 +189,10 @@ HitTestLayout(vec2_f32 MousePosition, ui_layout_node *LayoutRoot, ui_pipeline *P
 
         if(HasFlag(LayoutRoot->Flags, UILayoutNode_IsResizable))
         {
-            f32      BorderWidth        = UIGetBorderWidth(LayoutRoot->CachedStyle);
+            ui_node_style   *NodeStyle   = GetNodeStyle(LayoutRoot->Index, Pipeline);
+            ui_cached_style *CachedStyle = GetCachedStyle(Pipeline->Registry, NodeStyle->CachedStyleIndex);
+
+            f32      BorderWidth        = UIGetBorderWidth(CachedStyle);
             vec2_f32 BorderWidthVector  = Vec2F32(BorderWidth, BorderWidth);
             vec2_f32 HalfSizeWithBorder = Vec2F32Sub(FullHalfSize, BorderWidthVector);
 

@@ -37,12 +37,16 @@ ConsolePrintMessage(byte_string Message, ConsoleMessage_Severity Severity, ui_la
 
     }
 
-    byte_string FormattedMessage = ByteStringAppend(Message, Prefix, 0, ConsoleUI->Pipeline->FrameArena);
+    memory_region Local = EnterMemoryRegion(ConsoleUI->Arena);
+
+    byte_string FormattedMessage = ByteStringAppend(Message, Prefix, 0, Local.Arena);
 
     UISubtreeBlock(ScrollBuffer, ConsoleUI->Pipeline)
     {
         UILabel(ConsoleStyle_Message, FormattedMessage, ConsoleUI->Pipeline);
     }
+
+    LeaveMemoryRegion(Local);
 
     Useless(TextColor);
 }
@@ -62,8 +66,8 @@ ConsoleUI(editor_console_ui *ConsoleUI)
         {
             ArenaParams.AllocatedFromFile = __FILE__;
             ArenaParams.AllocatedFromLine = __LINE__;
-            ArenaParams.ReserveSize       = Kilobyte(10);
-            ArenaParams.CommitSize        = Kilobyte(1);
+            ArenaParams.ReserveSize       = Kilobyte(64);
+            ArenaParams.CommitSize        = Kilobyte(4);
         }
         ConsoleUI->Arena = AllocateArena(ArenaParams);
 
@@ -86,8 +90,9 @@ ConsoleUI(editor_console_ui *ConsoleUI)
 
     // Drain The Queue
     {
-        ui_layout_node *ScrollBuffer = UIFindNodeById(ui_id("Console_ScrollBuffer"), ConsoleUI->Pipeline);
-        console_queue_node *Node = 0;
+        ui_layout_node     *ScrollBuffer = UIFindNodeById(ui_id("Console_ScrollBuffer"), ConsoleUI->Pipeline);
+        console_queue_node *Node         = 0;
+
         while((Node = PopConsoleMessageQueue(&Console)))
         {
             ConsolePrintMessage(ByteString(Node->Value.Text, Node->Value.TextSize), Node->Value.Severity, ScrollBuffer);

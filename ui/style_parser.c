@@ -464,7 +464,7 @@ TokenizeStyleFile(os_read_file File, memory_arena *Arena, style_file_debug_info 
             continue;
         }
 
-        // NOTE: Break? Seems wrong... Because 1 wrong token = invalid file??
+        // BUG: Break? Seems wrong... Because 1 wrong token = invalid file??
 
         ReportStyleFileError(Debug, error_message("Found invalid character"));
         break;
@@ -1234,9 +1234,11 @@ CacheStyle(style *ParsedStyle, ui_style_subregistry *Registry, style_file_debug_
 {
     Assert(Registry->StylesCount < Registry->StylesCapacity);
 
-    ui_cached_style *CachedStyle = Registry->Styles + Registry->StylesCount++;
+    ui_cached_style *CachedStyle = Registry->Styles + Registry->StylesCount;
     style_header    *Header      = &ParsedStyle->Header;
     style_block     *Block       = &ParsedStyle->Block;
+
+    CachedStyle->CachedIndex = Registry->StylesCount;
 
     // Prunes every badly formatted attribute from the list.
     // Also, outputs the corresponding error messages.
@@ -1304,12 +1306,17 @@ CacheStyle(style *ParsedStyle, ui_style_subregistry *Registry, style_file_debug_
                     CachedStyle->Properties[Effect][StyleProperty_Font].Pointer = Font;
                     SetFlag(CachedStyle->Flags, CachedStyle_FontIsLoaded);
                 }
+                else
+                {
+                }
             }
             else
             {
             }
         }
     }
+
+    ++Registry->StylesCount;
 
     Useless(Header); // NOTE: Useless at the moment. Unsure where I wanna go with this.
 }

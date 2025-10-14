@@ -22,6 +22,7 @@ typedef enum UIIntent_Type
 typedef struct ui_style         ui_style;
 typedef struct ui_layout_node   ui_layout_node;
 typedef struct ui_layout_tree   ui_layout_tree;
+typedef struct ui_node_style    ui_node_style;
 typedef struct ui_node_id_table ui_node_id_table;
 typedef struct ui_pipeline      ui_pipeline;
 
@@ -112,6 +113,7 @@ struct ui_pipeline
     // State
     b32                IsStale;
     ui_layout_tree    *LayoutTree;
+    ui_node_style     *NodesStyle;
     ui_style_registry *Registry;
     ui_node_id_table  *IdTable;
 

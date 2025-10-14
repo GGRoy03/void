@@ -63,6 +63,7 @@ typedef struct ui_cached_style
     style_property Properties[StyleEffect_Count][StyleProperty_Count];
 
     // Misc
+    u32       CachedIndex;
     bit_field Flags;
 } ui_cached_style;
 
@@ -72,6 +73,26 @@ typedef struct ui_style_registry
     u32              StylesCapacity;
     ui_cached_style *Styles;
 } ui_style_subregistry;
+
+typedef struct ui_style_override ui_style_override;
+struct ui_style_override
+{
+    ui_style_override *Next;
+    style_property     Property;
+};
+
+typedef struct ui_style_override_list
+{
+    ui_style_override *First;
+    ui_style_override *Last;
+    u32                Count;
+} ui_style_override_list;
+
+typedef struct ui_node_style
+{
+    u32                    CachedStyleIndex;
+    ui_style_override_list Overrides;
+} ui_node_style;
 
 // [Properties]
 
@@ -87,11 +108,10 @@ internal ui_spacing        UIGetSpacing       (ui_cached_style *Cached);
 internal ui_corner_radius  UIGetCornerRadius  (ui_cached_style *Cached);
 internal ui_font         * UIGetFont          (ui_cached_style *Cached);
 
-internal void              UISetFont          (ui_cached_style *Cached, ui_font *Font);
-
 // [Styles]
 
 internal ui_cached_style   SuperposeStyle  (ui_cached_style *Base, StyleEffect_Type Effect);
+internal ui_node_style   * GetNodeStyle    (u32 Index, ui_pipeline *Pipeline);
 internal ui_cached_style * GetCachedStyle  (ui_style_registry *Registry, u32 Index);
 
 // [Helpers]

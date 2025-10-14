@@ -152,8 +152,8 @@ UICreatePipeline(ui_pipeline_params Params)
             memory_arena_params ArenaParams = { 0 };
             ArenaParams.AllocatedFromFile = __FILE__;
             ArenaParams.AllocatedFromLine = __LINE__;
-            ArenaParams.ReserveSize = Megabyte(1);
-            ArenaParams.CommitSize = Kilobyte(1);
+            ArenaParams.ReserveSize       = Megabyte(1);
+            ArenaParams.CommitSize        = Kilobyte(1);
 
             Result->FrameArena = AllocateArena(ArenaParams);
         }
@@ -163,8 +163,8 @@ UICreatePipeline(ui_pipeline_params Params)
             memory_arena_params ArenaParams = { 0 };
             ArenaParams.AllocatedFromFile = __FILE__;
             ArenaParams.AllocatedFromLine = __LINE__;
-            ArenaParams.ReserveSize = Megabyte(1);
-            ArenaParams.CommitSize = Kilobyte(1);
+            ArenaParams.ReserveSize       = Megabyte(1);
+            ArenaParams.CommitSize        = Kilobyte(1);
 
             Result->StaticArena = AllocateArena(ArenaParams);
         }
@@ -198,6 +198,11 @@ UICreatePipeline(ui_pipeline_params Params)
             Result->Registry = CreateStyleRegistry(Params.ThemeFile, Result->StaticArena);
         }
 
+        // Style Info
+        {
+            Result->NodesStyle = PushArray(Result->StaticArena, ui_node_style, Result->LayoutTree->NodeCapacity);
+        }
+
         AppendToLinkedList((&State->Pipelines), Result, State->Pipelines.Count);
     }
 
@@ -222,9 +227,9 @@ UIPipelineExecute(ui_pipeline *Pipeline)
     // that we can omit the pipeline rendering in the case that it isn't stale.
 
     // Unpacking
-    ui_state *State = &UIState;
+    ui_state       *State      = &UIState;
     ui_layout_node *LayoutRoot = &Pipeline->LayoutTree->Nodes[0];
-    render_pass *RenderPass = GetRenderPass(Pipeline->FrameArena, RenderPass_UI);
+    render_pass    *RenderPass = GetRenderPass(Pipeline->FrameArena, RenderPass_UI);
 
     // Layout
     {
@@ -234,7 +239,7 @@ UIPipelineExecute(ui_pipeline *Pipeline)
         Assert(LayoutRoot->Value.Width.Type == UIUnit_Float32);
         Assert(LayoutRoot->Value.Height.Type == UIUnit_Float32);
 
-        LayoutRoot->Value.FinalWidth = LayoutRoot->Value.Width.Float32;
+        LayoutRoot->Value.FinalWidth  = LayoutRoot->Value.Width.Float32;
         LayoutRoot->Value.FinalHeight = LayoutRoot->Value.Height.Float32;
 
         PreOrderMeasure(LayoutRoot, Pipeline);
@@ -247,7 +252,7 @@ UIPipelineExecute(ui_pipeline *Pipeline)
     if (!State->CapturedNode)
     {
         b32      MouseIsClicked = OSIsMouseClicked(OSMouseButton_Left);
-        vec2_f32 MousePosition = OSGetMousePosition();
+        vec2_f32 MousePosition  = OSGetMousePosition();
 
         ui_hit_test Hit = HitTestLayout(MousePosition, LayoutRoot, Pipeline);
         if (Hit.Success)
@@ -262,8 +267,8 @@ UIPipelineExecute(ui_pipeline *Pipeline)
                     // TODO: Callback or something?
                 }
 
-                State->CapturedNode = Hit.Node;
-                State->Intent = Hit.Intent;
+                State->CapturedNode   = Hit.Node;
+                State->Intent         = Hit.Intent;
                 State->TargetPipeline = Pipeline;
 
                 SetFlag(Hit.Node->Flags, UILayoutNode_IsClicked);
@@ -274,7 +279,6 @@ UIPipelineExecute(ui_pipeline *Pipeline)
     }
 
     BuildDrawList(Pipeline, RenderPass, LayoutRoot);
-    
 }
 
 internal void
@@ -322,29 +326,49 @@ BuildDrawList(ui_pipeline *Pipeline, render_pass *Pass, ui_layout_node *LayoutRo
         List         = &Node->BatchList;
     }
 
-    ui_cached_style *BaseStyle  = LayoutRoot->CachedStyle;
-    ui_cached_style  FinalStyle = *BaseStyle;
+    ui_cached_style FinalStyle = {0};
     {
-        if(HasFlag(LayoutRoot->Flags, UILayoutNode_IsClicked))
+        ui_node_style *NodeStyle = GetNodeStyle(LayoutRoot->Index, Pipeline);
+        if(NodeStyle)
         {
-            ClearFlag(LayoutRoot->Flags, UILayoutNode_IsClicked);
-
-            if(HasFlag(BaseStyle->Flags, CachedStyle_HasClickStyle))
+            ui_cached_style *BaseStyle = GetCachedStyle(Pipeline->Registry, NodeStyle->CachedStyleIndex);
+            if(BaseStyle)
             {
-                FinalStyle = SuperposeStyle(BaseStyle, StyleEffect_Click);
-                goto Draw;
+                FinalStyle = BaseStyle[0];
+
+                IterateLinkedList(NodeStyle->Overrides.First, ui_style_override *, Override)
+                {
+                    FinalStyle.Properties[StyleEffect_Base][Override->Property.Type] = Override->Property;
+                }
+
+                if(HasFlag(LayoutRoot->Flags, UILayoutNode_IsClicked))
+                {
+                    ClearFlag(LayoutRoot->Flags, UILayoutNode_IsClicked);
+
+                    if(HasFlag(BaseStyle->Flags, CachedStyle_HasClickStyle))
+                    {
+                        FinalStyle = SuperposeStyle(BaseStyle, StyleEffect_Click);
+                        goto Draw;
+                    }
+                }
+
+                if(HasFlag(LayoutRoot->Flags, UILayoutNode_IsHovered))
+                {
+                    ClearFlag(LayoutRoot->Flags, UILayoutNode_IsHovered);
+
+                    if(HasFlag(BaseStyle->Flags, CachedStyle_HasHoverStyle))
+                    {
+                        FinalStyle = SuperposeStyle(BaseStyle, StyleEffect_Hover);
+                        goto Draw;
+                    }
+                }
+            }
+            else
+            {
             }
         }
-
-        if(HasFlag(LayoutRoot->Flags, UILayoutNode_IsHovered))
+        else
         {
-            ClearFlag(LayoutRoot->Flags, UILayoutNode_IsHovered);
-
-            if(HasFlag(BaseStyle->Flags, CachedStyle_HasHoverStyle))
-            {
-                FinalStyle = SuperposeStyle(BaseStyle, StyleEffect_Hover);
-                goto Draw;
-            }
         }
     }
 

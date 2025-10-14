@@ -88,6 +88,7 @@ typedef struct ui_layout_box
 typedef struct ui_layout_node ui_layout_node;
 struct ui_layout_node
 {
+    // Hierarchy
     u32             Index;
     u32             ChildCount;
     ui_layout_node *Parent;
@@ -96,12 +97,12 @@ struct ui_layout_node
     ui_layout_node *Next;
     ui_layout_node *Prev;
 
+    // Value
     UILayoutNode_Type Type;
     ui_layout_box     Value;
 
+    // Misc
     bit_field Flags;
-
-    ui_cached_style *CachedStyle; // NOTE: Really?
 };
 
 typedef struct ui_layout_tree_params
