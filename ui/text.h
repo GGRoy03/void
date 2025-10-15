@@ -29,6 +29,7 @@ typedef struct glyph_entry
     rect_f32 Source;
     rect_f32 Position;
     vec2_f32 Offset;
+    vec2_i32 Size;
     f32      AdvanceX;
 } glyph_entry;
 
@@ -51,6 +52,7 @@ typedef struct glyph_state
     rect_f32 Source;
     rect_f32 Position;
     vec2_f32 Offset;
+    vec2_i32 Size;
     f32      AdvanceX;
 } glyph_state;
 
@@ -84,6 +86,7 @@ typedef struct ui_glyph
     rect_f32 Position;
     rect_f32 Source;
     vec2_f32 Offset;
+    vec2_i32 Size;
     f32      AdvanceX;
 } ui_glyph;
 

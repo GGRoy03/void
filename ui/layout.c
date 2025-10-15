@@ -1,12 +1,17 @@
 // [Helpers]
 
 internal void
-AlignGlyph(vec2_f32 Position, f32 LineHeight, ui_glyph *Glyph)
+AlignGlyph(vec2_f32 Position, ui_glyph *Glyph)
 {
+    //Glyph->Position.Min.X = Position.X + Glyph->Offset.X;
+    //Glyph->Position.Min.Y = Position.Y + Glyph->Offset.Y;
+    //Glyph->Position.Max.X = Glyph->Position.Min.X + Glyph->Size.X;
+    //Glyph->Position.Max.Y = Glyph->Position.Min.Y + Glyph->Size.Y;
+
     Glyph->Position.Min.X = roundf(Position.X + Glyph->Offset.X);
     Glyph->Position.Min.Y = roundf(Position.Y + Glyph->Offset.Y);
-    Glyph->Position.Max.X = roundf(Glyph->Position.Min.X + Glyph->AdvanceX);
-    Glyph->Position.Max.Y = roundf(Glyph->Position.Min.Y + LineHeight); // WARN: Wrong?
+    Glyph->Position.Max.X = roundf(Glyph->Position.Min.X + Glyph->Size.X);
+    Glyph->Position.Max.Y = roundf(Glyph->Position.Min.Y + Glyph->Size.Y);
 }
 
 // [Layout Tree/Nodes]
@@ -15,6 +20,19 @@ internal b32
 IsValidLayoutNode(ui_layout_node *Node)
 {
     b32 Result = Node && Node->Index != LayoutTree_InvalidNodeIndex;
+    return Result;
+}
+
+internal ui_layout_node *
+GetLastAddedLayoutNode(ui_layout_tree *Tree)
+{
+    ui_layout_node *Result = 0;
+
+    if(Tree->NodeCount > 0)
+    {
+        Result = Tree->Nodes + (Tree->NodeCount - 1);
+    }
+
     return Result;
 }
 
@@ -159,10 +177,10 @@ InitializeLayoutNode(ui_cached_style *Style, UILayoutNode_Type Type, bit_field C
 // [Pass]
 
 internal ui_hit_test
-HitTestLayout(vec2_f32 MousePosition, ui_layout_node *LayoutRoot, ui_pipeline *Pipeline)
+HitTestLayout(vec2_f32 MousePosition, ui_layout_node *Root, ui_pipeline *Pipeline)
 {
     ui_hit_test    Result = {0};
-    ui_layout_box *Box    = &LayoutRoot->Value;
+    ui_layout_box *Box    = &Root->Value;
 
     f32      Radius        = 0.f;
     vec2_f32 FullHalfSize  = Vec2F32(Box->FinalWidth * 0.5f, Box->FinalHeight * 0.5f);
@@ -174,7 +192,7 @@ HitTestLayout(vec2_f32 MousePosition, ui_layout_node *LayoutRoot, ui_pipeline *P
     {
         // Recurse into all of the children. Respects draw order by iterating backwards
 
-        for(ui_layout_node *Child = LayoutRoot->Last; Child != 0; Child = Child->Prev)
+        for(ui_layout_node *Child = Root->Last; Child != 0; Child = Child->Prev)
         {
             Result = HitTestLayout(MousePosition, Child, Pipeline);
             if(Result.Success)
@@ -183,13 +201,13 @@ HitTestLayout(vec2_f32 MousePosition, ui_layout_node *LayoutRoot, ui_pipeline *P
             }
         }
 
-        Result.Node    = LayoutRoot;
+        Result.Node    = Root;
         Result.Intent  = UIIntent_Hover;
         Result.Success = 1;
 
-        if(HasFlag(LayoutRoot->Flags, UILayoutNode_IsResizable))
+        if(HasFlag(Root->Flags, UILayoutNode_IsResizable))
         {
-            ui_node_style   *NodeStyle   = GetNodeStyle(LayoutRoot->Index, Pipeline);
+            ui_node_style   *NodeStyle   = GetNodeStyle(Root->Index, Pipeline);
             ui_cached_style *CachedStyle = GetCachedStyle(Pipeline->Registry, NodeStyle->CachedStyleIndex);
 
             f32      BorderWidth        = UIGetBorderWidth(CachedStyle);
@@ -228,7 +246,7 @@ HitTestLayout(vec2_f32 MousePosition, ui_layout_node *LayoutRoot, ui_pipeline *P
             }
         }
 
-        if (Result.Intent == UIIntent_Hover && HasFlag(LayoutRoot->Flags, UILayoutNode_IsDraggable))
+        if (Result.Intent == UIIntent_Hover && HasFlag(Root->Flags, UILayoutNode_IsDraggable))
         {
             Result.Intent = UIIntent_Drag;
         }
@@ -337,7 +355,7 @@ PreOrderPlace(ui_layout_node *LayoutRoot, ui_pipeline *Pipeline)
                         f32      GlyphWidth    = Glyph->AdvanceX;
                         vec2_f32 GlyphPosition = Vec2F32(LineStartX + LineWidth, LineStartY + (FilledLine * Run->LineHeight));
 
-                        AlignGlyph(GlyphPosition, Run->LineHeight, Glyph);
+                        AlignGlyph(GlyphPosition, Glyph);
 
                         if(LineWidth + GlyphWidth > Box->FinalWidth)
                         {
@@ -348,7 +366,7 @@ PreOrderPlace(ui_layout_node *LayoutRoot, ui_pipeline *Pipeline)
                             LineWidth = GlyphWidth;
 
                             GlyphPosition = Vec2F32(LineStartX, LineStartY + (FilledLine * Run->LineHeight));
-                            AlignGlyph(GlyphPosition, Run->LineHeight, Glyph);
+                            AlignGlyph(GlyphPosition, Glyph);
 
                         }
                         else

@@ -273,6 +273,8 @@ UIPipelineExecute(ui_pipeline *Pipeline)
 
                 SetFlag(Hit.Node->Flags, UILayoutNode_IsClicked);
             }
+
+            SetFlag(Hit.Node->Flags, UILayoutNode_IsHovered);
         }
 
         State->Intent = Hit.Intent;
@@ -282,9 +284,9 @@ UIPipelineExecute(ui_pipeline *Pipeline)
 }
 
 internal void
-BuildDrawList(ui_pipeline *Pipeline, render_pass *Pass, ui_layout_node *LayoutRoot)
+BuildDrawList(ui_pipeline *Pipeline, render_pass *Pass, ui_layout_node *Root)
 {
-    ui_layout_box *Box = &LayoutRoot->Value;
+    ui_layout_box *Box = &Root->Value;
 
     render_batch_list     *List      = 0;
     render_pass_params_ui *UIParams  = &Pass->Params.UI.Params;
@@ -295,10 +297,10 @@ BuildDrawList(ui_pipeline *Pipeline, render_pass *Pass, ui_layout_node *LayoutRo
         b32 CanMerge = 1;
         if(Node)
         {
-            if(HasFlag(LayoutRoot->Flags, UILayoutNode_TextIsBound))
+            if(HasFlag(Root->Flags, UILayoutNode_TextIsBound))
             {
-                NewParams.AtlasTextureView = LayoutRoot->Value.DisplayText->Atlas;
-                NewParams.AtlasTextureSize = LayoutRoot->Value.DisplayText->AtlasSize;
+                NewParams.AtlasTextureView = Root->Value.DisplayText->Atlas;
+                NewParams.AtlasTextureSize = Root->Value.DisplayText->AtlasSize;
             }
 
             CanMerge = CanMergeGroupParams(&Node->Params, &NewParams);
@@ -326,39 +328,42 @@ BuildDrawList(ui_pipeline *Pipeline, render_pass *Pass, ui_layout_node *LayoutRo
         List         = &Node->BatchList;
     }
 
-    ui_cached_style FinalStyle = {0};
+    style_property FinalStyle[StyleProperty_Count] = {0};
     {
-        ui_node_style *NodeStyle = GetNodeStyle(LayoutRoot->Index, Pipeline);
+        ui_node_style *NodeStyle = GetNodeStyle(Root->Index, Pipeline);
         if(NodeStyle)
         {
-            ui_cached_style *BaseStyle = GetCachedStyle(Pipeline->Registry, NodeStyle->CachedStyleIndex);
-            if(BaseStyle)
+            ui_cached_style *CachedStyle = GetCachedStyle(Pipeline->Registry, NodeStyle->CachedStyleIndex);
+            if(CachedStyle)
             {
-                FinalStyle = BaseStyle[0];
+                style_property *Base = UIGetStyleEffect(CachedStyle, StyleEffect_Base);
+                MemoryCopy(FinalStyle, Base, sizeof(FinalStyle));
 
-                IterateLinkedList(NodeStyle->Overrides.First, ui_style_override *, Override)
+                IterateLinkedList(NodeStyle->Overrides.First, ui_style_override_node *, Override)
                 {
-                    FinalStyle.Properties[StyleEffect_Base][Override->Property.Type] = Override->Property;
+                    FinalStyle[Override->Value.Type] = Override->Value;
                 }
 
-                if(HasFlag(LayoutRoot->Flags, UILayoutNode_IsClicked))
+                if(HasFlag(Root->Flags, UILayoutNode_IsClicked))
                 {
-                    ClearFlag(LayoutRoot->Flags, UILayoutNode_IsClicked);
+                    ClearFlag(Root->Flags, UILayoutNode_IsClicked);
 
-                    if(HasFlag(BaseStyle->Flags, CachedStyle_HasClickStyle))
+                    if(HasFlag(CachedStyle->Flags, CachedStyle_HasClickStyle))
                     {
-                        FinalStyle = SuperposeStyle(BaseStyle, StyleEffect_Click);
+                        style_property *Click = UIGetStyleEffect(CachedStyle, StyleEffect_Click);
+                        SuperposeStyle(FinalStyle, Click);
                         goto Draw;
                     }
                 }
 
-                if(HasFlag(LayoutRoot->Flags, UILayoutNode_IsHovered))
+                if(HasFlag(Root->Flags, UILayoutNode_IsHovered))
                 {
-                    ClearFlag(LayoutRoot->Flags, UILayoutNode_IsHovered);
+                    ClearFlag(Root->Flags, UILayoutNode_IsHovered);
 
-                    if(HasFlag(BaseStyle->Flags, CachedStyle_HasHoverStyle))
+                    if(HasFlag(CachedStyle->Flags, CachedStyle_HasHoverStyle))
                     {
-                        FinalStyle = SuperposeStyle(BaseStyle, StyleEffect_Hover);
+                        style_property *Hover = UIGetStyleEffect(CachedStyle, StyleEffect_Hover);
+                        SuperposeStyle(FinalStyle, Hover);
                         goto Draw;
                     }
                 }
@@ -374,28 +379,28 @@ BuildDrawList(ui_pipeline *Pipeline, render_pass *Pass, ui_layout_node *LayoutRo
 
 Draw:
 
-    if (HasFlag(LayoutRoot->Flags, UILayoutNode_DrawBackground))
+    if (HasFlag(Root->Flags, UILayoutNode_DrawBackground))
     {
         ui_rect *Rect = PushDataInBatchList(Pipeline->FrameArena, List);
         Rect->RectBounds  = RectF32(Box->FinalX, Box->FinalY, Box->FinalWidth, Box->FinalHeight);
-        Rect->Color       = UIGetColor(&FinalStyle);
-        Rect->CornerRadii = UIGetCornerRadius(&FinalStyle);
-        Rect->Softness    = UIGetSoftness(&FinalStyle);
+        Rect->Color       = FinalStyle[StyleProperty_Color].Color;
+        Rect->CornerRadii = FinalStyle[StyleProperty_CornerRadius].CornerRadius;
+        Rect->Softness    = FinalStyle[StyleProperty_Softness].Float32;
     }
 
-    if (HasFlag(LayoutRoot->Flags, UILayoutNode_DrawBorders))
+    if (HasFlag(Root->Flags, UILayoutNode_DrawBorders))
     {
         ui_rect *Rect = PushDataInBatchList(Pipeline->FrameArena, List);
         Rect->RectBounds  = RectF32(Box->FinalX, Box->FinalY, Box->FinalWidth, Box->FinalHeight);
-        Rect->Color       = UIGetBorderColor(&FinalStyle);
-        Rect->CornerRadii = UIGetCornerRadius(&FinalStyle);
-        Rect->BorderWidth = UIGetBorderWidth(&FinalStyle);
-        Rect->Softness    = UIGetSoftness(&FinalStyle);
+        Rect->Color       = FinalStyle[StyleProperty_BorderColor].Color;
+        Rect->CornerRadii = FinalStyle[StyleProperty_CornerRadius].CornerRadius;
+        Rect->BorderWidth = FinalStyle[StyleProperty_BorderWidth].Float32;
+        Rect->Softness    = FinalStyle[StyleProperty_Softness].Float32;
     }
 
-    if (HasFlag(LayoutRoot->Flags, UILayoutNode_DrawText))
+    if (HasFlag(Root->Flags, UILayoutNode_DrawText))
     {
-        ui_color TextColor = UIGetTextColor(&FinalStyle);
+        ui_color TextColor = FinalStyle[StyleProperty_TextColor].Color;
 
         for (u32 Idx = 0; Idx < Box->DisplayText->GlyphCount; ++Idx)
         {
@@ -408,7 +413,7 @@ Draw:
         }
     }
 
-    IterateLinkedList(LayoutRoot->First, ui_layout_node *, Child)
+    IterateLinkedList(Root->First, ui_layout_node *, Child)
     {
         BuildDrawList(Pipeline, Pass, Child);
     }

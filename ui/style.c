@@ -75,6 +75,8 @@ UIGetFont(ui_cached_style *Cached)
 {
     ui_font *Result = 0;
 
+    // WARN: Doesn't make any sense. Probably just remove this flag?
+
     if(HasFlag(Cached->Flags, CachedStyle_FontIsLoaded))
     {
         Result = Cached->Properties[StyleEffect_Base][StyleProperty_Font].Pointer;
@@ -85,27 +87,55 @@ UIGetFont(ui_cached_style *Cached)
 
 // [Styles]
 
-internal ui_cached_style
-SuperposeStyle(ui_cached_style *Style, StyleEffect_Type Effect)
+internal ui_style_override_node *
+AllocateStyleOverrideNode(StyleProperty_Type Type, memory_arena *Arena)
 {
-    Assert(Effect != StyleEffect_None);
-    Assert(Effect != StyleEffect_Count);
-    Assert(Effect != StyleEffect_Base);
-
-    ui_cached_style Result = *Style;
-
-    ForEachEnum(StyleProperty_Type, StyleProperty_Count, Type)
+    ui_style_override_node *Result = PushArray(Arena, ui_style_override_node, 1);
+    if(Result)
     {
-        // If the layer to superpose is set, override the result with that value.
-        // Otherwise we just use whatever is stored in the base style.
-
-        if(Style->Properties[Effect][Type].IsSet)
-        {
-            Result.Properties[StyleEffect_Base][Type] = Style->Properties[Effect][Type];
-        }
+        Result->Value.IsSet = 1;
+        Result->Value.Type  = Type;
     }
 
     return Result;
+}
+
+internal void
+UISetStyleProperty(StyleProperty_Type Type, style_property Value, ui_pipeline *Pipeline)
+{
+    ui_layout_node *Node = GetLastAddedLayoutNode(Pipeline->LayoutTree);
+    if(Node)
+    {
+        ui_node_style *NodeStyle = GetNodeStyle(Node->Index, Pipeline);
+        if(NodeStyle)
+        {
+            ui_style_override_node *Override = AllocateStyleOverrideNode(Type, Pipeline->StaticArena);
+            if(Override)
+            {
+                Override->Value       = Value;
+                Override->Value.IsSet = 1;
+                AppendToLinkedList((&NodeStyle->Overrides), Override, NodeStyle->Overrides.Count);
+            }
+        }
+    }
+}
+
+internal void
+UISetTextColor(ui_color Color, ui_pipeline *Pipeline)
+{
+    UISetStyleProperty(StyleProperty_TextColor, (style_property){.Type = StyleProperty_TextColor, .Color = Color}, Pipeline);
+}
+
+internal void
+SuperposeStyle(style_property *BaseProperties, style_property *LayerProperties)
+{
+    ForEachEnum(StyleProperty_Type, StyleProperty_Count, Type)
+    {
+        if(LayerProperties[Type].IsSet)
+        {
+            BaseProperties[Type] = LayerProperties[Type];
+        }
+    }
 }
 
 internal ui_node_style *
@@ -137,6 +167,14 @@ GetCachedStyle(ui_style_registry *Registry, u32 Index)
 
     return Result;
 }
+
+internal style_property *
+UIGetStyleEffect(ui_cached_style *Cached, StyleEffect_Type Effect)
+{
+    style_property *Result = Cached->Properties[Effect];
+    return Result;
+}
+
 
 // [Helpers]
 

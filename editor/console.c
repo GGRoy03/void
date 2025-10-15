@@ -41,9 +41,12 @@ ConsolePrintMessage(byte_string Message, ConsoleMessage_Severity Severity, ui_la
 
     byte_string FormattedMessage = ByteStringAppend(Message, Prefix, 0, Local.Arena);
 
+    // NOTE: Is there really no way to access the last added node?
+
     UISubtreeBlock(ScrollBuffer, ConsoleUI->Pipeline)
     {
         UILabel(ConsoleStyle_Message, FormattedMessage, ConsoleUI->Pipeline);
+        UISetTextColor(TextColor, ConsoleUI->Pipeline);
     }
 
     LeaveMemoryRegion(Local);
@@ -81,7 +84,8 @@ ConsoleUI(editor_console_ui *ConsoleUI)
             }
         }
 
-        ConsoleWriteMessage(error_message("This is a test message."), &Console);
+        ConsoleWriteMessage(info_message("ABCDEFGHIJKLMNOPQRSTUVWXYZ"), &Console);
+        ConsoleWriteMessage(info_message("abcdefghijklmnopqrstuvwxyz"), &Console);
 
         ConsoleUI->IsInitialized = 1;
     }

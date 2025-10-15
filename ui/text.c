@@ -7,9 +7,6 @@ GetFontAtlas(ui_font *Font)
     return Result;
 }
 
-// WARN: The way we do allocations makes it impossible to reclaim them. Problem
-// is at the root.
-
 internal ui_font *
 UILoadFont(byte_string Name, f32 Size)
 {
@@ -130,6 +127,7 @@ UpdateGlyphCacheEntry(glyph_table *Table, glyph_state New)
         Entry->Offset       = New.Offset;
         Entry->AdvanceX     = New.AdvanceX;
         Entry->Position     = New.Position;
+        Entry->Size         = New.Size;
     }
 }
 
@@ -173,29 +171,32 @@ CreateGlyphRun(byte_string Text, ui_font *Font, memory_arena *Arena)
             if(!State->IsRasterized)
             {
                 os_glyph_info Info = OSGetGlyphInfo(UTF8Stream, &Font->OSFontObjects, Font->Size);
+                f32           Padding     = 2.f;
+                f32           HalfPadding = 1.f;
 
                 stbrp_rect STBRect = { 0 };
-                STBRect.w = (u16)Info.Size.X;
-                STBRect.h = (u16)Info.Size.Y;
+                STBRect.w = (u16)(Info.Size.X + Padding);
+                STBRect.h = (u16)(Info.Size.Y + Padding);
                 stbrp_pack_rects(&Font->AtlasContext, &STBRect, 1);
-
-                Assert(STBRect.w == Info.Size.X);
-                Assert(STBRect.h == Info.Size.Y);
 
                 if (STBRect.was_packed)
                 {
-                    rect_f32 Rect;
-                    Rect.Min.X = (f32)STBRect.x;
-                    Rect.Min.Y = (f32)STBRect.y;
-                    Rect.Max.X = (f32)STBRect.x + STBRect.w;
-                    Rect.Max.Y = (f32)STBRect.y + STBRect.h;
+                    rect_f32 PaddedRect;
+                    PaddedRect.Min.X = (f32)STBRect.x + HalfPadding;
+                    PaddedRect.Min.Y = (f32)STBRect.y + HalfPadding;
+                    PaddedRect.Max.X = (f32)(STBRect.x + Info.Size.X + HalfPadding);
+                    PaddedRect.Max.Y = (f32)(STBRect.y + Info.Size.Y + HalfPadding);
 
-                    State->IsRasterized = OSRasterizeGlyph(UTF8Stream, Rect, &Font->OSFontObjects);
-                    State->Source   = Rect;
-                    State->Offset   = Info.Offset;
-                    State->AdvanceX = Info.AdvanceX;
+                    State->IsRasterized = OSRasterizeGlyph(UTF8Stream, PaddedRect, &Font->OSFontObjects);
+                    State->Source.Min.X = PaddedRect.Min.X;
+                    State->Source.Min.Y = PaddedRect.Min.Y;
+                    State->Source.Max.X = PaddedRect.Max.X;
+                    State->Source.Max.Y = PaddedRect.Max.Y;
+                    State->Offset       = Info.Offset;
+                    State->AdvanceX     = Info.AdvanceX;
+                    State->Size         = Info.Size;
 
-                    TransferGlyph(Rect, Renderer, &Font->GPUFontObjects);
+                    TransferGlyph(PaddedRect, Renderer, &Font->GPUFontObjects);
                 }
                 else
                 {
@@ -206,6 +207,7 @@ CreateGlyphRun(byte_string Text, ui_font *Font, memory_arena *Arena)
             Result.Glyphs[Idx].Source   = State->Source;
             Result.Glyphs[Idx].Offset   = State->Offset;
             Result.Glyphs[Idx].AdvanceX = State->AdvanceX;
+            Result.Glyphs[Idx].Size     = State->Size;
         }
     }
     else

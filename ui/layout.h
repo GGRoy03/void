@@ -171,6 +171,8 @@ internal void        PreOrderPlace     (ui_layout_node *LayoutRoot, ui_pipeline 
 
 // [Layout Tree/Nodes]
 
+internal ui_layout_node      * GetLastAddedLayoutNode   (ui_layout_tree *Tree);
+internal b32                   IsValidLayoutNode        (ui_layout_node *Node);
 internal u64                   GetLayoutTreeFootprint   (ui_layout_tree_params Params);
 internal ui_layout_tree_params SetDefaultTreeParams     (ui_layout_tree_params Params);
 internal ui_layout_tree      * PlaceLayoutTreeInMemory  (ui_layout_tree_params Params, void *Memory);

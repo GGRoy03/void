@@ -31,8 +31,6 @@ typedef struct os_win32_state
 
     // WIN32
     HWND WindowHandle;
-    HWND ConsoleHandle;
-    b32  ConsoleSupportsVT;
 } os_win32_state;
 
 // [Globals]

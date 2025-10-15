@@ -74,18 +74,18 @@ typedef struct ui_style_registry
     ui_cached_style *Styles;
 } ui_style_subregistry;
 
-typedef struct ui_style_override ui_style_override;
-struct ui_style_override
+typedef struct ui_style_override_node ui_style_override_node;
+struct ui_style_override_node
 {
-    ui_style_override *Next;
-    style_property     Property;
+    ui_style_override_node *Next;
+    style_property          Value;
 };
 
 typedef struct ui_style_override_list
 {
-    ui_style_override *First;
-    ui_style_override *Last;
-    u32                Count;
+    ui_style_override_node *First;
+    ui_style_override_node *Last;
+    u32                     Count;
 } ui_style_override_list;
 
 typedef struct ui_node_style
@@ -108,11 +108,17 @@ internal ui_spacing        UIGetSpacing       (ui_cached_style *Cached);
 internal ui_corner_radius  UIGetCornerRadius  (ui_cached_style *Cached);
 internal ui_font         * UIGetFont          (ui_cached_style *Cached);
 
+internal void UISetStyleProperty  (StyleProperty_Type Type, style_property Value, ui_pipeline *Pipeline);
+internal void UISetTextColor      (ui_color Color, ui_pipeline *Pipeline);
+
 // [Styles]
 
-internal ui_cached_style   SuperposeStyle  (ui_cached_style *Base, StyleEffect_Type Effect);
-internal ui_node_style   * GetNodeStyle    (u32 Index, ui_pipeline *Pipeline);
-internal ui_cached_style * GetCachedStyle  (ui_style_registry *Registry, u32 Index);
+internal ui_style_override_node * AllocateStyleOverrideNode  (StyleProperty_Type Type, memory_arena *Arena);
+internal void                     SuperposeStyle             (style_property *BaseProperties, style_property *LayerProperties);
+internal ui_node_style          * GetNodeStyle               (u32 Index, ui_pipeline *Pipeline);
+internal ui_cached_style        * GetCachedStyle             (ui_style_registry *Registry, u32 Index);
+internal style_property         * UIGetStyleEffect           (ui_cached_style *Cached, StyleEffect_Type Effect);
+
 
 // [Helpers]
 

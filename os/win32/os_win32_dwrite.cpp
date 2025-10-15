@@ -304,8 +304,7 @@ OSRasterizeGlyph(byte_string UTF8, rect_f32 Rect, os_font_objects *OSFontObjects
             IDWriteTextFormat    *TextFormat   = OSFontObjects->TextFormat;
             ID2D1SolidColorBrush *FillBrush    = OSFontObjects->FillBrush;
 
-
-            RenderTarget->SetTransform(D2D1::Matrix3x2F::Scale(D2D1::Size(1, 1), D2D1::Point2F(0.0f, 0.0f)));
+            RenderTarget->SetTransform(D2D1::Matrix3x2F::Scale(D2D1::Size(1.f, 1.f), D2D1::Point2F(0.0f, 0.0f)));
             RenderTarget->BeginDraw();
             RenderTarget->Clear(D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.0f));
 

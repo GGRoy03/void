@@ -75,6 +75,12 @@ InitializeRenderer(memory_arena *Arena)
         }
     }
 
+    // TODO: Handle DPI
+    {
+        // HWND Handle       = OSWin32GetWindowHandle();
+        // UINT DPIForWindow = GetDpiForWindow(Handle);
+    }
+
     {
         IDXGIDevice *DXGIDevice = 0;
         Error = ID3D11Device_QueryInterface(Backend->Device, &IID_IDXGIDevice, (void **)&DXGIDevice);
@@ -532,8 +538,6 @@ TransferGlyph(rect_f32 Rect, render_handle RendererHandle, gpu_font_objects *Fon
 
     if (Backend && FontObjects)
     {
-        // NOTE: We apply weird rounding by casting to UINT..
-
         D3D11_BOX SourceBox;
         SourceBox.left   = 0;
         SourceBox.top    = 0;
