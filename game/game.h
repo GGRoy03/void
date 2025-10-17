@@ -13,7 +13,3 @@ typedef struct game_state
 // [Global]
 
 global game_state GameState;
-
-// [Entry Points]
-
-internal void GameEntryPoint();

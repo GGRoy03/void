@@ -1,5 +1,3 @@
-// [GLOBALS]
-
 os_win32_state OSWin32State;
 
 // [Internal Implementation]
@@ -34,8 +32,6 @@ OSWin32WindowProc(HWND Handle, UINT Message, WPARAM WParam, LPARAM LParam)
 
         Inputs->MousePosition.X = (f32)MouseX;
         Inputs->MousePosition.Y = (f32)MouseY;
-
-        Inputs->IsActiveFrame = 1;
     } break;
 
     case WM_KEYDOWN:
@@ -50,32 +46,27 @@ OSWin32WindowProc(HWND Handle, UINT Message, WPARAM WParam, LPARAM LParam)
         if (WasDown != IsDown && VKCode < OS_KeyboardButtonCount)
         {
             ProcessInputMessage(&Inputs->KeyboardButtons[VKCode], IsDown);
-            Inputs->IsActiveFrame = 1;
         }
     } break;
 
     case WM_LBUTTONDOWN:
     {
         ProcessInputMessage(&Inputs->MouseButtons[OSMouseButton_Left], 1);
-        Inputs->IsActiveFrame = 1;
     } break;
 
     case WM_LBUTTONUP:
     {
         ProcessInputMessage(&Inputs->MouseButtons[OSMouseButton_Left], 0);
-        Inputs->IsActiveFrame = 1;
     } break;
 
     case WM_RBUTTONDOWN:
     {
         ProcessInputMessage(&Inputs->MouseButtons[OSMouseButton_Right], 1);
-        Inputs->IsActiveFrame = 1;
     } break;
 
     case WM_RBUTTONUP:
     {
         ProcessInputMessage(&Inputs->MouseButtons[OSMouseButton_Right], 0);
-        Inputs->IsActiveFrame = 1;
     } break;
 
     case WM_CLOSE:
@@ -95,6 +86,66 @@ OSWin32WindowProc(HWND Handle, UINT Message, WPARAM WParam, LPARAM LParam)
     return DefWindowProc(Handle, Message, WParam, LParam);
 }
 
+internal HWND
+OSWin32InitializeWindow(vec2_i32 Size, i32 ShowCommand)
+{
+    WNDCLASSEX WindowClass = { 0 };
+    WindowClass.cbSize        = sizeof(WNDCLASSEX);
+    WindowClass.style         = CS_HREDRAW | CS_VREDRAW;
+    WindowClass.lpfnWndProc   = OSWin32WindowProc;
+    WindowClass.hInstance     = GetModuleHandle(0);
+    WindowClass.hIcon         = LoadIcon(0, IDI_APPLICATION);
+    WindowClass.hCursor       = LoadCursor(0, IDC_ARROW);
+    WindowClass.hbrBackground = (HBRUSH)(COLOR_WINDOW + 2);
+    WindowClass.lpszMenuName  = 0;
+    WindowClass.lpszClassName = "Game Window";
+    WindowClass.hIconSm       = LoadIcon(0, IDI_APPLICATION);
+
+    if(!RegisterClassEx(&WindowClass))
+    {
+        MessageBox(0, "Error registering class", "Error", MB_OK | MB_ICONERROR);
+        return 0;
+    }
+
+    HWND Handle = CreateWindowEx(0, WindowClass.lpszClassName,
+                                 "Engine", WS_OVERLAPPEDWINDOW,
+                                 0, 0, Size.X, Size.Y,
+                                 0, 0, WindowClass.hInstance, 0);
+    ShowWindow(Handle, ShowCommand);
+
+    return Handle;
+}
+
+internal os_system_info
+OSWin32QuerySystemInfo(void)
+{
+    SYSTEM_INFO SystemInfo = {0};
+    GetSystemInfo(&SystemInfo);
+
+    os_system_info Result = {0};
+    Result.PageSize       = SystemInfo.dwPageSize;
+    Result.ProcessorCount = SystemInfo.dwNumberOfProcessors;
+
+    return Result;
+}
+
+internal vec2_i32
+OSWin32GetClientSize(HWND HWindow)
+{
+    vec2_i32 Result = Vec2I32(0, 0);
+
+    if(HWindow != INVALID_HANDLE_VALUE)
+    {
+        RECT ClientRect;
+        GetClientRect(HWindow, &ClientRect);
+
+        Result.X = ClientRect.right  - ClientRect.left;
+        Result.Y = ClientRect.bottom - ClientRect.top;
+    }
+
+    return Result;
+}
+
 i32 WINAPI
 wWinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPWSTR CmdLine, i32 ShowCmd)
 {
@@ -102,59 +153,95 @@ wWinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPWSTR CmdLine, i32 ShowCmd
     Useless(CmdLine);
     Useless(Instance);
 
-    // System Info
+    HWND HWindow = OSWin32InitializeWindow(Vec2I32(1920, 1080), ShowCmd);
+
+    // OS State (Always query system info first since arena depends on it)
     {
-        SYSTEM_INFO SystemInfo = {0};
-        GetSystemInfo(&SystemInfo);
-
-        OSWin32State.SystemInfo.PageSize = (u64)SystemInfo.dwPageSize;
-    }
-
-        // Memory
-    {
-        memory_arena_params Params = { 0 };
-        Params.AllocatedFromFile = __FILE__;
-        Params.AllocatedFromLine = __LINE__;
-        Params.CommitSize        = OSWin32State.SystemInfo.PageSize;
-        Params.ReserveSize       = Kilobyte(10);
-
-        OSWin32State.Arena = AllocateArena(Params);
-    }
-
-    // Window
-    {
-        WNDCLASSEX WindowClass = { 0 };
-        WindowClass.cbSize        = sizeof(WNDCLASSEX);
-        WindowClass.style         = CS_HREDRAW | CS_VREDRAW;
-        WindowClass.lpfnWndProc   = OSWin32WindowProc;
-        WindowClass.hInstance     = GetModuleHandle(0);
-        WindowClass.hIcon         = LoadIcon(0, IDI_APPLICATION);
-        WindowClass.hCursor       = LoadCursor(0, IDC_ARROW);
-        WindowClass.hbrBackground = (HBRUSH)(COLOR_WINDOW + 2);
-        WindowClass.lpszMenuName  = 0;
-        WindowClass.lpszClassName = "Game Window";
-        WindowClass.hIconSm       = LoadIcon(0, IDI_APPLICATION);
-
-        if(!RegisterClassEx(&WindowClass))
+        memory_arena_params Params = {0};
         {
-            MessageBox(0, "Error registering class", "Error", MB_OK | MB_ICONERROR);
-            return 0;
+            Params.AllocatedFromFile = __FILE__;
+            Params.AllocatedFromLine = __LINE__;
+            Params.ReserveSize       = Megabyte(1);
+            Params.CommitSize        = Kilobyte(64);
         }
 
-        OSWin32State.WindowHandle = CreateWindowEx(0, WindowClass.lpszClassName,
-                                                   "Engine", WS_OVERLAPPEDWINDOW,
-                                                   0, 0, 1920, 1080, // WARN: Lazy
-                                                   0, 0, WindowClass.hInstance, 0);
-        ShowWindow(OSWin32State.WindowHandle, ShowCmd);
+        OSWin32State.SystemInfo = OSWin32QuerySystemInfo();
+        OSWin32State.Arena      = AllocateArena(Params);
+
+        OSWin32InitializeDWriteFactory(&OSWin32State.DWriteFactory);
     }
 
-    // Text
+    // Game State
     {
-        OSWin32State.TextBackend = PushArena(OSWin32State.Arena, sizeof(os_text_backend), AlignOf(os_text_backend));
-        OSWin32AcquireTextBackend();
+        memory_arena_params Params = {0};
+        {
+            Params.AllocatedFromFile = __FILE__;
+            Params.AllocatedFromLine = __LINE__;
+            Params.ReserveSize       = Megabyte(1);
+            Params.CommitSize        = Kilobyte(64);
+        }
+
+        GameState.StaticData = AllocateArena(Params);
     }
 
-    GameEntryPoint();
+    // UI State
+    {
+        memory_arena_params Params = {0};
+        {
+            Params.AllocatedFromFile = __FILE__;
+            Params.AllocatedFromLine = __LINE__;
+            Params.ReserveSize       = Megabyte(1);
+            Params.CommitSize        = Kilobyte(64);
+        }
+
+        UIState.StaticData = AllocateArena(Params);
+
+        InitializeConsoleMessageQueue(&UIState.Console);
+    }
+
+    // Render State
+    {
+        RenderState.Renderer = InitializeRenderer(HWindow, OSWin32GetClientSize(HWindow), GameState.StaticData);
+    }
+
+    b32 IsRunning = 1;
+    while(IsRunning)
+    {
+        OSClearInputs();
+
+        MSG Message;
+        while(PeekMessage(&Message, 0, 0, 0, PM_REMOVE))
+        {
+            if(Message.message == WM_QUIT)
+            {
+                IsRunning = 0;
+                break;
+            }
+
+            TranslateMessage(&Message);
+            DispatchMessage(&Message);
+        }
+
+        UIBeginFrame();
+
+        ShowEditorUI();
+
+        UIEndFrame();
+
+        SubmitRenderCommands(RenderState.Renderer, OSWin32GetClientSize(HWindow), &RenderState.PassList);
+
+        Sleep(5);
+    }
+
+    // NOTE: This shouldn't be needed but the debug layer for D3D is triggering
+    // an error and preventing the window from closing if the resources
+    // related to fonts aren't released. So this is for convenience :)
+
+    ui_font_list *FontList = &UIState.Fonts;
+    IterateLinkedList(FontList->First, ui_font *, Font)
+    {
+        OSReleaseFontContext(&Font->OSContext);
+    }
 
     return 0;
 }
@@ -306,34 +393,7 @@ OSSetCursor(OSCursor_Type Type)
     }
 }
 
-internal b32
-OSUpdateWindow()
-{
-    b32 Result = 1;
-
-    MSG Message;
-    while(PeekMessage(&Message, 0, 0, 0, PM_REMOVE))
-    {
-        if(Message.message == WM_QUIT)
-        {
-            Result = 0;
-            return Result;
-        }
-
-        TranslateMessage(&Message);
-        DispatchMessage(&Message);
-    }
-
-    return Result;
-}
-
-internal void
-OSSleep(u32 Milliseconds)
-{
-    Sleep(Milliseconds);
-}
-
-// [OS State | PER_OS]
+// [Agnostic Queries]
 
 internal os_system_info *
 OSGetSystemInfo(void)
@@ -342,37 +402,9 @@ OSGetSystemInfo(void)
     return Result;
 }
 
-internal vec2_i32
-OSGetClientSize(void)
+internal os_inputs *
+OSGetInputs(void)
 {
-    vec2_i32 Result = { 0 };
-    HWND     Handle = OSWin32State.WindowHandle;
-
-    if (Handle)
-    {
-        RECT ClientRect;
-        GetClientRect(Handle, &ClientRect);
-
-        Result.X = (ClientRect.right  - ClientRect.left);
-        Result.Y = (ClientRect.bottom - ClientRect.top);
-    }
-
-    return Result;
-}
-
-// [Per-OS API Crash/Debug Implementation]
-
-internal void
-OSAbort(i32 ExitCode)
-{
-    ExitProcess(ExitCode);
-}
-
-// [WIN32 SPECIFIC API]
-
-internal HWND 
-OSWin32GetWindowHandle(void)
-{
-    HWND Result = OSWin32State.WindowHandle;
+    os_inputs *Result = &OSWin32State.Inputs;
     return Result;
 }

@@ -43,9 +43,6 @@ typedef enum OSResource_Type
 
 // [FORWARD DECLARATION]
 
-typedef struct gpu_font_objects  gpu_font_objects;
-typedef struct os_font_objects   os_font_objects;
-typedef struct os_text_backend   os_text_backend;
 typedef struct ui_font           ui_font;
 typedef struct ui_style_registry ui_style_registry;
 
@@ -53,7 +50,8 @@ typedef struct ui_style_registry ui_style_registry;
 
 typedef struct os_system_info
 {
-    u64 PageSize;
+    u32 PageSize;
+    u32 ProcessorCount;
 } os_system_info;
 
 typedef struct os_button_state
@@ -135,10 +133,30 @@ internal void        OSAbort                    (i32 ExitCode);
 internal b32         OSIsValidHandle            (os_handle Handle);
 internal byte_string OSAppendToLaunchDirectory  (byte_string Input, memory_arena *Arena);
 
-// [Text]
+// OSAcquireFontContext:
+//   Acquires the font context for a given font.
+//   Win32: GPUContext must have a valid IDXGISurface * created with DXGI_FORMAT_B8G8R8A8_UNORM (Format) & D3D11_BIND_RENDER_TARGET;
+//   Will always query the system's font collection to find the specified font.
+//   If failure occurs, every field will be cleared to 0s and the context will be invalid.
+// OSReleaseFontContext:
+//   Fully releases the font context and makes it unusable.
 
-external b32            OSAcquireFontObjects  (byte_string Name, f32 Size, gpu_font_objects *GPUObjects, os_font_objects *OSObjects);
-external void           OSReleaseFontObjects  (os_font_objects *Objects);
-external os_glyph_info  OSGetGlyphInfo        (byte_string UTF8, os_font_objects *FontObjects, f32 FontSize);
-external b32            OSRasterizeGlyph      (byte_string UTF8, rect_f32 Rect, os_font_objects *OSFontObjects);
-external f32            OSGetLineHeight       (f32 FontSize, os_font_objects *OSFontObjects);
+typedef struct os_font_context os_font_context;
+typedef struct gpu_font_context gpu_font_context;
+
+external b32  OSAcquireFontContext  (byte_string FontName, f32 FontSize, gpu_font_context *GPUContext, os_font_context *OSContext);
+external void OSReleaseFontContext  (os_font_context *Context);
+
+// OSGetGlyphInfo:
+//   Make sure that the glyph run is valid UTF-8 string as well as the OSContext is valid.
+//   Will return {0} if the glyph run size is bigger than (126, 126) or any of the arguments is invalid.
+// OSRasterizeGlyph:
+//   Only rasterizes the run if the OSContext is valid and it receives a valid UTF-8 string.
+//   The rect must be from top-left...RunSize: [Left = 0, Top = 0, Right = RunSize.Width, Bot = RunSize.Height]
+//   You must then call TransferGlyph to copy the work into the cache.
+// OSGetLineHeight:
+//   Only returns > 0 if the OS font context is valid.
+
+external os_glyph_info  OSGetGlyphInfo    (byte_string UTF8, f32 FontSize, os_font_context *OSContext);
+external b32            OSRasterizeGlyph  (byte_string UTF8, rect_f32 Rect, os_font_context *OSContext);
+external f32            OSGetLineHeight   (f32 FontSize, os_font_context *FontContext);
