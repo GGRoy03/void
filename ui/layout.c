@@ -327,15 +327,15 @@ PreOrderPlace(ui_layout_node *Root, ui_pipeline *Pipeline)
                 f32 MaxCursorY = CursorY + Box->FinalHeight;
                 if(HasFlag(Node->Flags, UILayoutNode_IsScrollRegion))
                 {
-                    ui_scroll_context *Scroll = Box->ScrollContext;
-                    if(Scroll->Axis == ScrollAxis_X)
-                    {
-                        MaxCursorX = FLT_MAX;
-                    }
-                    else
-                    {
-                        MaxCursorY = FLT_MAX;
-                    }
+                    //ui_scroll_context *Scroll = Box->ScrollContext;
+                    //if(Scroll->Axis == ScrollAxis_X)
+                    //{
+                    //    MaxCursorX = FLT_MAX;
+                    //}
+                    //else
+                    //{
+                    //    MaxCursorY = FLT_MAX;
+                    //}
                 }
 
 
@@ -450,25 +450,30 @@ PreOrderMeasure(ui_layout_node *Root, ui_pipeline *Pipeline)
     while (!IsNodeQueueEmpty(&Queue))
     {
         ui_layout_node *Node = PopNodeQueue(&Queue);
+        ui_layout_box  *Box  = &Node->Value;
 
-        f32 AvWidth  = 0.f;
-        f32 AvHeight = 0.f;
+        f32 AvWidth  = Box->FinalWidth  - (Box->Padding.Left + Box->Padding.Right);
+        f32 AvHeight = Box->FinalHeight - (Box->Padding.Top  + Box->Padding.Bot  );
+
         if(HasFlag(Node->Flags, UILayoutNode_IsScrollRegion))
         {
-            ui_layout_box *Box = &Node->Value;
-            AvWidth  = Box->FinalWidth - (Box->Padding.Left + Box->Padding.Right);
-            AvHeight = FLT_MAX;
-        }
-        else
-        {
-            ui_layout_box *Box = &Node->Value;
-            AvWidth  = Box->FinalWidth  - (Box->Padding.Left + Box->Padding.Right);
-            AvHeight = Box->FinalHeight - (Box->Padding.Top  + Box->Padding.Bot  );
+            //Assert(Box->ScrollContext);
+            //ui_scroll_context *Scroll = Box->ScrollContext;
+            //if(Scroll->Axis == ScrollAxis_X)
+            //{
+            //    AvWidth = FLT_MAX;
+            //}
+            //else if(Scroll->Axis == ScrollAxis_Y)
+            //{
+            //    AvHeight = FLT_MAX;
+            //}
+
+            //Scroll->ContentSize = Vec2F32(Box->FinalWidth, Box->FinalHeight);
         }
 
         IterateLinkedList(Node->First, ui_layout_node *, Child)
         {
-            ui_layout_box *Box = &Child->Value;
+            Box = &Child->Value;
             Box->FinalWidth  = ConvertUnitToFloat(Box->Width , AvWidth);
             Box->FinalHeight = ConvertUnitToFloat(Box->Height, AvHeight);
 
@@ -822,7 +827,7 @@ SetNodeId(byte_string Id, ui_layout_node *Node, ui_node_id_table *Table)
     {
         // TODO: Show which ID is faulty.
 
-        ConsoleWriteMessage(warn_message("ID could not be set because it already exists for this pipeline"), &Console);
+        ConsoleWriteMessage(warn_message("ID could not be set because it already exists for this pipeline"));
     }
 }
 
@@ -843,12 +848,12 @@ UIFindNodeById(byte_string Id, ui_node_id_table *Table)
         else
         {
             // TODO: Show which ID is faulty.
-            ConsoleWriteMessage(warn_message("Could not find queried node."), &Console);
+            ConsoleWriteMessage(warn_message("Could not find queried node."));
         }
     }
     else
     {
-        ConsoleWriteMessage(warn_message("Invalid Arguments Provided. See ui/layout.h for information."), &Console);
+        ConsoleWriteMessage(warn_message("Invalid Arguments Provided. See ui/layout.h for information."));
     }
 
     return Result;

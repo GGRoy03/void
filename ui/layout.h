@@ -176,7 +176,7 @@ internal void UIEndSubtree    (ui_pipeline *Pipeline);
 
 typedef enum NodeIdTable_Size
 {
-    NodeIdTable_128Bits = 16, // 128/8
+    NodeIdTable_128Bits = 16,
 } NodeIdTable_Size;
 
 typedef struct ui_node_id_table_params
