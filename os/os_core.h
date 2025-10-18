@@ -149,12 +149,15 @@ external void OSReleaseFontContext  (os_font_context *Context);
 // OSGetGlyphInfo:
 //   Make sure that the glyph run is valid UTF-8 string as well as the OSContext is valid.
 //   Will return {0} if the glyph run size is bigger than (126, 126) or any of the arguments is invalid.
+//
 // OSRasterizeGlyph:
-//   Only rasterizes the run if the OSContext is valid and it receives a valid UTF-8 string.
-//   The rect must be from top-left...RunSize: [Left = 0, Top = 0, Right = RunSize.Width, Bot = RunSize.Height]
-//   You must then call TransferGlyph to copy the work into the cache.
+//   Rasterizes a glyph into the transfer texture on success.
+//   Returns 1 on success and 0 on failure.
+//   You may generate the rects however you want, but they must not overlap.
+//   Typical flow: create transfer resource -> rasterize glyphs into it -> call TransferGlyph to copy into cache
+//
 // OSGetLineHeight:
-//   Only returns > 0 if the OS font context is valid.
+//   Queries the LineHeight from a fully intialized context. If result == 0, then the context or the font size is invalid.
 
 external os_glyph_info  OSGetGlyphInfo    (byte_string UTF8, f32 FontSize, os_font_context *OSContext);
 external b32            OSRasterizeGlyph  (byte_string UTF8, rect_f32 Rect, os_font_context *OSContext);

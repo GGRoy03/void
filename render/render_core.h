@@ -152,13 +152,13 @@ internal void          SubmitRenderCommands  (render_handle HRenderer, vec2_i32 
 
 // CreateGlyphCache:
 //   Creates the GPU resource used as the persistent glyph cache.
-//   Populates FontContext with the cache-related resources on success.
+//   Populates FontContext with the cache-related resources.
 //   Returns 1 on success, 0 on failure.
 //   The caller is responsible for freeing the resources allocated by using ReleaseGlyphCache if this function fails.
 //
 // CreateGlyphTransfer:
 //   Creates the GPU resource used as the transfer/render target for rasterizing glyphs.
-//   Populates FontContext with the transfer-related resources on success.
+//   Populates FontContext with the transfer-related resources.
 //   Returns 1 on success, 0 on failure.
 //   The caller is responsible for freeing the resources allocated by using ReleaseGlyphTransfer if this function fails.
 //
@@ -174,7 +174,7 @@ internal void          SubmitRenderCommands  (render_handle HRenderer, vec2_i32 
 //   Copies a rectangular region from the transfer resource into the persistent glyph cache.
 //   Rect describes the area to copy and the destination offset inside the cache.
 //   Typical flow: create transfer resource -> rasterize glyphs into it -> call TransferGlyph to copy into cache.
-//   Generally use a 2D allocator to generate the rect.
+//   You may generate the rects however you want, but they must not overlap.
 
 typedef struct gpu_font_context gpu_font_context;
 
