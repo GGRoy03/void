@@ -134,10 +134,8 @@ internal f32
 RoundedRectSDF(vec2_f32 LocalPosition, vec2_f32 RectHalfSize, f32 Radius)
 {
     // Abuse the symmetry and fold every point into the first quadrant.
-    // Offset these points by the quadrant (RectHalfSize), to figure out
-    // if they lay inside or outside the quadrant. If any axis is positive,
-    // then the point was outside the original Rect. Else it was inside or
-    // on the boundary.
+    // Offset these points by RectHalfSize, to figure out if they still lay inside the quadrant.
+    // If it still does, then we know the point was outside the rect, else it was inside.
 
     vec2_f32 RadiusVector  = Vec2F32(Radius, Radius);
     vec2_f32 FirstQuadrant = Vec2F32Add(Vec2F32Sub(Vec2F32Abs(LocalPosition), RectHalfSize), RadiusVector);
@@ -148,6 +146,18 @@ RoundedRectSDF(vec2_f32 LocalPosition, vec2_f32 RectHalfSize, f32 Radius)
     f32 OuterDistance = Vec2F32Length(Vec2F32(Max(FirstQuadrant.X, 0.f), Max(FirstQuadrant.Y, 0.f)));
     f32 InnerDistance = Min(Max(FirstQuadrant.X, FirstQuadrant.Y), 0.f);
     f32 Result        = OuterDistance + InnerDistance - Radius;
+
+    return Result;
+}
+
+internal rect_f32
+InsetRectF32(rect_f32 Rect, f32 Size)
+{
+    rect_f32 Result = Rect;
+    Result.Min.X = ClampBot(0.f, Rect.Min.X - Size);
+    Result.Min.Y = ClampBot(0.f, Rect.Min.Y - Size);
+    Result.Max.X = ClampBot(0.f, Rect.Max.X - Size);
+    Result.Max.Y = ClampBot(0.f, Rect.Max.Y - Size);
 
     return Result;
 }
