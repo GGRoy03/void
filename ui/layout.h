@@ -46,10 +46,11 @@ typedef enum ScrollAxis_Type
 
 typedef struct ui_scroll_context
 {
-    vec2_f32        ContentSize;
-    vec2_f32        ContentWindow;
-    f32             ScrollOffset;
-    ScrollAxis_Type Axis;
+    vec2_f32        ContentSize;       // Logical Size for all of the content inside
+    vec2_f32        ContentWindowSize; // Actual size of the widget, what we see
+    f32             ScrollOffset;      // Scroll Offset in pixel 0..ScrollAxis.Max
+    f32             PixelPerLine;      // How many pixels to scroll per line.
+    ScrollAxis_Type Axis;              // Which Axis the scroll is applied to
 } ui_scroll_context;
 
 typedef struct ui_hit_test
@@ -106,7 +107,7 @@ typedef struct ui_layout_tree_params
     u64 NodeDepth;
 } ui_layout_tree_params;
 
-DEFINE_TYPED_STACK(LayoutParent, layout_parent, ui_layout_node *)
+DEFINE_TYPED_STACK(LayoutNode, layout_node, ui_layout_node *)
 
 typedef struct ui_layout_tree
 {
@@ -117,7 +118,7 @@ typedef struct ui_layout_tree
     ui_layout_node *Nodes;
 
     // Depth
-    layout_parent_stack Parents;
+    layout_node_stack Parents;
 } ui_layout_tree;
 
 // [Tree Mutations]
@@ -211,4 +212,6 @@ internal ui_layout_node   * UIFindNodeById  (byte_string Id, ui_node_id_table *T
 
 // [Scrolling]
 
-internal void ApplyScrollToContext(f32 ScrollDelta, ui_scroll_context *Context);
+internal void     ApplyScrollToContext     (f32 ScrollDelta, ui_scroll_context *Context);
+internal void     PruneScrollContextNodes  (ui_layout_node *Node);
+internal vec2_f32 GetScrollTranslation     (ui_layout_node *Node);

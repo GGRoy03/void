@@ -5,6 +5,7 @@ typedef enum UIUnit_Type
     UIUnit_None    = 0,
     UIUnit_Float32 = 1,
     UIUnit_Percent = 2,
+    UIUnit_Auto    = 3,
 } UIUnit_Type;
 
 typedef enum UIIntent_Type

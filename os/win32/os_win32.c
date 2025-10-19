@@ -250,7 +250,7 @@ wWinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPWSTR CmdLine, i32 ShowCmd
     // related to fonts aren't released. So this is for convenience :)
 
     ui_font_list *FontList = &UIState.Fonts;
-    IterateLinkedList(FontList->First, ui_font *, Font)
+    IterateLinkedList(FontList, ui_font *, Font)
     {
         OSReleaseFontContext(&Font->OSContext);
     }

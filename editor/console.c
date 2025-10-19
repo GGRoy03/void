@@ -84,18 +84,18 @@ ConsoleUI(editor_console_ui *ConsoleUI)
 
         ConsoleWriteMessage(info_message("ABCDEFGHIJKLMNOPQRSTUVWXYZ"));
         ConsoleWriteMessage(info_message("abcdefghijklmnopqrstuvwxyz"));
-        ConsoleWriteMessage(info_message("I am trying to overflow"));
-        ConsoleWriteMessage(info_message("I am trying to overflow"));
-        ConsoleWriteMessage(info_message("I am trying to overflow"));
-        ConsoleWriteMessage(info_message("I am trying to overflow"));
-        ConsoleWriteMessage(info_message("I am trying to overflow"));
-        ConsoleWriteMessage(info_message("I am trying to overflow"));
-        ConsoleWriteMessage(info_message("I am trying to overflow"));
-        ConsoleWriteMessage(info_message("I am trying to overflow"));
-        ConsoleWriteMessage(info_message("I am trying to overflow"));
-        ConsoleWriteMessage(info_message("I am trying to overflow"));
-        ConsoleWriteMessage(info_message("I am trying to overflow"));
-        ConsoleWriteMessage(info_message("I am trying to overflow"));
+        ConsoleWriteMessage(info_message("I am trying to overflow 1"));
+        ConsoleWriteMessage(info_message("I am trying to overflow 2"));
+        ConsoleWriteMessage(info_message("I am trying to overflow 3"));
+        ConsoleWriteMessage(info_message("I am trying to overflow 4"));
+        ConsoleWriteMessage(info_message("I am trying to overflow 5"));
+        ConsoleWriteMessage(info_message("I am trying to overflow 6"));
+        ConsoleWriteMessage(info_message("I am trying to overflow 7"));
+        ConsoleWriteMessage(info_message("I am trying to overflow 8"));
+        ConsoleWriteMessage(info_message("I am trying to overflow 9"));
+        ConsoleWriteMessage(info_message("I am trying to overflow 10"));
+        ConsoleWriteMessage(info_message("I am trying to overflow 11"));
+        ConsoleWriteMessage(info_message("I am trying to overflow 12"));
 
         ConsoleUI->IsInitialized = 1;
     }

@@ -24,9 +24,9 @@ internal void  UIScrollView  (byte_string Id, u32 Style, ui_pipeline *Pipeline);
 
 #define UISubtreeBlock(Parent, Pipeline) DeferLoop(UIEnterSubtree(Parent, Pipeline), UILeaveSubtree(Pipeline))
 
-#define UIWindowBlock(Style, Pipeline) DeferLoop(UIWindow_(ui_id(""), Style, Pipeline), PopLayoutParentStack(&Pipeline->LayoutTree->Parents))
+#define UIWindowBlock(Style, Pipeline) DeferLoop(UIWindow_(ui_id(""), Style, Pipeline), PopLayoutNodeStack(&Pipeline->LayoutTree->Parents))
 
-#define UIScrollViewBlockID(Id, Style, Pipeline) DeferLoop(UIScrollView_(Id, Style, Pipeline), PopLayoutParentStack(&Pipeline->LayoutTree->Parents))
+#define UIScrollViewBlockID(Id, Style, Pipeline) DeferLoop(UIScrollView_(Id, Style, Pipeline), PopLayoutNodeStack(&Pipeline->LayoutTree->Parents))
 
 // [Components - Internal Implementations]
 

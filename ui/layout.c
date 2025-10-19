@@ -26,6 +26,27 @@ ConvertUnitToFloat(ui_unit Unit, f32 AvSpace)
     return Result;
 }
 
+internal f32
+GetVerticalSpacing(ui_layout_node *Node)
+{
+    f32 Result = (Node->ChildCount - 1) * Node->Value.Spacing.Vertical;
+    return Result;
+}
+
+internal f32
+GetHorizontalSpacing(ui_layout_node *Node)
+{
+    f32 Result = (Node->ChildCount - 1) * Node->Value.Spacing.Horizontal;
+    return Result;
+}
+
+internal vec2_f32
+GetInnerBoxSize(ui_layout_box *Box)
+{
+    vec2_f32 Result = Vec2F32(Box->FinalWidth - (Box->Padding.Left + Box->Padding.Right), Box->FinalHeight - (Box->Padding.Top + Box->Padding.Bot));
+    return Result;
+}
+
 // [Layout Tree/Nodes]
 
 internal b32 
@@ -135,7 +156,7 @@ InitializeLayoutNode(ui_cached_style *Style, bit_field ConstantFlags, byte_strin
             Node->Last   = 0;
             Node->Next   = 0;
             Node->First  = 0;
-            Node->Parent = PeekLayoutParentStack(&Tree->Parents);
+            Node->Parent = PeekLayoutNodeStack(&Tree->Parents);
 
             if(Node->Parent)
             {
@@ -144,7 +165,7 @@ InitializeLayoutNode(ui_cached_style *Style, bit_field ConstantFlags, byte_strin
 
             if(HasFlag(Node->Flags, UILayoutNode_IsParent))
             {
-                PushLayoutParentStack(&Tree->Parents, Node);
+                PushLayoutNodeStack(&Tree->Parents, Node);
             }
         }
 
@@ -327,21 +348,21 @@ PreOrderPlace(ui_layout_node *Root, ui_pipeline *Pipeline)
                 f32 MaxCursorY = CursorY + Box->FinalHeight;
                 if(HasFlag(Node->Flags, UILayoutNode_IsScrollRegion))
                 {
-                    //ui_scroll_context *Scroll = Box->ScrollContext;
-                    //if(Scroll->Axis == ScrollAxis_X)
-                    //{
-                    //    MaxCursorX = FLT_MAX;
-                    //}
-                    //else
-                    //{
-                    //    MaxCursorY = FLT_MAX;
-                    //}
+                    ui_scroll_context *Scroll = Box->ScrollContext;
+                    if(Scroll->Axis == ScrollAxis_X)
+                    {
+                        MaxCursorX = FLT_MAX;
+                    }
+                    else
+                    {
+                        MaxCursorY = FLT_MAX;
+                    }
                 }
 
 
                if(HasFlag(Node->Flags, UILayoutNode_PlaceChildrenX))
                 {
-                    IterateLinkedList(Node->First, ui_layout_node *, Child)
+                    IterateLinkedList(Node, ui_layout_node *, Child)
                     {
                         f32 Width = Child->Value.FinalWidth + Box->Spacing.Horizontal;
                         if(CursorX + Width > MaxCursorX)
@@ -360,16 +381,16 @@ PreOrderPlace(ui_layout_node *Root, ui_pipeline *Pipeline)
 
                 if(HasFlag(Node->Flags, UILayoutNode_PlaceChildrenY))
                 {
-                    IterateLinkedList(Node->First, ui_layout_node *, Child)
+                    IterateLinkedList(Node, ui_layout_node *, Child)
                     {
+                        Child->Value.FinalX = CursorX;
+                        Child->Value.FinalY = CursorY;
+
                         f32 Height = Child->Value.FinalHeight + Box->Spacing.Vertical;
                         if(CursorY + Height > MaxCursorY)
                         {
                             break;
                         }
-
-                        Child->Value.FinalX = CursorX;
-                        Child->Value.FinalY = CursorY;
 
                         CursorY += Height;
 
@@ -457,21 +478,21 @@ PreOrderMeasure(ui_layout_node *Root, ui_pipeline *Pipeline)
 
         if(HasFlag(Node->Flags, UILayoutNode_IsScrollRegion))
         {
-            //Assert(Box->ScrollContext);
-            //ui_scroll_context *Scroll = Box->ScrollContext;
-            //if(Scroll->Axis == ScrollAxis_X)
-            //{
-            //    AvWidth = FLT_MAX;
-            //}
-            //else if(Scroll->Axis == ScrollAxis_Y)
-            //{
-            //    AvHeight = FLT_MAX;
-            //}
+            Assert(Box->ScrollContext);
+            ui_scroll_context *Scroll = Box->ScrollContext;
+            if(Scroll->Axis == ScrollAxis_X)
+            {
+                AvWidth = FLT_MAX;
+            }
+            else if(Scroll->Axis == ScrollAxis_Y)
+            {
+                AvHeight = FLT_MAX;
+            }
 
-            //Scroll->ContentSize = Vec2F32(Box->FinalWidth, Box->FinalHeight);
+            Scroll->ContentWindowSize = GetInnerBoxSize(Box);
         }
 
-        IterateLinkedList(Node->First, ui_layout_node *, Child)
+        IterateLinkedList(Node, ui_layout_node *, Child)
         {
             Box = &Child->Value;
             Box->FinalWidth  = ConvertUnitToFloat(Box->Width , AvWidth);
@@ -485,27 +506,37 @@ PreOrderMeasure(ui_layout_node *Root, ui_pipeline *Pipeline)
 }
 
 internal void
-PostOrderMeasure(ui_layout_node *LayoutRoot)
+PostOrderMeasure(ui_layout_node *Root)
 {
-    IterateLinkedList(LayoutRoot->First, ui_layout_node *, Child)
+    IterateLinkedList(Root, ui_layout_node *, Child)
     {
         PostOrderMeasure(Child);
     }
 
-    ui_layout_box *Box = &LayoutRoot->Value;
+    ui_layout_box *Box = &Root->Value;
 
-    if(HasFlag(LayoutRoot->Flags, UILayoutNode_TextIsBound))
+    if(HasFlag(Root->Flags, UILayoutNode_TextIsBound))
     {
         ui_glyph_run *Run = Box->DisplayText;
 
-        f32 InnerAvWidth = Box->FinalWidth - (Box->Padding.Left + Box->Padding.Right);
-        f32 LineWidth    = 0.f;
-        u32 LineCount    = 0;
+        // TODO: Handle other units..
 
+        f32 InnerAvWidth = 0.f;
+        if (Box->Width.Type == UIUnit_Auto)
+        {
+            ui_layout_node *Parent = Root->Parent;
+            if(Parent)
+            {
+                // TODO: Unsure how we want to handle height?
+
+                InnerAvWidth = GetInnerBoxSize(&Parent->Value).X;
+            }
+        }
+
+        f32 LineWidth = 0.f;
+        u32 LineWrapCount = 0;
         if(Run->GlyphCount)
         {
-            LineCount = 1;
-
             for(u32 Idx = 0; Idx < Run->GlyphCount; ++Idx)
             {
                 ui_glyph *Glyph      = &Run->Glyphs[Idx];
@@ -515,7 +546,7 @@ PostOrderMeasure(ui_layout_node *LayoutRoot)
                 {
                     if(LineWidth > 0.f)
                     {
-                        ++LineCount;
+                        ++LineWrapCount;
                     }
 
                     LineWidth = GlyphWidth;
@@ -526,9 +557,63 @@ PostOrderMeasure(ui_layout_node *LayoutRoot)
                 }
             }
 
-            Box->FinalHeight = LineCount * Run->LineHeight;
+        }
+
+        if(Box->Width.Type == UIUnit_Auto)
+        {
+            if(LineWrapCount == 0)
+            {
+                Box->FinalWidth = LineWidth;
+            }
+            else
+            {
+                Box->FinalWidth = InnerAvWidth;
+            }
+
+            Box->FinalHeight = (LineWrapCount + 1) * Run->LineHeight;
         }
     }
+
+    // WARN: Still a work in progress.
+
+    if(HasFlag(Root->Flags, UILayoutNode_IsScrollRegion))
+    {
+        ui_scroll_context *Scroll = Root->Value.ScrollContext;
+        Assert(Scroll);
+
+        f32 TotalWidth  = 0.f;
+        f32 TotalHeight = 0.f;
+        f32 MaxWidth    = 0.f;
+        f32 MaxHeight   = 0.f;
+
+        IterateLinkedList(Root, ui_layout_node *, Child)
+        {
+            TotalWidth  += Child->Value.FinalWidth;
+            TotalHeight += Child->Value.FinalHeight;
+
+            if (Child->Value.FinalWidth > MaxWidth)
+            {
+                MaxWidth = Child->Value.FinalWidth;
+            }
+
+            if (Child->Value.FinalHeight > MaxHeight)
+            {
+                MaxHeight = Child->Value.FinalHeight;
+            }
+        }
+
+        if (Scroll->Axis == ScrollAxis_X)
+        {
+            TotalWidth += GetHorizontalSpacing(Root);
+            Scroll->ContentSize = Vec2F32(TotalWidth, MaxHeight);
+        } else
+        if (Scroll->Axis == ScrollAxis_Y)
+        {
+            TotalHeight += GetVerticalSpacing(Root);
+            Scroll->ContentSize = Vec2F32(MaxWidth, TotalHeight);
+        }
+    }
+
 }
 
 // [Binds]
@@ -546,7 +631,7 @@ BindText(ui_layout_node *Node, byte_string Text, ui_font *Font, memory_arena *Ar
     {
         Run[0] = CreateGlyphRun(Text, Font, Arena);
 
-        b32 Valid = (Run[0].Glyphs && Run[0].GlyphCount);
+        b32 Valid = (Run[0].Glyphs && Run[0].GlyphCount); // NOTE: Weird check.
 
         if(Valid)
         {
@@ -557,8 +642,17 @@ BindText(ui_layout_node *Node, byte_string Text, ui_font *Font, memory_arena *Ar
 }
 
 internal void
-BindScrollContext(ui_layout_node *Node)
+BindScrollContext(ui_layout_node *Node, ScrollAxis_Type Axis, memory_arena *Arena)
 {
+    Assert(IsValidLayoutNode(Node));
+
+    ui_scroll_context *Context = PushArena(Arena, sizeof(ui_scroll_context), AlignOf(ui_scroll_context));
+    if(Context)
+    {
+        Node->Value.ScrollContext = Context;
+        Context->Axis         = Axis;
+        Context->PixelPerLine = 16.f;
+    }
 }
 
 // [Context]
@@ -568,18 +662,18 @@ UIEnterSubtree(ui_layout_node *Parent, ui_pipeline *Pipeline)
 {
     ui_layout_tree *Tree = Pipeline->LayoutTree;
 
-    Assert(MemoryCompare(&Tree->Parents, &(layout_parent_stack){0}, sizeof(typed_stack)) == 0);
+    Assert(MemoryCompare(&Tree->Parents, &(layout_node_stack){0}, sizeof(typed_stack)) == 0);
 
     typed_stack_params Params = {0};
     {
         Params.StackSize = Tree->NodeDepth;
     }
 
-    Tree->Parents = BeginLayoutParentStack(Params, Pipeline->FrameArena);
+    Tree->Parents = BeginLayoutNodeStack(Params, Pipeline->FrameArena);
 
     if(Parent)
     {
-        PushLayoutParentStack(&Tree->Parents, Parent);
+        PushLayoutNodeStack(&Tree->Parents, Parent);
     }
 }
 
@@ -588,12 +682,12 @@ UILeaveSubtree(ui_pipeline *Pipeline)
 {
     ui_layout_tree *Tree = Pipeline->LayoutTree;
 
-    Assert(MemoryCompare(&Tree->Parents, &(layout_parent_stack){0}, sizeof(typed_stack)) != 0);
+    Assert(MemoryCompare(&Tree->Parents, &(layout_node_stack){0}, sizeof(typed_stack)) != 0);
 
     // NOTE: Does not leak memory, because it is allocated from the pipeline's frame
     // arena. Just clear the state internally.
 
-    Tree->Parents = (layout_parent_stack){0};
+    Tree->Parents = (layout_node_stack){0};
 }
 
 // [Node ID]
@@ -862,18 +956,107 @@ UIFindNodeById(byte_string Id, ui_node_id_table *Table)
 // [Scrolling]
 
 internal void
-ApplyScrollToContext(f32 ScrollDelta, ui_scroll_context *Context)
+ApplyScrollToContext(f32 ScrollDeltaInLines, ui_scroll_context *Scroll)
 {
-    f32 ScrollLimit  = Context->Axis == ScrollAxis_X ? Context->ContentSize.X : Context->ContentSize.Y;
+    f32 ScrolledPixels = ScrollDeltaInLines * Scroll->PixelPerLine;
 
-    Context->ScrollOffset += ScrollDelta;
+    f32 ScrollLimit = 0.f;
+    if (Scroll->Axis == ScrollAxis_X)
+    {
+        ScrollLimit = -(Scroll->ContentSize.X - Scroll->ContentWindowSize.X);
+    } else
+    if (Scroll->Axis == ScrollAxis_Y)
+    {
+        ScrollLimit = -(Scroll->ContentSize.Y - Scroll->ContentWindowSize.Y);
+    }
 
-    if(Context->ScrollOffset > ScrollLimit)
+    Assert(ScrollLimit <= 0.f);
+
+    Scroll->ScrollOffset += ScrolledPixels;
+
+    if(Scroll->ScrollOffset < ScrollLimit)
     {
-        Context->ScrollOffset = ScrollLimit;
+        Scroll->ScrollOffset = ScrollLimit;
     }
-    else if(Context->ScrollOffset < 0.f)
+    else if(Scroll->ScrollOffset > 0.f)
     {
-        Context->ScrollOffset = 0.f;
+        Scroll->ScrollOffset = 0.f;
     }
+}
+
+internal void
+PruneScrollContextNodes(ui_layout_node *Node)
+{
+    ui_scroll_context *Context = Node->Value.ScrollContext;
+    Assert(Context);
+
+    f32 MinX   = Node->Value.FinalX;
+    f32 MinY   = Node->Value.FinalY; 
+    f32 Width  = Context->ContentWindowSize.X;
+    f32 Height = Context->ContentWindowSize.Y;
+    if (Context->Axis == ScrollAxis_X)
+    {
+        MinX -= Context->ScrollOffset;
+    }
+    else if (Context->Axis == ScrollAxis_Y)
+    {
+        MinY -= Context->ScrollOffset;
+    }
+
+    rect_f32 ContentWindowBounds = RectF32(MinX, MinY, Width, Height);
+
+    // WARN: 
+    // This only checks first childrens. So if we have absolute nodes/animations, this will fail.
+    // Only draws things that are fully inside? (This shouldn't be the case right? Since only one of the point's rect must be inside
+    // This could probably be faster with some dirty state logic and greedy pruning, this fully iterates the list every frame
+    // which is okay for now.
+
+    IterateLinkedList(Node, ui_layout_node *, Child)
+    {
+        rect_f32 ChildRect;
+        if (Child->Value.FinalWidth > 0.0f || Child->Value.FinalHeight > 0.0f) 
+        {
+            f32 ChildMinX   = Child->Value.FinalX;
+            f32 ChildMinY   = Child->Value.FinalY;
+            f32 ChildWidth  = Child->Value.FinalWidth;
+            f32 ChildHeight = Child->Value.FinalHeight;
+
+            ChildRect = RectF32(ChildMinX, ChildMinY, ChildWidth, ChildHeight);
+        } else
+        {
+            f32 PointX = Child->Value.FinalX;
+            f32 PointY = Child->Value.FinalY;
+
+            ChildRect = RectF32(PointX, PointY, 1.f, 1.f);
+        }
+
+        if (RectsIntersect(ContentWindowBounds, ChildRect))
+        {
+            ClearFlag(Child->Flags, UILayoutNode_IsPruned);
+        }
+        else
+        {
+            SetFlag(Child->Flags, UILayoutNode_IsPruned);
+        }
+    }
+}
+
+internal vec2_f32
+GetScrollTranslation(ui_layout_node *Node)
+{
+    vec2_f32 Result = Vec2F32(0.f, 0.f);
+
+    ui_scroll_context *Context = Node->Value.ScrollContext;
+    Assert(Context);
+
+    if (Context->Axis == ScrollAxis_X)
+    {
+        Result = Vec2F32(Context->ScrollOffset, 0.f);
+    } else
+    if (Context->Axis == ScrollAxis_Y)
+    {
+        Result = Vec2F32(0.f, Context->ScrollOffset);
+    }
+
+    return Result;
 }

@@ -70,10 +70,8 @@ UIQueryFont(byte_string FontName, f32 FontSize)
 {
     ui_font *Result = 0;
 
-    // Global Access
     ui_font_list *FontList = &UIState.Fonts;
-
-    IterateLinkedList(FontList->First, ui_font *, Font)
+    IterateLinkedList(FontList, ui_font *, Font)
     {
         if (Font->Size == FontSize && ByteStringMatches(Font->Name, FontName, NoFlag))
         {

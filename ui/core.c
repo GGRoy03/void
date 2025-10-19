@@ -265,10 +265,10 @@ UIPipelineExecute(ui_pipeline *Pipeline)
                 SetFlag(Hit.Node->Flags, UILayoutNode_IsClicked);
             }
 
-            if(HasFlag(Hit.Node->Flags, UILayoutNode_IsScrollRegion))
+            if(HasFlag(Hit.Node->Flags, UILayoutNode_IsScrollRegion) && ScrollDelta != 0.f)
             {
-                //Assert(Hit.Node->Value.ScrollContext);
-                //ApplyScrollToContext(ScrollDelta, Hit.Node->Value.ScrollContext);
+                Assert(Hit.Node->Value.ScrollContext);
+                ApplyScrollToContext(ScrollDelta, Hit.Node->Value.ScrollContext);
             }
 
             SetFlag(Hit.Node->Flags, UILayoutNode_IsHovered);
@@ -280,140 +280,180 @@ UIPipelineExecute(ui_pipeline *Pipeline)
     BuildDrawList(Pipeline, RenderPass, LayoutRoot);
 }
 
+typedef struct draw_stack_frame
+{
+    ui_layout_node *Node;
+    vec2_f32        AccScroll;
+} draw_stack_frame;
+
+DEFINE_TYPED_STACK(Draw, draw, draw_stack_frame)
+
 internal void
 BuildDrawList(ui_pipeline *Pipeline, render_pass *Pass, ui_layout_node *Root)
 {
-    ui_layout_box *Box = &Root->Value;
-
-    render_batch_list     *List      = 0;
-    render_pass_params_ui *UIParams  = &Pass->Params.UI.Params;
-    rect_group_params      NewParams = {.Transform = Mat3x3Identity()};
+    typed_stack_params StackParams = {0};
     {
-        rect_group_node *Node = UIParams->Last;
+        StackParams.StackSize = Pipeline->LayoutTree->NodeCount;
+    }
+    draw_stack Stack = BeginDrawStack(StackParams, Pipeline->FrameArena);
 
-        b32 CanMerge = 1;
-        if(Node)
+    PushDrawStack(&Stack, (draw_stack_frame){.Node = Root, .AccScroll = Vec2F32(0.f, 0.f)});
+
+    while(!IsDrawStackEmpty(&Stack))
+    {
+        draw_stack_frame Frame           = PopDrawStack(&Stack);
+        ui_layout_node  *Node            = Frame.Node;
+        vec2_f32         ParentAccScroll = Frame.AccScroll;
+
+        // Batching
+
+        render_batch_list     *List      = 0;
+        render_pass_params_ui *UIParams  = &Pass->Params.UI.Params;
+        rect_group_params      NewParams = {.Transform = Mat3x3Identity()};
         {
-            if(HasFlag(Root->Flags, UILayoutNode_TextIsBound))
+            rect_group_node *GroupNode = UIParams->Last;
+
+            b32 CanMerge = 1;
+            if(GroupNode)
             {
-                NewParams.AtlasTextureView = Root->Value.DisplayText->Atlas;
-                NewParams.AtlasTextureSize = Root->Value.DisplayText->AtlasSize;
+                if(HasFlag(Node->Flags, UILayoutNode_TextIsBound))
+                {
+                    NewParams.AtlasTextureView = Node->Value.DisplayText->Atlas;
+                    NewParams.AtlasTextureSize = Node->Value.DisplayText->AtlasSize;
+                }
+
+                CanMerge = CanMergeGroupParams(&GroupNode->Params, &NewParams);
             }
 
-            CanMerge = CanMergeGroupParams(&Node->Params, &NewParams);
-        }
-
-        if (!Node || !CanMerge)
-        {
-            Node = PushArray(Pipeline->FrameArena, rect_group_node, 1);
-            Node->BatchList.BytesPerInstance = sizeof(ui_rect);
-
-            AppendToLinkedList(UIParams, Node, UIParams->Count);
-        }
-
-        Node->Params = NewParams;        // BUG: This is simply wrong.
-        List         = &Node->BatchList;
-    }
-
-    style_property FinalStyle[StyleProperty_Count] = {0};
-    {
-        ui_node_style *NodeStyle = GetNodeStyle(Root->Index, Pipeline);
-        if(NodeStyle)
-        {
-            ui_cached_style *CachedStyle = GetCachedStyle(Pipeline->Registry, NodeStyle->CachedStyleIndex);
-            if(CachedStyle)
+            if (!GroupNode || !CanMerge)
             {
-                style_property *Base = UIGetStyleEffect(CachedStyle, StyleEffect_Base);
-                MemoryCopy(FinalStyle, Base, sizeof(FinalStyle));
+                GroupNode = PushArray(Pipeline->FrameArena, rect_group_node, 1);
+                GroupNode->BatchList.BytesPerInstance = sizeof(ui_rect);
 
-                IterateLinkedList(NodeStyle->Overrides.First, ui_style_override_node *, Override)
+                AppendToLinkedList(UIParams, GroupNode, UIParams->Count);
+            }
+
+            GroupNode->Params = NewParams;        // BUG: This is simply wrong.
+            List         = &GroupNode->BatchList;
+        }
+
+        // Styling
+
+        style_property FinalStyle[StyleProperty_Count] = { 0 };
+        {
+            ui_node_style *NodeStyle = GetNodeStyle(Node->Index, Pipeline);
+            if (NodeStyle)
+            {
+                ui_cached_style *CachedStyle = GetCachedStyle(Pipeline->Registry, NodeStyle->CachedStyleIndex);
+                if (CachedStyle)
                 {
-                    FinalStyle[Override->Value.Type] = Override->Value;
-                }
+                    style_property *Base = UIGetStyleEffect(CachedStyle, StyleEffect_Base);
+                    MemoryCopy(FinalStyle, Base, sizeof(FinalStyle));
 
-                if(HasFlag(Root->Flags, UILayoutNode_IsClicked))
-                {
-                    ClearFlag(Root->Flags, UILayoutNode_IsClicked);
-
-                    if(HasFlag(CachedStyle->Flags, CachedStyle_HasClickStyle))
+                    ui_style_override_list *OverrideList = &NodeStyle->Overrides;
+                    IterateLinkedList(OverrideList, ui_style_override_node *, Override)
                     {
-                        style_property *Click = UIGetStyleEffect(CachedStyle, StyleEffect_Click);
-                        SuperposeStyle(FinalStyle, Click);
-                        goto Draw;
+                        FinalStyle[Override->Value.Type] = Override->Value;
+                    }
+
+                    if (HasFlag(Node->Flags, UILayoutNode_IsClicked))
+                    {
+                        ClearFlag(Node->Flags, UILayoutNode_IsClicked);
+
+                        if (HasFlag(CachedStyle->Flags, CachedStyle_HasClickStyle))
+                        {
+                            style_property *Click = UIGetStyleEffect(CachedStyle, StyleEffect_Click);
+                            SuperposeStyle(FinalStyle, Click);
+                            goto Draw;
+                        }
+                    }
+
+                    if (HasFlag(Node->Flags, UILayoutNode_IsHovered))
+                    {
+                        ClearFlag(Node->Flags, UILayoutNode_IsHovered);
+
+                        if (HasFlag(CachedStyle->Flags, CachedStyle_HasHoverStyle))
+                        {
+                            style_property *Hover = UIGetStyleEffect(CachedStyle, StyleEffect_Hover);
+                            SuperposeStyle(FinalStyle, Hover);
+                            goto Draw;
+                        }
                     }
                 }
-
-                if(HasFlag(Root->Flags, UILayoutNode_IsHovered))
+                else
                 {
-                    ClearFlag(Root->Flags, UILayoutNode_IsHovered);
-
-                    if(HasFlag(CachedStyle->Flags, CachedStyle_HasHoverStyle))
-                    {
-                        style_property *Hover = UIGetStyleEffect(CachedStyle, StyleEffect_Hover);
-                        SuperposeStyle(FinalStyle, Hover);
-                        goto Draw;
-                    }
+                    // TODO: Log
                 }
             }
             else
             {
+                // TODO: Log
             }
         }
-        else
-        {
-        }
-    }
 
+        // Drawing
 Draw:
 
-    if(HasFlag(Root->Flags, UILayoutNode_IsScrollRegion))
-    {
-        // NOTE: When drawing we just check every first citizen to check which
-        // node is visible in the window? Uhm... We cannot fully prunes nodes.
-        // I guess there likes 2 clipping part: We draw anything that starts at
-        // least in the scoll viewport. And then that will overflow so we push
-        // a rect.
-    }
+        // NOTE: Move this?
+        vec2_f32 ChildAccScroll = ParentAccScroll;
+        if (HasFlag(Node->Flags, UILayoutNode_IsScrollRegion))
+        {
+            PruneScrollContextNodes(Node);
+            vec2_f32 NodeScroll = GetScrollTranslation(Node);
 
-    if (HasFlag(Root->Flags, UILayoutNode_DrawBackground))
-    {
-        ui_rect *Rect = PushDataInBatchList(Pipeline->FrameArena, List);
-        Rect->RectBounds  = RectF32(Box->FinalX, Box->FinalY, Box->FinalWidth, Box->FinalHeight);
-        Rect->Color       = FinalStyle[StyleProperty_Color].Color;
-        Rect->CornerRadii = FinalStyle[StyleProperty_CornerRadius].CornerRadius;
-        Rect->Softness    = FinalStyle[StyleProperty_Softness].Float32;
-    }
+            ChildAccScroll.X += NodeScroll.X;
+            ChildAccScroll.Y += NodeScroll.Y;
+        }
 
-    if (HasFlag(Root->Flags, UILayoutNode_DrawBorders))
-    {
-        ui_rect *Rect = PushDataInBatchList(Pipeline->FrameArena, List);
-        Rect->RectBounds  = RectF32(Box->FinalX, Box->FinalY, Box->FinalWidth, Box->FinalHeight);
-        Rect->Color       = FinalStyle[StyleProperty_BorderColor].Color;
-        Rect->CornerRadii = FinalStyle[StyleProperty_CornerRadius].CornerRadius;
-        Rect->BorderWidth = FinalStyle[StyleProperty_BorderWidth].Float32;
-        Rect->Softness    = FinalStyle[StyleProperty_Softness].Float32;
-    }
 
-    if (HasFlag(Root->Flags, UILayoutNode_DrawText))
-    {
-        ui_color TextColor = FinalStyle[StyleProperty_TextColor].Color;
+        ui_layout_box *Box = &Node->Value;
+        rect_f32 RectBounds = RectF32(Box->FinalX, Box->FinalY, Box->FinalWidth, Box->FinalHeight);
+        TranslateRect(&RectBounds, ParentAccScroll);
 
-        for (u32 Idx = 0; Idx < Box->DisplayText->GlyphCount; ++Idx)
+        if (HasFlag(Node->Flags, UILayoutNode_DrawBackground))
         {
             ui_rect *Rect = PushDataInBatchList(Pipeline->FrameArena, List);
-            Rect->SampleAtlas       = 1.f;
-            Rect->AtlasSampleSource = Box->DisplayText->Glyphs[Idx].Source;
-            Rect->RectBounds        = Box->DisplayText->Glyphs[Idx].Position;
-            Rect->Color             = TextColor;
-            Rect->Softness          = 1.f;
+            Rect->RectBounds  = RectBounds;
+            Rect->Color       = FinalStyle[StyleProperty_Color].Color;
+            Rect->CornerRadii = FinalStyle[StyleProperty_CornerRadius].CornerRadius;
+            Rect->Softness    = FinalStyle[StyleProperty_Softness].Float32;
         }
-    }
 
-    IterateLinkedList(Root->First, ui_layout_node *, Child)
-    {
-        if(!(HasFlag(Child->Flags, UILayoutNode_IsPruned)))
+        if (HasFlag(Node->Flags, UILayoutNode_DrawBorders))
         {
-            BuildDrawList(Pipeline, Pass, Child);
+            ui_rect *Rect = PushDataInBatchList(Pipeline->FrameArena, List);
+            Rect->RectBounds  = RectBounds;
+            Rect->Color       = FinalStyle[StyleProperty_BorderColor].Color;
+            Rect->CornerRadii = FinalStyle[StyleProperty_CornerRadius].CornerRadius;
+            Rect->BorderWidth = FinalStyle[StyleProperty_BorderWidth].Float32;
+            Rect->Softness    = FinalStyle[StyleProperty_Softness].Float32;
         }
+
+        if (HasFlag(Node->Flags, UILayoutNode_DrawText))
+        {
+            ui_color TextColor = FinalStyle[StyleProperty_TextColor].Color;
+
+            for (u32 Idx = 0; Idx < Box->DisplayText->GlyphCount; ++Idx)
+            {
+                rect_f32 GlyphPos = Box->DisplayText->Glyphs[Idx].Position;
+                TranslateRect(&GlyphPos, ParentAccScroll);
+
+                ui_rect *Rect = PushDataInBatchList(Pipeline->FrameArena, List);
+                Rect->SampleAtlas       = 1.f;
+                Rect->AtlasSampleSource = Box->DisplayText->Glyphs[Idx].Source;
+                Rect->RectBounds        = GlyphPos;
+                Rect->Color             = TextColor;
+                Rect->Softness          = 1.f;
+            }
+        }
+
+        IterateLinkedListBackward(Node, ui_layout_node *, Child)
+        {
+            if (!(HasFlag(Child->Flags, UILayoutNode_IsPruned)))
+            {
+                PushDrawStack(&Stack, (draw_stack_frame){.Node = Child, .AccScroll = ChildAccScroll});
+            }
+        }
+
     }
 }

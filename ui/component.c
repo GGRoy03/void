@@ -54,7 +54,11 @@ UIScrollView_(byte_string Id, u32 StyleIndex, ui_pipeline *Pipeline)
         SetFlag(Flags, UILayoutNode_IsScrollRegion);
     }
 
-    InitializeLayoutNode(Style, Flags, Id, Pipeline);
+    ui_layout_node *Node = InitializeLayoutNode(Style, Flags, Id, Pipeline);
+    if(Node)
+    {
+        BindScrollContext(Node, ScrollAxis_Y, Pipeline->StaticArena);
+    }
 }
 
 internal void
