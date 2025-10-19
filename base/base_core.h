@@ -72,10 +72,6 @@
 #define ForEachEnum(Type, Count, It)  for(Type It = (Type)0; It < Count; It = (Type)(It + 1))
 #define DeferLoop(Begin, End) for(i32 Concat(_defer_, __LINE__) = ((Begin), 0); !Concat(_defer_, __LINE__); Concat(_defer_, __LINE__)++, (End))
 
-// Helper macro for token pasting
-#define CONCAT(a, b) CONCAT_IMPL(a, b)
-#define CONCAT_IMPL(a, b) a##b
-
 // [Compiler Warnings]
 
 #if defined(MSVC_COMPILER)
@@ -105,7 +101,8 @@
 
 #define AppendToLinkedList(List, Node, Counter)       if(!List->First) List->First = Node; if(List->Last) List->Last->Next = Node; List->Last = Node; ++Counter
 #define AppendToDoublyLinkedList(List, Node, Counter) if(!List->First) List->First = Node; if(List->Last) List->Last->Next = Node; Node->Prev = List->Last; List->Last = Node; ++Counter;
-#define IterateLinkedList(First, Type, N)             for(Type N = First; N != 0; N = N->Next)
+#define IterateLinkedList(List, Type, N)             for(Type N = List->First; N != 0; N = N->Next)
+#define IterateLinkedListBackward(List, Type, N)     for(Type N = List->Last ; N != 0; N = N->Prev)
 
 // [Core Types]
 

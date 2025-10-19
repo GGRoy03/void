@@ -158,6 +158,15 @@ RectsIntersect(rect_f32 A, rect_f32 B)
     return Result;
 }
 
+internal void
+TranslateRect(rect_f32 *Rect, vec2_f32 Translation)
+{
+    Rect->Min.X += Translation.X;
+    Rect->Min.Y += Translation.Y;
+    Rect->Max.X += Translation.X;
+    Rect->Max.Y += Translation.Y;
+}
+
 internal f32
 RoundedRectSDF(vec2_f32 LocalPosition, vec2_f32 RectHalfSize, f32 Radius)
 {
