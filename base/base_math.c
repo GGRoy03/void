@@ -1,145 +1,117 @@
-// [API IMPLEMENTATION]
-
 // [Constructors]
 
 internal vec2_f32
 Vec2F32(f32 X, f32 Y)
 {
-	vec2_f32 Result;
-	Result.X = X;
-	Result.Y = Y;
+    vec2_f32 Result;
+    Result.X = X;
+    Result.Y = Y;
 
-	return Result;
+    return Result;
 }
 
 internal vec4_f32
 Vec4F32(f32 X, f32 Y, f32 Z, f32 W)
 {
-	vec4_f32 Result;
-	Result.X = X;
-	Result.Y = Y;
-	Result.Z = Z;
-	Result.W = W;
+    vec4_f32 Result;
+    Result.X = X;
+    Result.Y = Y;
+    Result.Z = Z;
+    Result.W = W;
 
-	return Result;
+    return Result;
 }
 
 internal vec2_i32
 Vec2I32(i32 X, i32 Y)
 {
-	vec2_i32 Result;
-	Result.X = X;
-	Result.Y = Y;
+    vec2_i32 Result;
+    Result.X = X;
+    Result.Y = Y;
 
-	return Result;
+    return Result;
 }
 
 internal vec2_f32
 Vec2I32ToVec2F32(vec2_i32 Vec)
 {
-	vec2_f32 Result;
-	Result.X = (f32)Vec.X;
-	Result.Y = (f32)Vec.Y;
+    vec2_f32 Result;
+    Result.X = (f32)Vec.X;
+    Result.Y = (f32)Vec.Y;
 
-	return Result;
+    return Result;
 }
 
 internal matrix_3x3 
 Mat3x3Zero(void)
 {
-	matrix_3x3 Result = {0};
-	return Result;
+    matrix_3x3 Result = {0};
+    return Result;
 }
 
 internal matrix_3x3
 Mat3x3Identity(void)
 {
-	matrix_3x3 Result;
-	Result.c0r0 = 1;
-	Result.c0r1 = 0;
-	Result.c0r2 = 0;
-	Result.c1r0 = 0;
-	Result.c1r1 = 1;
-	Result.c1r2 = 0;
-	Result.c2r0 = 0;
-	Result.c2r1 = 0;
-	Result.c2r2 = 1;
+    matrix_3x3 Result;
+    Result.c0r0 = 1;
+    Result.c0r1 = 0;
+    Result.c0r2 = 0;
+    Result.c1r0 = 0;
+    Result.c1r1 = 1;
+    Result.c1r2 = 0;
+    Result.c2r0 = 0;
+    Result.c2r1 = 0;
+    Result.c2r2 = 1;
 
-	return Result;
-}
-
-internal rect_f32
-RectF32(f32 MinX, f32 MinY, f32 Width, f32 Height)
-{
-	rect_f32 Result;
-	Result.Min.X = MinX;
-	Result.Min.Y = MinY;
-	Result.Max.X = MinX + Width;
-	Result.Max.Y = MinY + Height;
-
-	return Result;
-}
-
-internal rect_f32
-RectF32Zero(void)
-{
-	rect_f32 Result = {0};
-	return Result;
-}
-
-// [Vector OPs]
-
-internal vec2_f32
-Vec2F32Add(vec2_f32 Vec1, vec2_f32 Vec2)
-{
-	vec2_f32 Result = Vec2F32(Vec1.X + Vec2.X, Vec1.Y + Vec2.Y);
-	return Result;
-}
-
-internal vec2_f32
-Vec2F32Sub(vec2_f32 Vec1, vec2_f32 Vec2)
-{
-	vec2_f32 Result = Vec2F32((Vec1.X - Vec2.X), (Vec1.Y - Vec2.Y));
-	return Result;
-}
-
-internal vec2_f32
-Vec2F32Abs(vec2_f32 Vec)
-{
-	vec2_f32 Result = Vec2F32(ClampBot(Vec.X, -Vec.X), ClampBot(Vec.Y, -Vec.Y));
-	Assert(Result.X >= 0 && Result.Y >= 0);
-
-	return Result;
-}
-
-internal f32
-Vec2F32Length(vec2_f32 Vec)
-{
-	f32 Result = sqrtf(Vec.X * Vec.X + Vec.Y + Vec.Y);
-	return Result;
+    return Result;
 }
 
 // [Rect]
 
 internal rect_f32
-IntersectRectF32(rect_f32 R1, rect_f32 R2)
+RectF32(f32 MinX, f32 MinY, f32 Width, f32 Height)
 {
-	rect_f32 Result;
+    rect_f32 Result;
+    Result.Min.X = MinX;
+    Result.Min.Y = MinY;
+    Result.Max.X = MinX + Width;
+    Result.Max.Y = MinY + Height;
 
-	Result.Min.X = max(R1.Min.X, R2.Min.X);
-	Result.Min.Y = max(R1.Min.Y, R2.Min.Y);
-	Result.Max.X = min(R1.Max.X, R2.Max.X);
-	Result.Max.Y = min(R1.Max.Y, R2.Max.Y);
+    return Result;
+}
 
-	if (Result.Max.X <= Result.Min.X || Result.Max.Y <= Result.Min.Y)
-	{
-		Result.Min.X = 0;
-		Result.Min.Y = 0;
-		Result.Max.X = 0;
-		Result.Max.Y = 0;
-	}
-	
-	return Result;
+internal rect_f32
+RectF32Zero(void)
+{
+    rect_f32 Result = {0};
+    return Result;
+}
+
+internal rect_f32
+TranslatedRectF32(rect_f32 Rect, vec2_f32 Translation)
+{
+    rect_f32 Result = Rect;
+    Result.Min.X += Translation.X;
+    Result.Min.Y += Translation.Y;
+    Result.Max.X += Translation.X;
+    Result.Max.Y += Translation.Y;
+
+    return Result;
+}
+
+internal rect_f32
+IntersectRectF32(rect_f32 A, rect_f32 B)
+{
+    vec2_f32 Min    = Vec2F32(max(A.Min.X, B.Min.X), max(A.Min.Y, B.Min.Y));
+    vec2_f32 Max    = Vec2F32(min(A.Max.X, B.Max.X), min(A.Max.Y, B.Max.Y));
+    rect_f32 Result = {Min, Max};
+
+    if (Result.Max.X <= Result.Min.X || Result.Max.Y <= Result.Min.Y)
+    {
+        Result = (rect_f32){0};
+    }
+
+    return Result;
 }
 
 internal b32
@@ -158,35 +130,58 @@ RectsIntersect(rect_f32 A, rect_f32 B)
     return Result;
 }
 
-internal void
-TranslateRect(rect_f32 *Rect, vec2_f32 Translation)
-{
-    Rect->Min.X += Translation.X;
-    Rect->Min.Y += Translation.Y;
-    Rect->Max.X += Translation.X;
-    Rect->Max.Y += Translation.Y;
-}
-
 internal f32
 RoundedRectSDF(vec2_f32 LocalPosition, vec2_f32 RectHalfSize, f32 Radius)
 {
-	// Abuse the symmetry and fold every point into the first quadrant.
-	// Offset these points by the quadrant (RectHalfSize), to figure out
-	// if they lay inside or outside the quadrant. If any axis is positive,
-	// then the point was outside the original Rect. Else it was inside or
-	// on the boundary.
+    // Abuse the symmetry and fold every point into the first quadrant.
+    // Offset these points by the quadrant (RectHalfSize), to figure out
+    // if they lay inside or outside the quadrant. If any axis is positive,
+    // then the point was outside the original Rect. Else it was inside or
+    // on the boundary.
 
-	vec2_f32 RadiusVector  = Vec2F32(Radius, Radius);
-	vec2_f32 FirstQuadrant = Vec2F32Add(Vec2F32Sub(Vec2F32Abs(LocalPosition), RectHalfSize), RadiusVector);
+    vec2_f32 RadiusVector  = Vec2F32(Radius, Radius);
+    vec2_f32 FirstQuadrant = Vec2F32Add(Vec2F32Sub(Vec2F32Abs(LocalPosition), RectHalfSize), RadiusVector);
 
-	// OuterDistance: If any axis is positive, take its length to figure out the closest distance to the boundary.
-	// InnerDistance: If any axis is positive, this results in a 0. Else return the "less negative" value (Closest to edge)
+    // OuterDistance: If any axis is positive, take its length to figure out the closest distance to the boundary.
+    // InnerDistance: If any axis is positive, this results in a 0. Else return the "less negative" value (Closest to edge)
 
-	f32 OuterDistance = Vec2F32Length(Vec2F32(Max(FirstQuadrant.X, 0.f), Max(FirstQuadrant.Y, 0.f)));
-	f32 InnerDistance = Min(Max(FirstQuadrant.X, FirstQuadrant.Y), 0.f);
-	f32 Result        = OuterDistance + InnerDistance - Radius;
+    f32 OuterDistance = Vec2F32Length(Vec2F32(Max(FirstQuadrant.X, 0.f), Max(FirstQuadrant.Y, 0.f)));
+    f32 InnerDistance = Min(Max(FirstQuadrant.X, FirstQuadrant.Y), 0.f);
+    f32 Result        = OuterDistance + InnerDistance - Radius;
 
-	return Result;
+    return Result;
+}
+
+// [Vector OPs]
+
+internal vec2_f32
+Vec2F32Add(vec2_f32 Vec1, vec2_f32 Vec2)
+{
+    vec2_f32 Result = Vec2F32(Vec1.X + Vec2.X, Vec1.Y + Vec2.Y);
+    return Result;
+}
+
+internal vec2_f32
+Vec2F32Sub(vec2_f32 Vec1, vec2_f32 Vec2)
+{
+    vec2_f32 Result = Vec2F32((Vec1.X - Vec2.X), (Vec1.Y - Vec2.Y));
+    return Result;
+}
+
+internal vec2_f32
+Vec2F32Abs(vec2_f32 Vec)
+{
+    vec2_f32 Result = Vec2F32(ClampBot(Vec.X, -Vec.X), ClampBot(Vec.Y, -Vec.Y));
+    Assert(Result.X >= 0 && Result.Y >= 0);
+
+    return Result;
+}
+
+internal f32
+Vec2F32Length(vec2_f32 Vec)
+{
+    f32 Result = sqrtf(Vec.X * Vec.X + Vec.Y + Vec.Y);
+    return Result;
 }
 
 // [Ranges]
