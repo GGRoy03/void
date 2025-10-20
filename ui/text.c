@@ -45,7 +45,8 @@ UILoadFont(byte_string Name, f32 Size)
                 }
             }
 
-            if(!Result)
+            // WARN: Wonky
+            if(!Result->LineHeight)
             {
                 ReleaseGlyphCache(&Result->GPUContext);
                 ReleaseGlyphTransfer(&Result->GPUContext);

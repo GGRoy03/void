@@ -47,6 +47,15 @@ GetInnerBoxSize(ui_layout_box *Box)
     return Result;
 }
 
+internal rect_f32
+MakeRectFromNode(ui_layout_node *Node, vec2_f32 Translation)
+{
+    rect_f32 NodeRect = RectF32(Node->Value.FinalX, Node->Value.FinalY, Node->Value.FinalWidth, Node->Value.FinalHeight);
+    rect_f32 Result   = TranslatedRectF32(NodeRect, Translation);
+
+    return Result;
+}
+
 // [Layout Tree/Nodes]
 
 internal b32 
@@ -144,10 +153,12 @@ InitializeLayoutNode(ui_cached_style *Style, bit_field ConstantFlags, byte_strin
     ui_layout_node *Node = GetFreeLayoutNode(Tree);
     if(Node)
     {
-        Node->Value.Width   = UIGetSize(Style).X;
-        Node->Value.Height  = UIGetSize(Style).Y;
-        Node->Value.Padding = UIGetPadding(Style);
-        Node->Value.Spacing = UIGetSpacing(Style);
+        style_property *BaseProperties = UIGetStyleEffect(Style, StyleEffect_Base);
+
+        Node->Value.Width   = UIGetSize(BaseProperties).X;
+        Node->Value.Height  = UIGetSize(BaseProperties).Y;
+        Node->Value.Padding = UIGetPadding(BaseProperties);
+        Node->Value.Spacing = UIGetSpacing(BaseProperties);
 
         Node->Flags = ConstantFlags;
 
@@ -172,8 +183,8 @@ InitializeLayoutNode(ui_cached_style *Style, bit_field ConstantFlags, byte_strin
         // Draw Flags
         if(Style)
         {
-            ui_color BackgroundColor = UIGetColor(Style);
-            f32      BorderWidth     = UIGetBorderWidth(Style);
+            ui_color BackgroundColor = UIGetColor(BaseProperties);
+            f32      BorderWidth     = UIGetBorderWidth(BaseProperties);
 
             if(IsVisibleColor(BackgroundColor))
             {
@@ -242,7 +253,7 @@ HitTestLayout(vec2_f32 MousePosition, ui_layout_node *Root, ui_pipeline *Pipelin
             ui_node_style   *NodeStyle   = GetNodeStyle(Root->Index, Pipeline);
             ui_cached_style *CachedStyle = GetCachedStyle(Pipeline->Registry, NodeStyle->CachedStyleIndex);
 
-            f32      BorderWidth        = UIGetBorderWidth(CachedStyle);
+            f32      BorderWidth        = UIGetBorderWidth(UIGetStyleEffect(CachedStyle, StyleEffect_Base));
             vec2_f32 BorderWidthVector  = Vec2F32(BorderWidth, BorderWidth);
             vec2_f32 HalfSizeWithBorder = Vec2F32Sub(FullHalfSize, BorderWidthVector);
 

@@ -1278,7 +1278,7 @@ CacheStyle(style *ParsedStyle, ui_style_subregistry *Registry, style_file_debug_
             if(PropertyIsSet(CachedStyle, Effect, StyleProperty_FontSize))
             {
                 byte_string FontName = Block->Attributes[Effect][StyleProperty_Font].String;
-                f32         FontSize = UIGetFontSize(CachedStyle);
+                f32         FontSize = UIGetFontSize(UIGetStyleEffect(CachedStyle, StyleEffect_Base));
                 if(IsValidByteString(FontName) && FontSize > 0.f)
                 {
                     ui_font *Font = UIQueryFont(FontName, FontSize);

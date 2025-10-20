@@ -74,7 +74,7 @@ read_only global D3D11_INPUT_ELEMENT_DESC D3D11RectILayout[] =
     {"STY" , 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_INSTANCE_DATA, 1},
 };
 
-read_only global u8 D3D11RectVShader[] =
+read_only global u8 D3D11RectShader[] =
 "// [Inputs/Outputs]                                                                               \n"
 "                                                                                                  \n"
 "cbuffer Constants : register(b0)                                                                  \n"
@@ -221,9 +221,10 @@ read_only global u8 D3D11RectVShader[] =
 "}                                                                                                 \n"
 ;
 
+
 read_only global byte_string D3D11ShaderSourceTable[] =
 {
-    byte_string_compile(D3D11RectVShader),
+    byte_string_compile(D3D11RectShader),
 };
 
 read_only global d3d11_input_layout D3D11ILayoutTable[] =

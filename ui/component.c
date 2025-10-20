@@ -52,6 +52,7 @@ UIScrollView_(byte_string Id, u32 StyleIndex, ui_pipeline *Pipeline)
         SetFlag(Flags, UILayoutNode_IsParent);
         SetFlag(Flags, UILayoutNode_PlaceChildrenY);
         SetFlag(Flags, UILayoutNode_IsScrollRegion);
+        SetFlag(Flags, UILayoutNode_HasClip);
     }
 
     ui_layout_node *Node = InitializeLayoutNode(Style, Flags, Id, Pipeline);
@@ -70,7 +71,7 @@ UILabel_(byte_string Id, u32 StyleIndex, byte_string Text, ui_pipeline *Pipeline
     ui_layout_node *Node = InitializeLayoutNode(Style, Flags, Id, Pipeline);
     if(IsValidLayoutNode(Node))
     {
-        BindText(Node, Text, UIGetFont(Style), Pipeline->StaticArena);
+        BindText(Node, Text, UIGetFont(UIGetStyleEffect(Style, StyleEffect_Base)), Pipeline->StaticArena);
 
         if(HasFlag(Node->Flags, UILayoutNode_TextIsBound))
         {

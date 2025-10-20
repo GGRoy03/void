@@ -96,17 +96,17 @@ typedef struct ui_node_style
 
 // [Properties]
 
-internal f32               UIGetBorderWidth   (ui_cached_style *Cached);
-internal f32               UIGetSoftness      (ui_cached_style *Cached);
-internal f32               UIGetFontSize      (ui_cached_style *Cached);
-internal vec2_unit         UIGetSize          (ui_cached_style *Cached);
-internal ui_color          UIGetColor         (ui_cached_style *Cached);
-internal ui_color          UIGetBorderColor   (ui_cached_style *Cached);
-internal ui_color          UIGetTextColor     (ui_cached_style *Cached);
-internal ui_padding        UIGetPadding       (ui_cached_style *Cached);
-internal ui_spacing        UIGetSpacing       (ui_cached_style *Cached);
-internal ui_corner_radius  UIGetCornerRadius  (ui_cached_style *Cached);
-internal ui_font         * UIGetFont          (ui_cached_style *Cached);
+internal f32               UIGetBorderWidth   (style_property Properties[StyleProperty_Count]);
+internal f32               UIGetSoftness      (style_property Properties[StyleProperty_Count]);
+internal f32               UIGetFontSize      (style_property Properties[StyleProperty_Count]);
+internal vec2_unit         UIGetSize          (style_property Properties[StyleProperty_Count]);
+internal ui_color          UIGetColor         (style_property Properties[StyleProperty_Count]);
+internal ui_color          UIGetBorderColor   (style_property Properties[StyleProperty_Count]);
+internal ui_color          UIGetTextColor     (style_property Properties[StyleProperty_Count]);
+internal ui_padding        UIGetPadding       (style_property Properties[StyleProperty_Count]);
+internal ui_spacing        UIGetSpacing       (style_property Properties[StyleProperty_Count]);
+internal ui_corner_radius  UIGetCornerRadius  (style_property Properties[StyleProperty_Count]);
+internal ui_font         * UIGetFont          (style_property Properties[StyleProperty_Count]);
 
 internal void UISetStyleProperty  (StyleProperty_Type Type, style_property Value, ui_pipeline *Pipeline);
 internal void UISetTextColor      (ui_color Color, ui_pipeline *Pipeline);

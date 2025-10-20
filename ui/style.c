@@ -1,87 +1,79 @@
 // [Properties]
 
 internal f32 
-UIGetBorderWidth(ui_cached_style *Cached)
+UIGetBorderWidth(style_property Properties[StyleProperty_Count])
 {
-    f32 Result = Cached->Properties[StyleEffect_Base][StyleProperty_BorderWidth].Float32;
+    f32 Result = Properties[StyleProperty_BorderWidth].Float32;
     return Result;
 }
 
 internal f32
-UIGetSoftness(ui_cached_style *Cached)
+UIGetSoftness(style_property Properties[StyleProperty_Count])
 {
-    f32 Result = Cached->Properties[StyleEffect_Base][StyleProperty_Softness].Float32;
+    f32 Result = Properties[StyleProperty_Softness].Float32;
     return Result;
 }
 
 internal f32
-UIGetFontSize(ui_cached_style *Cached)
+UIGetFontSize(style_property Properties[StyleProperty_Count])
 {
-    f32 Result = Cached->Properties[StyleEffect_Base][StyleProperty_FontSize].Float32;
+    f32 Result = Properties[StyleProperty_FontSize].Float32;
     return Result;
 }
 
 internal vec2_unit
-UIGetSize(ui_cached_style *Cached)
+UIGetSize(style_property Properties[StyleProperty_Count])
 {
-    vec2_unit Result = Cached->Properties[StyleEffect_Base][StyleProperty_Size].Vec2;
+    vec2_unit Result = Properties[StyleProperty_Size].Vec2;
     return Result;
 }
 
 internal ui_color
-UIGetColor(ui_cached_style *Cached)
+UIGetColor(style_property Properties[StyleProperty_Count])
 {
-    ui_color Result = Cached->Properties[StyleEffect_Base][StyleProperty_Color].Color;
+    ui_color Result = Properties[StyleProperty_Color].Color;
     return Result;
 }
 
 internal ui_color
-UIGetBorderColor(ui_cached_style *Cached)
+UIGetBorderColor(style_property Properties[StyleProperty_Count])
 {
-    ui_color Result = Cached->Properties[StyleEffect_Base][StyleProperty_BorderColor].Color;
+    ui_color Result = Properties[StyleProperty_BorderColor].Color;
     return Result;
 }
 
 internal ui_color
-UIGetTextColor(ui_cached_style *Cached)
+UIGetTextColor(style_property Properties[StyleProperty_Count])
 {
-    ui_color Result = Cached->Properties[StyleEffect_Base][StyleProperty_TextColor].Color;
+    ui_color Result = Properties[StyleProperty_TextColor].Color;
     return Result;
 }
 
 internal ui_padding
-UIGetPadding(ui_cached_style *Cached)
+UIGetPadding(style_property Properties[StyleProperty_Count])
 {
-    ui_padding Result = Cached->Properties[StyleEffect_Base][StyleProperty_Padding].Padding;
+    ui_padding Result = Properties[StyleProperty_Padding].Padding;
     return Result;
 }
 
 internal ui_spacing
-UIGetSpacing(ui_cached_style *Cached)
+UIGetSpacing(style_property Properties[StyleProperty_Count])
 {
-    ui_spacing Result = Cached->Properties[StyleEffect_Base][StyleProperty_Spacing].Spacing;
+    ui_spacing Result = Properties[StyleProperty_Spacing].Spacing;
     return Result;
 }
 
 internal ui_corner_radius
-UIGetCornerRadius(ui_cached_style *Cached)
+UIGetCornerRadius(style_property Properties[StyleProperty_Count])
 {
-    ui_corner_radius Result = Cached->Properties[StyleEffect_Base][StyleProperty_CornerRadius].CornerRadius;
+    ui_corner_radius Result = Properties[StyleProperty_CornerRadius].CornerRadius;
     return Result;
 }
 
 internal ui_font *
-UIGetFont(ui_cached_style *Cached)
+UIGetFont(style_property Properties[StyleProperty_Count])
 {
-    ui_font *Result = 0;
-
-    // WARN: Doesn't make any sense. Probably just remove this flag?
-
-    if(HasFlag(Cached->Flags, CachedStyle_FontIsLoaded))
-    {
-        Result = Cached->Properties[StyleEffect_Base][StyleProperty_Font].Pointer;
-    }
-
+    ui_font *Result = Properties[StyleProperty_Font].Pointer;
     return Result;
 }
 
