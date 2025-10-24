@@ -82,13 +82,20 @@ typedef struct rect_f32
     vec2_f32 Max;
 } rect_f32;
 
+typedef struct rect_sdf_params
+{
+    f32      Radius;
+    vec2_f32 HalfSize;
+    vec2_f32 PointPosition;
+} rect_sdf_params;
+
 internal rect_f32 RectF32            (f32 MinX, f32 MinY, f32 Width, f32 Height);
 internal rect_f32 RectF32Zero        (void);
 internal rect_f32 TranslatedRectF32  (rect_f32 Rect, vec2_f32 Translation);
 
 internal rect_f32 IntersectRectF32  (rect_f32 R1, rect_f32 R2);
 internal b32      IsPointInRect     (rect_f32 Target, vec2_f32 Point);
-internal f32      RoundedRectSDF    (vec2_f32 LocalPosition, vec2_f32 RectHalfSize, f32 Radius);
+internal f32      RoundedRectSDF    (rect_sdf_params Params);
 internal b32      RectsIntersect    (rect_f32 A, rect_f32 B);
 internal rect_f32 InsetRectF32      (rect_f32 Rect, f32 Size);
 

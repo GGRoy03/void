@@ -3,7 +3,7 @@
 internal ui_style_registry *
 CreateStyleRegistry(byte_string FileName, memory_arena *OutputArena)
 {
-    ui_style_subregistry *Result = 0;
+    ui_style_registry *Result = 0;
 
     memory_arena *RoutineArena = {0};
     {
@@ -663,8 +663,8 @@ ParseStyleBlock(style_token_buffer *Buffer, style_var_table *VarTable, style_fil
             if(Effect.Type != StyleEffect_None)
             {
                 CurrentEffect = Effect.Type;
-            }
-            else
+            } else 
+            if(CurrentEffect != StyleEffect_None)
             {
                 style_attribute Attribute = ParseStyleAttribute(Buffer, VarTable, Debug);
                 if(!Attribute.HadError)
@@ -680,7 +680,10 @@ ParseStyleBlock(style_token_buffer *Buffer, style_var_table *VarTable, style_fil
                     }
                 }
             }
-
+            else
+            {
+                ReportStyleFileError(Debug, warn_message("You must specify an effect such as @Base before declaring your attributes"));
+            }
         }
     }
     else
@@ -805,10 +808,10 @@ ParseStyleVariable(style_token_buffer *Buffer, style_file_debug_info *Debug)
     return Variable;
 }
 
-internal ui_style_subregistry *
+internal ui_style_registry *
 ParseStyleFile(tokenized_style_file *File, memory_arena *RoutineArena, memory_arena *OutputArena, style_file_debug_info *Debug)
 {
-    ui_style_subregistry *Result = PushArray(OutputArena, ui_style_subregistry, 1);
+    ui_style_registry *Result = PushStruct(OutputArena, ui_style_registry);
 
     if(Result)
     {
@@ -867,7 +870,7 @@ ParseStyleFile(tokenized_style_file *File, memory_arena *RoutineArena, memory_ar
     }
     else
     {
-        ReportStyleParserError(Debug, error_message("Could not allocate subregistry."));
+        ReportStyleParserError(Debug, error_message("Could not allocate registry."));
     }
 
     return Result;
@@ -1214,7 +1217,7 @@ ConvertAttributeToProperty(style_attribute Attribute)
 }
 
 internal void
-CacheStyle(style *ParsedStyle, ui_style_subregistry *Registry, style_file_debug_info *Debug)
+CacheStyle(style *ParsedStyle, ui_style_registry *Registry, style_file_debug_info *Debug)
 {
     Assert(Registry->StylesCount < Registry->StylesCapacity);
 
@@ -1222,7 +1225,7 @@ CacheStyle(style *ParsedStyle, ui_style_subregistry *Registry, style_file_debug_
     style_header    *Header      = &ParsedStyle->Header;
     style_block     *Block       = &ParsedStyle->Block;
 
-    CachedStyle->CachedIndex = Registry->StylesCount;
+    CachedStyle->CachedIndex = Registry->StylesCount++;
 
     // Prunes every badly formatted attribute from the list.
     // Also, outputs the corresponding error messages.
@@ -1230,8 +1233,6 @@ CacheStyle(style *ParsedStyle, ui_style_subregistry *Registry, style_file_debug_
 
     ForEachEnum(StyleEffect_Type, StyleEffect_Count, Effect)
     {
-        b32 AtLeastOneIsSet = 0;
-
         ForEachEnum(StyleProperty_Type, StyleProperty_Count, Property)
         {
             style_attribute Attribute = Block->Attributes[Effect][Property];
@@ -1241,7 +1242,6 @@ CacheStyle(style *ParsedStyle, ui_style_subregistry *Registry, style_file_debug_
                 if(Attribute.IsSet)
                 {
                     CachedStyle->Properties[Effect][Property] = ConvertAttributeToProperty(Attribute);
-                    AtLeastOneIsSet = 1;
                 }
             }
             else
@@ -1253,24 +1253,6 @@ CacheStyle(style *ParsedStyle, ui_style_subregistry *Registry, style_file_debug_
             }
         }
 
-        // Set the correct flag for the runtime.
-
-        if(AtLeastOneIsSet)
-        {
-            if(Effect == StyleEffect_Base)
-            {
-                SetFlag(CachedStyle->Flags, CachedStyle_HasBaseStyle);
-            } else
-            if (Effect == StyleEffect_Hover)
-            {
-                SetFlag(CachedStyle->Flags, CachedStyle_HasHoverStyle);
-            } else
-            if (Effect == StyleEffect_Click)
-            {
-                SetFlag(CachedStyle->Flags, CachedStyle_HasClickStyle);
-            }
-        }
-
         // Load Fonts
 
         if(PropertyIsSet(CachedStyle, Effect, StyleProperty_Font))
@@ -1278,7 +1260,7 @@ CacheStyle(style *ParsedStyle, ui_style_subregistry *Registry, style_file_debug_
             if(PropertyIsSet(CachedStyle, Effect, StyleProperty_FontSize))
             {
                 byte_string FontName = Block->Attributes[Effect][StyleProperty_Font].String;
-                f32         FontSize = UIGetFontSize(UIGetStyleEffect(CachedStyle, StyleEffect_Base));
+                f32         FontSize = UIGetFontSize(GetBaseStyle(CachedStyle->CachedIndex, Registry));
                 if(IsValidByteString(FontName) && FontSize > 0.f)
                 {
                     ui_font *Font = UIQueryFont(FontName, FontSize);
@@ -1288,7 +1270,6 @@ CacheStyle(style *ParsedStyle, ui_style_subregistry *Registry, style_file_debug_
                     }
 
                     CachedStyle->Properties[Effect][StyleProperty_Font].Pointer = Font;
-                    SetFlag(CachedStyle->Flags, CachedStyle_FontIsLoaded);
                 }
                 else
                 {
@@ -1299,8 +1280,6 @@ CacheStyle(style *ParsedStyle, ui_style_subregistry *Registry, style_file_debug_
             }
         }
     }
-
-    ++Registry->StylesCount;
 
     Useless(Header); // NOTE: Useless at the moment. Unsure where I wanna go with this.
 }

@@ -1,48 +1,8 @@
-// [CONSTANTS]
-
-typedef enum UILayoutNode_Flag
-{
-    // Draws
-    UILayoutNode_DrawBackground = 1 << 0,
-    UILayoutNode_DrawBorders    = 1 << 1,
-    UILayoutNode_DrawText       = 1 << 2,
-
-    // Batching
-    UILayoutNode_HasClip        = 1 << 3,
-
-    // State
-    UILayoutNode_IsHovered      = 1 << 4,
-    UILayoutNode_IsClicked      = 1 << 5,
-    UILayoutNode_IsDraggable    = 1 << 6,
-    UILayoutNode_IsResizable    = 1 << 7,
-
-    // Layout Info
-    UILayoutNode_PlaceChildrenX  = 1 << 8,
-    UILayoutNode_PlaceChildrenY  = 1 << 9,
-    UILayoutNode_IsParent        = 1 << 10,
-    UILayoutNode_IsScrollRegion  = 1 << 11,
-
-    // Binds
-    UILayoutNode_TextIsBound     = 1 << 12,
-
-    // Dirty/Stale/Pruned
-    UILayoutNode_IsPruned        = 1 << 13,
-} UILayoutNode_Flag;
-
-typedef enum LayoutTree_Constant
-{
-    LayoutTree_DefaultNodeCount = 4000,
-    LayoutTree_DefaultNodeDepth = 16,
-    LayoutTree_InvalidNodeIndex = 0xFFFFFFFF,
-} LayoutTree_Constant;
-
 typedef enum ScrollAxis_Type
 {
     ScrollAxis_X = 0,
     ScrollAxis_Y = 1,
 } ScrollAxis_Type;
-
-// [CORE TYPES]
 
 typedef struct ui_scroll_context
 {
@@ -53,53 +13,82 @@ typedef struct ui_scroll_context
     ScrollAxis_Type Axis;              // Which Axis the scroll is applied to
 } ui_scroll_context;
 
-typedef struct ui_hit_test
-{
-    ui_layout_node *Node;
-    UIIntent_Type   Intent;
-    b32             Success;
-} ui_hit_test;
+// TODO: Cleanup this API
 
-typedef struct ui_layout_box
+internal void     BindScrollContext        (ui_node Node, ScrollAxis_Type Axis, ui_layout_tree *Tree, memory_arena *Arena);
+internal void     ApplyScrollToContext     (f32 ScrollDelta, ui_scroll_context *Context);
+internal void     PruneScrollContextNodes  (ui_layout_node *Node);
+internal vec2_f32 GetScrollTranslation     (ui_layout_node *Node);
+
+// ui_layout_node:
+// ui_layout_tree:
+//   Opaque types the user does not need to know about.
+//
+// ui_layout_tree_params:
+//   Parameters used when allocating trees.
+//   If NodeCount == 0 -> It will default to some value.
+//   If NodeDepth == 0 -> It will default to some value.
+//
+// GetLayoutTreeFootprint:
+//   Returns the size of the memory needed to call PlaceLayoutTreeInMemory.
+//   Parameters will apply their default values if needed.
+//
+// PlaceLayoutTreeInMemory:
+//   Places the tree in memory given the parameters and the memory YOU allocated.
+//   You are responsible for managing this memory.
+//   If memory is 0, it will fall through and 0 will be returned, thus you must only check that this function doesn't return 0.
+//
+//   ui_layout_tree_params Params    = {0};                                                ---> Default Parameters will be set!
+//   u64                   Footprint = GetLayoutTreeFootprint(Params);                     ---> Query the footprint!
+//   ui_layout_tree        *Tree     = PlaceLayoutTreeInMemory(Params, malloc(Footprint)); ---> Place in memory!
+//   if(Tree)                                                                              ---> Check if the memory is valid!
+//   {
+//      ...
+//   }
+//
+// GetTreeSize:
+//   Query the tree size after placing in memory. Useful is it's possible the tree params contained default
+//   values. Make sure the tree is initialized before calling this.
+//
+// UIBuildNode:
+//   aaa
+//
+// UIEnterSubtree & UILeaveSubtree & UISubtree:
+//   ...
+
+typedef struct ui_layout_node  ui_layout_node;
+typedef struct ui_layout_tree  ui_layout_tree;
+
+typedef enum UILayoutNode_Flag
 {
-    // Output
-    f32 FinalX;
-    f32 FinalY;
-    f32 FinalWidth;
-    f32 FinalHeight;
+    // Draws
+    UILayoutNode_DrawBackground  = 1 << 0,
+    UILayoutNode_DrawBorders     = 1 << 1,
+    UILayoutNode_DrawText        = 1 << 2,
+    UILayoutNode_DoNotDraw       = 1 << 3,
+
+    // Batching
+    UILayoutNode_HasClip         = 1 << 4,
+
+    // State
+    UILayoutNode_IsHoverable     = 1 << 5,
+    UILayoutNode_IsClickable     = 1 << 6,
+    UILayoutNode_IsDraggable     = 1 << 7,
+    UILayoutNode_IsResizable     = 1 << 8,
+    UILayoutNode_IsScrollable    = 1 << 9,
 
     // Layout Info
-    ui_unit    Width;
-    ui_unit    Height;
-    ui_spacing Spacing;
-    ui_padding Padding;
+    UILayoutNode_PlaceChildrenX  = 1 << 10,
+    UILayoutNode_PlaceChildrenY  = 1 << 11,
+    UILayoutNode_IsParent        = 1 << 12,
+} UILayoutNode_Flag;
 
-    // Params
-    rect_f32 Clip;
-
-    // Binds
-    ui_glyph_run      *DisplayText;
-    ui_scroll_context *ScrollContext;
-} ui_layout_box;
-
-// A simple tree is used for representing a layout.
-// Each pipeline posseses a tree.
-
-typedef struct ui_layout_node ui_layout_node;
-struct ui_layout_node
+typedef enum LayoutTree_Constant
 {
-    // Hierarchy
-    u32             Index;
-    u32             ChildCount;
-    ui_layout_node *Parent;
-    ui_layout_node *First;
-    ui_layout_node *Last;
-    ui_layout_node *Next;
-    ui_layout_node *Prev;
-
-    ui_layout_box Value;
-    bit_field     Flags;
-};
+    LayoutTree_DefaultNodeCount = 4000,
+    LayoutTree_DefaultNodeDepth = 16,
+    LayoutTree_InvalidNodeIndex = 0xFFFFFFFF,
+} LayoutTree_Constant;
 
 typedef struct ui_layout_tree_params
 {
@@ -107,52 +96,36 @@ typedef struct ui_layout_tree_params
     u64 NodeDepth;
 } ui_layout_tree_params;
 
-DEFINE_TYPED_STACK(LayoutNode, layout_node, ui_layout_node *)
+internal u64              GetLayoutTreeFootprint   (ui_layout_tree_params Params);
+internal ui_layout_tree * PlaceLayoutTreeInMemory  (ui_layout_tree_params Params, void *Memory);
+internal u64              GetTreeSize              (ui_layout_tree *Tree);
 
-typedef struct ui_layout_tree
-{
-    // Nodes
-    u64             NodeDepth;
-    u64             NodeCapacity;
-    u64             NodeCount;
-    ui_layout_node *Nodes;
+internal ui_node          UIFindChild              (ui_node Node, u32 Index, ui_layout_tree *Tree);
 
-    // Depth
-    layout_node_stack Parents;
-} ui_layout_tree;
+
+internal ui_node          UIBuildLayoutNode       (style_property BaseProperties[StyleProperty_Count], bit_field Flags, ui_subtree *Subtree, memory_arena *Arena);
+internal void             UIEnd                    (ui_pipeline *Pipeline);
+
+// -------------------------------------------------------------------------------------------------------------------
+// ui_hit_test:
+//
+// HitTestLayout:
+//
+// ComputeLayout:
+
+internal void HitTestLayout  (ui_layout_tree *Tree, memory_arena *Arena);
+internal void ComputeLayout  (ui_layout_tree *Tree, memory_arena *Arena);
+internal void DrawLayout     (ui_subtree *Subtree, memory_arena *Arena);
 
 // [Tree Mutations]
 
 internal void DragUISubtree    (vec2_f32 Delta, ui_layout_node *LayoutRoot, ui_pipeline *Pipeline);
 internal void ResizeUISubtree  (vec2_f32 Delta, ui_layout_node *LayoutNode, ui_pipeline *Pipeline);
 
-// [Layout Pass]
-
-internal ui_hit_test HitTestLayout     (vec2_f32 MousePosition, ui_layout_node *LayoutRoot, ui_pipeline *Pipeline);
-internal void        PreOrderMeasure   (ui_layout_node *LayoutRoot, ui_pipeline *Pipeline);
-internal void        PostOrderMeasure  (ui_layout_node *LayoutRoot);
-internal void        PreOrderPlace     (ui_layout_node *LayoutRoot, ui_pipeline *Pipeline);
-
-// [Layout Tree/Nodes]
-
-internal rect_f32 MakeRectFromNode(ui_layout_node *Node, vec2_f32 Translation);
-internal ui_layout_node      * GetLastAddedLayoutNode   (ui_layout_tree *Tree);
-internal b32                   IsValidLayoutNode        (ui_layout_node *Node);
-internal u64                   GetLayoutTreeFootprint   (ui_layout_tree_params Params);
-internal ui_layout_tree_params SetDefaultTreeParams     (ui_layout_tree_params Params);
-internal ui_layout_tree      * PlaceLayoutTreeInMemory  (ui_layout_tree_params Params, void *Memory);
-internal b32                   IsValidLayoutNode        (ui_layout_node *Node);
-internal ui_layout_node      * InitializeLayoutNode     (ui_cached_style *Style, bit_field ConstantFlags, byte_string Id, ui_pipeline *Pipeline);
-internal ui_layout_node      * GetFreeLayoutNode        (ui_layout_tree *Tree);
 
 // [Binds]
 
-internal void BindText  (ui_layout_node *Node, byte_string Text, ui_font *Font, memory_arena *Arena);
-
-// [Context]
-
-internal void UIBeginSubtree  (ui_layout_node *Parent, ui_pipeline *Pipeline);
-internal void UIEndSubtree    (ui_pipeline *Pipeline);
+internal void BindText(ui_node Node, byte_string Text, ui_font *Font, ui_layout_tree *Tree, memory_arena *Arena);
 
 // -------------------------------------------------------------------------------------------------------------------
 // NodeIdTable_Size:
@@ -192,27 +165,19 @@ internal ui_node_id_table * PlaceNodeIdTableInMemory  (ui_node_id_table_params P
 
 // -------------------------------------------------------------------------------------------------------------------
 // ui_node_id_table:
-//   Opaque pointer.
+//   Opaque pointer to the table.
 //
-// SetNodeId:
-//  Given a byte_string we try to insert and a node we try to insert the entry into the table.
-//  If the table or the node are invalid, this function has no effect. (Log)
-//  If an entry with the same name already exists, this function has no effect. (Log)
-//  Otherwise, the id will be linked to the name in the table and you can find it with UIFindNodeById
+// UISetNodeId:
+//  If the table or the node are invalid, this function has no effect.
+//  If an entry with the same name already exists, this function has no effect.
 //
 // UIFindNodeById:
-//  Given a byte string we try to query the corresponding node.
 //  Returns the node if found (Must be inserted via SetNodeId) or 0 if not.
-//  If the table or the byte_string is invalid, this function has no effect.
 // -------------------------------------------------------------------------------------------------------------------
 
 typedef struct ui_node_id_table ui_node_id_table;
 
-internal void               SetNodeId       (byte_string Id, ui_layout_node *Node, ui_node_id_table *Table);
-internal ui_layout_node   * UIFindNodeById  (byte_string Id, ui_node_id_table *Table);
+internal void    UISetNodeId     (byte_string Id, ui_node Node, ui_node_id_table *Table);
+internal ui_node UIFindNodeById  (byte_string Id, ui_node_id_table *Table);
 
-// [Scrolling]
-
-internal void     ApplyScrollToContext     (f32 ScrollDelta, ui_scroll_context *Context);
-internal void     PruneScrollContextNodes  (ui_layout_node *Node);
-internal vec2_f32 GetScrollTranslation     (ui_layout_node *Node);
+// -------------------------------------------------------------------------------------------------------------------

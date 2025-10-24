@@ -46,9 +46,9 @@ typedef struct render_batch_list
 
 typedef struct rect_group_params
 {
-    vec2_f32      AtlasTextureSize;
+    vec2_f32      TextureSize;
+    render_handle Texture;
     matrix_3x3    Transform;
-    render_handle AtlasTextureView;
     rect_f32      Clip;
 } rect_group_params;
 

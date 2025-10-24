@@ -1,15 +1,5 @@
 #pragma once
 
-// [CONSTANTS]
-
-typedef enum CachedStyle_Flag
-{
-    CachedStyle_FontIsLoaded  = 1 << 0,
-    CachedStyle_HasBaseStyle  = 1 << 1,
-    CachedStyle_HasClickStyle = 1 << 2,
-    CachedStyle_HasHoverStyle = 1 << 3,
-} CachedStyle_Flag;
-
 typedef enum StyleProperty_Type
 {
     StyleProperty_Size         = 0,
@@ -59,12 +49,8 @@ typedef struct style_property
 
 typedef struct ui_cached_style
 {
-    // Properties (Not very memory efficient)
     style_property Properties[StyleEffect_Count][StyleProperty_Count];
-
-    // Misc
-    u32       CachedIndex;
-    bit_field Flags;
+    u32            CachedIndex;
 } ui_cached_style;
 
 typedef struct ui_style_registry
@@ -72,7 +58,7 @@ typedef struct ui_style_registry
     u32              StylesCount;
     u32              StylesCapacity;
     ui_cached_style *Styles;
-} ui_style_subregistry;
+} ui_style_registry;
 
 typedef struct ui_style_override_node ui_style_override_node;
 struct ui_style_override_node
@@ -92,9 +78,21 @@ typedef struct ui_node_style
 {
     u32                    CachedStyleIndex;
     ui_style_override_list Overrides;
+    style_property         ComputedProperties[StyleProperty_Count];
 } ui_node_style;
 
-// [Properties]
+// UIGetBorderWidth:
+// UIGetSoftness:
+// UIGetFontSize:
+// UIGetSize:
+// UIGetColor:
+// UIGetBorderColor:
+// UIGetTextColor:
+// UIGetPadding:
+// UIGetSpacing:
+// UIGetCornerRadius:
+// UIGetFont:
+//   Small helpers to make code less verbose when querying properties.
 
 internal f32               UIGetBorderWidth   (style_property Properties[StyleProperty_Count]);
 internal f32               UIGetSoftness      (style_property Properties[StyleProperty_Count]);
@@ -108,16 +106,19 @@ internal ui_spacing        UIGetSpacing       (style_property Properties[StylePr
 internal ui_corner_radius  UIGetCornerRadius  (style_property Properties[StyleProperty_Count]);
 internal ui_font         * UIGetFont          (style_property Properties[StyleProperty_Count]);
 
-internal void UISetStyleProperty  (StyleProperty_Type Type, style_property Value, ui_pipeline *Pipeline);
-internal void UISetTextColor      (ui_color Color, ui_pipeline *Pipeline);
+// GetHoverStyle:
+//
+
+internal style_property * GetBaseStyle      (u32 StyleIndex, ui_style_registry *Registry);
+internal style_property * GetHoverStyle     (u32 CachedIndex, ui_style_registry *Registry);
+internal style_property * GetComputedStyle  (u32 NodeIndex, ui_subtree *Subtree);
+
+// UISetTextColor:
+//  Override a style at runtine.
+
+internal void SetUITextColor  (ui_node Node, ui_color Color, ui_subtree *Subtree, memory_arena *Arena);
 
 // [Styles]
-
-internal ui_style_override_node * AllocateStyleOverrideNode  (StyleProperty_Type Type, memory_arena *Arena);
-internal void                     SuperposeStyle             (style_property *BaseProperties, style_property *LayerProperties);
-internal ui_node_style          * GetNodeStyle               (u32 Index, ui_pipeline *Pipeline);
-internal ui_cached_style        * GetCachedStyle             (ui_style_registry *Registry, u32 Index);
-internal style_property         * UIGetStyleEffect           (ui_cached_style *Cached, StyleEffect_Type Effect);
 
 
 // [Helpers]

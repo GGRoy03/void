@@ -89,7 +89,7 @@ internal b32
 CanMergeRectGroupParams(rect_group_params *Old, rect_group_params *New)
 {
     // If the old value had some texture and it is not the same, then we can't merge.
-    if (IsValidRenderHandle(Old->AtlasTextureView) && !RenderHandleMatches(Old->AtlasTextureView, New->AtlasTextureView))
+    if (IsValidRenderHandle(Old->Texture) && !RenderHandleMatches(Old->Texture, New->Texture))
     {
         return 0;
     }

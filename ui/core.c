@@ -46,7 +46,8 @@ IsNormalizedColor(ui_color Color)
     return Result;
 }
 
-// [Frame Context]
+// -------------------------------------------------------------
+// UI Context Public API Implementation
 
 internal void
 UIBeginFrame()
@@ -58,79 +59,223 @@ UIBeginFrame()
     if(MouseReleased)
     {
         State->CapturedNode = 0;
-        State->Intent       = UIIntent_None;
     }
 }
 
-// TODO: Lerp the drag-delta or something if vsync is activated. Also, figure
-// out if this introduces too much delay on the cursor and whatnot. Yeah I am not sure
-// if this should even exist?
+// -------------------------------------------------------------
+// UI Node Private API Implementation
 
-internal void
-UIEndFrame()
+internal ui_node
+GetNodeFromChain(ui_node_chain Chain)
 {
-    ui_state *State = &UIState;
+    ui_node Node = Chain.Node;
+    return Node;
+}
 
-    // Set the correct cursor
+internal ui_subtree *
+GetSubtreeFromChain(ui_node_chain Chain, ui_pipeline *Pipeline)
+{
+    ui_subtree *Result = 0;
 
-    vec2_f32 MouseDelta = OSGetMouseDelta();
-    b32      MouseMoved = (MouseDelta.X != 0 || MouseDelta.Y != 0);
-
-    switch (State->Intent)
+    if(Chain.Node.CanUse)
     {
-
-    default:
-    {
-        OSSetCursor(OSCursor_Default);
-    } break;
-
-    case UIIntent_Drag:
-    {
-        if (State->CapturedNode && MouseMoved)
+        if(Chain.Subtree)
         {
-            DragUISubtree(MouseDelta, State->CapturedNode, State->TargetPipeline);
-            OSSetCursor(OSCursor_GrabHand);
+            Result = Chain.Subtree;
         }
         else
         {
-            OSSetCursor(OSCursor_Default);
+            Result = FindSubtree(Chain.Node, Pipeline);
         }
-    } break;
+    }
 
-    case UIIntent_ResizeX:
+    return Result;
+}
+
+internal ui_node
+SetTextColorInChain(ui_color Color, ui_pipeline *Pipeline)
+{
+    ui_node     Node    = GetNodeFromChain(Pipeline->Chain);
+    ui_subtree *Subtree = GetSubtreeFromChain(Pipeline->Chain, Pipeline); // NOTE: Not great.
+
+    if(Subtree)
     {
-        if (State->CapturedNode && MouseMoved)
-        {
-            ResizeUISubtree(Vec2F32(MouseDelta.X, 0.f), State->CapturedNode, State->TargetPipeline);
-        }
+        SetUITextColor(Node, Color, Subtree, Pipeline->StaticArena);
+    }
 
-        OSSetCursor(OSCursor_ResizeHorizontal);
-    } break;
+    return Node;
+}
 
-    case UIIntent_ResizeY:
+internal ui_node
+FindChildInChain(u32 Index, ui_pipeline *Pipeline)
+{
+    ui_node     Node    = GetNodeFromChain(Pipeline->Chain);
+    ui_subtree *Subtree = GetSubtreeFromChain(Pipeline->Chain, Pipeline); // NOTE: Not great.
+
+    if(Subtree)
     {
-        if (State->CapturedNode && MouseMoved)
+        ui_layout_tree *LayoutTree = Subtree->LayoutTree;
+        if(LayoutTree)
         {
-            ResizeUISubtree(Vec2F32(0.f, MouseDelta.Y), State->CapturedNode, State->TargetPipeline);
+            // WARN: The problem is that I never set the subtree?
+            // Which causes us to query it again and again.
+
+            BeginNodeChain(UIFindChild(Node, Index, LayoutTree), Pipeline); // NOTE: Not great.
         }
+    }
 
-        OSSetCursor(OSCursor_ResizeVertical);
-    } break;
+    return Node;
+}
 
-    case UIIntent_ResizeXY:
+internal ui_node
+SetNodeIdInChain(byte_string Id, ui_pipeline *Pipeline)
+{
+    ui_node     Node    = GetNodeFromChain(Pipeline->Chain);
+    ui_subtree *Subtree = GetSubtreeFromChain(Pipeline->Chain, Pipeline);
+
+    if(Subtree)
     {
-        if (State->CapturedNode && MouseMoved)
+        UISetNodeId(Id, Node, Pipeline->IdTable);
+    }
+
+    return Node;
+}
+
+internal void
+BeginNodeChain(ui_node Node, ui_pipeline *Pipeline)
+{
+    ui_node_chain Chain = {0};
+    Chain.Node              = Node;
+    Chain.Node.SetTextColor = SetTextColorInChain;
+    Chain.Node.FindChild    = FindChildInChain;
+    Chain.Node.SetId        = SetNodeIdInChain;
+
+    Pipeline->Chain = Chain;
+}
+
+// -------------------------------------------------------------
+// UI Node Public API Implementation
+
+internal ui_node
+UIGetLast(ui_pipeline *Pipeline)
+{
+    ui_node_chain Chain = Pipeline->Chain;
+    ui_node       Node  = Chain.Node;
+    return Node;
+}
+
+// -------------------------------------------------------------
+// Events Public API Implementation
+
+internal void
+ProcessUIEventList(ui_event_list *Events)
+{
+    IterateLinkedList(Events, ui_event_node *, Node)
+    {
+        ui_event *Event = &Node->Value;
+
+        switch(Event->Type)
         {
-            ResizeUISubtree(MouseDelta, State->CapturedNode, State->TargetPipeline);
+
+        case UIEvent_Hover:
+        {
+            ui_hover_event Hover = Event->Hover;
+
+            style_property *HoverStyle = GetHoverStyle(Hover.CachedStyleIndex, Hover.Source->Registry);
+            if(HoverStyle)
+            {
+            }
+        } break;
+
+        case UIEvent_Click:
+        {
+        } break;
+
+        case UIEvent_Resize:
+        {
+        } break;
+
+        case UIEvent_Drag:
+        {
+        } break;
+
         }
-
-        OSSetCursor(OSCursor_ResizeDiagonalLeftToRight);
-    } break;
-
     }
 }
 
-// [Pipeline]
+internal void
+RecordUIEvent(ui_event Event, ui_event_list *Events, memory_arena *Arena)
+{
+    ui_event_node *Node = PushStruct(Arena, ui_event_node);
+    if(Node)
+    {
+        Node->Value = Event;
+        AppendToLinkedList(Events, Node, Events->Count);
+    }
+}
+
+internal void
+RecordUIHoverEvent(ui_node Node, ui_pipeline *Source, ui_event_list *Events, memory_arena *Arena)
+{
+    ui_event Event = {.Type = UIEvent_Hover, .Hover.Node = Node, .Hover.Source = Source};
+    RecordUIEvent(Event, Events, Arena);
+}
+
+// ----------------------------------------------------------------------------------
+// Pipeline Public API Implementation
+
+internal void
+UIBeginSubtree(ui_subtree_params Params, ui_pipeline *Pipeline)
+{
+    Assert(Pipeline);
+
+    memory_arena *Persist   = Pipeline->StaticArena; Assert(Persist);
+    memory_arena *Transient = Pipeline->FrameArena;  Assert(Transient);
+
+    if(Params.CreateNew)
+    {
+        ui_subtree_node *SubtreeNode = PushStruct(Persist, ui_subtree_node);
+        if(SubtreeNode)
+        {
+            ui_subtree_list *SubtreeList = &Pipeline->Subtrees;
+            AppendToLinkedList(SubtreeList, SubtreeNode, SubtreeList->Count);
+
+            ui_layout_tree *LayoutTree = 0;
+            {
+                ui_layout_tree_params LayoutTreeParams = {0};
+                LayoutTreeParams.NodeCount = Params.LayoutNodeCount;
+                LayoutTreeParams.NodeDepth = Params.LayoutNodeDepth;
+
+                u64   Footprint = GetLayoutTreeFootprint(LayoutTreeParams);
+                void *Memory    = PushArray(Persist, u8, Footprint);
+
+                LayoutTree = PlaceLayoutTreeInMemory(LayoutTreeParams, Memory);
+            }
+
+            SubtreeNode->Value.LayoutTree     = LayoutTree;
+            SubtreeNode->Value.ComputedStyles = PushArray(Persist, ui_node_style, 0);
+            SubtreeNode->Value.Id             = Pipeline->NextSubtreeId++;
+
+            Pipeline->CurrentSubtree = &SubtreeNode->Value;
+        }
+    }
+    else
+    {
+        // NOTE: Not sure..
+    }
+}
+
+internal void
+UIEndSubtree(ui_subtree_params Params)
+{
+    Useless(Params);
+}
+
+internal void
+UIBeginPipeline(ui_pipeline *Pipeline)
+{
+    ClearArena(Pipeline->FrameArena);
+}
 
 internal ui_pipeline *
 UICreatePipeline(ui_pipeline_params Params)
@@ -140,17 +285,6 @@ UICreatePipeline(ui_pipeline_params Params)
 
     if(Result)
     {
-        // Frame Data
-        {
-            memory_arena_params ArenaParams = { 0 };
-            ArenaParams.AllocatedFromFile = __FILE__;
-            ArenaParams.AllocatedFromLine = __LINE__;
-            ArenaParams.ReserveSize       = Megabyte(1);
-            ArenaParams.CommitSize        = Kilobyte(1);
-
-            Result->FrameArena = AllocateArena(ArenaParams);
-        }
-
         // Static Data
         {
             memory_arena_params ArenaParams = { 0 };
@@ -162,16 +296,18 @@ UICreatePipeline(ui_pipeline_params Params)
             Result->StaticArena = AllocateArena(ArenaParams);
         }
 
-        // Layout Tree
+        // NOTE: I wonder if we even want this rather than a user supplied arena.
+        // Unsure yet, so stick with this.
+
+        // Frame Arena
         {
-            ui_layout_tree_params TreeParams = {0};
-            TreeParams.NodeCount = Params.TreeNodeCount;
-            TreeParams.NodeDepth = Params.TreeNodeDepth;
+            memory_arena_params ArenaParams = {0};
+            ArenaParams.AllocatedFromFile = __FILE__;
+            ArenaParams.AllocatedFromLine = __LINE__;
+            ArenaParams.ReserveSize       = Megabyte(1);
+            ArenaParams.CommitSize        = Kilobyte(1);
 
-            u64   Footprint = GetLayoutTreeFootprint(TreeParams);
-            void *Memory    = PushArray(Result->StaticArena, u8, Footprint);
-
-            Result->LayoutTree = PlaceLayoutTreeInMemory(TreeParams, Memory);
+            Result->FrameArena = AllocateArena(ArenaParams);
         }
 
         // Node Id Table
@@ -191,11 +327,6 @@ UICreatePipeline(ui_pipeline_params Params)
             Result->Registry = CreateStyleRegistry(Params.ThemeFile, Result->StaticArena);
         }
 
-        // Style Info
-        {
-            Result->NodesStyle = PushArray(Result->StaticArena, ui_node_style, Result->LayoutTree->NodeCapacity);
-        }
-
         AppendToLinkedList((&State->Pipelines), Result, State->Pipelines.Count);
     }
 
@@ -203,277 +334,38 @@ UICreatePipeline(ui_pipeline_params Params)
 }
 
 internal void
-UIPipelineBegin(ui_pipeline *Pipeline)
+UIExecuteAllSubtrees(ui_pipeline *Pipeline)
 {
-    Assert(Pipeline);
+    ui_subtree_list   *List     = &Pipeline->Subtrees;
+    memory_arena      *Arena    = Pipeline->FrameArena;
+    Assert(Arena);
 
-    ClearArena(Pipeline->FrameArena);
+    IterateLinkedList(List, ui_subtree_node *, Node)
+    {
+        ui_subtree     *Subtree    = &Node->Value;
+        ui_layout_tree *LayoutTree = Subtree->LayoutTree;
+        Assert(LayoutTree);
+
+        ComputeLayout(LayoutTree, Arena);
+        HitTestLayout(LayoutTree, Arena);
+        DrawLayout   (Subtree, Arena);
+    }
 }
 
-internal void
-UIPipelineExecute(ui_pipeline *Pipeline)
+internal ui_subtree *
+FindSubtree(ui_node Node, ui_pipeline *Pipeline)
 {
-    Assert(Pipeline);
+    ui_subtree *Result = 0;
 
-    // NOTE: The stale optimization is not yet possible because the renderer doesn't
-    // really allow a "command list" approach. Unsure, how I need to structure it such
-    // that we can omit the pipeline rendering in the case that it isn't stale.
-
-    // Unpacking
-    ui_state       *State      = &UIState;
-    ui_layout_node *LayoutRoot = &Pipeline->LayoutTree->Nodes[0];
-    render_pass    *RenderPass = GetRenderPass(Pipeline->FrameArena, RenderPass_UI);
-
-    // Layout
+    IterateLinkedList((&Pipeline->Subtrees), ui_subtree_node *, SubtreeNode)
     {
-        // NOTE: We set the root values to it's absolute width/height.
-        // Which is probably a mistake in the long run, but works fine for now.
-
-        Assert(LayoutRoot->Value.Width.Type == UIUnit_Float32);
-        Assert(LayoutRoot->Value.Height.Type == UIUnit_Float32);
-
-        LayoutRoot->Value.FinalWidth  = LayoutRoot->Value.Width.Float32;
-        LayoutRoot->Value.FinalHeight = LayoutRoot->Value.Height.Float32;
-
-        PreOrderMeasure(LayoutRoot, Pipeline);
-
-        PostOrderMeasure(LayoutRoot);
-
-        PreOrderPlace(LayoutRoot, Pipeline);
-    }
-
-    if (!State->CapturedNode)
-    {
-        b32      MouseIsClicked = OSIsMouseClicked(OSMouseButton_Left);
-        vec2_f32 MousePosition  = OSGetMousePosition();
-        f32      ScrollDelta    = OSGetScrollDelta();
-
-        ui_hit_test Hit = HitTestLayout(MousePosition, LayoutRoot, Pipeline);
-        if (Hit.Success)
+        ui_subtree *Subtree = &SubtreeNode->Value;
+        if(Subtree->Id == Node.SubtreeId)
         {
-            if (MouseIsClicked)
-            {
-                if (HasFlag(Hit.Node->Flags, NoFlag))
-                {
-                    // TODO: Callback or something?
-                }
-
-                State->CapturedNode   = Hit.Node;
-                State->Intent         = Hit.Intent;
-                State->TargetPipeline = Pipeline;
-
-                SetFlag(Hit.Node->Flags, UILayoutNode_IsClicked);
-            }
-
-            if(HasFlag(Hit.Node->Flags, UILayoutNode_IsScrollRegion) && ScrollDelta != 0.f)
-            {
-                Assert(Hit.Node->Value.ScrollContext);
-                ApplyScrollToContext(ScrollDelta, Hit.Node->Value.ScrollContext);
-            }
-
-            SetFlag(Hit.Node->Flags, UILayoutNode_IsHovered);
+            Result = Subtree;
+            break;
         }
-
-        State->Intent = Hit.Intent;
-    }
-
-    BuildDrawList(Pipeline, RenderPass, LayoutRoot);
-}
-
-typedef struct draw_stack_frame
-{
-    ui_layout_node *Node;
-    vec2_f32        AccScroll;
-    rect_f32        Clip;
-} draw_stack_frame;
-
-typedef struct final_style
-{
-    style_property Properties[StyleProperty_Count];
-} final_style;
-
-DEFINE_TYPED_STACK(Draw, draw, draw_stack_frame);
-
-internal final_style
-ComputeFinalStyle(ui_layout_node *Node, ui_pipeline *Pipeline)
-{
-    final_style Result = {0};
-
-    ui_node_style *NodeStyle = GetNodeStyle(Node->Index, Pipeline);
-    if (NodeStyle)
-    {
-        ui_cached_style *CachedStyle = GetCachedStyle(Pipeline->Registry, NodeStyle->CachedStyleIndex);
-        if (CachedStyle)
-        {
-            MemoryCopy(Result.Properties, UIGetStyleEffect(CachedStyle, StyleEffect_Base), sizeof(Result.Properties));
-
-            ui_style_override_list *OverrideList = &NodeStyle->Overrides;
-            IterateLinkedList(OverrideList, ui_style_override_node *, Override)
-            {
-                Result.Properties[Override->Value.Type] = Override->Value;
-            }
-
-            if (HasFlag(Node->Flags, UILayoutNode_IsClicked))
-            {
-                ClearFlag(Node->Flags, UILayoutNode_IsClicked);
-
-                if (HasFlag(CachedStyle->Flags, CachedStyle_HasClickStyle))
-                {
-                    SuperposeStyle(Result.Properties, UIGetStyleEffect(CachedStyle, StyleEffect_Click));
-                    return Result;
-                }
-            }
-
-            if (HasFlag(Node->Flags, UILayoutNode_IsHovered))
-            {
-                ClearFlag(Node->Flags, UILayoutNode_IsHovered);
-
-                if (HasFlag(CachedStyle->Flags, CachedStyle_HasHoverStyle))
-                {
-                    SuperposeStyle(Result.Properties, UIGetStyleEffect(CachedStyle, StyleEffect_Hover));
-                    return Result;
-                }
-            }
-        }
-        else
-        {
-            // TODO: Log
-        }
-    }
-    else
-    {
-        // TODO: Log
     }
 
     return Result;
-}
-
-internal void
-BuildDrawList(ui_pipeline *Pipeline, render_pass *Pass, ui_layout_node *Root)
-{
-    typed_stack_params StackParams = {0};
-    {
-        StackParams.StackSize = Pipeline->LayoutTree->NodeCount;
-    }
-    draw_stack Stack = BeginDrawStack(StackParams, Pipeline->FrameArena);
-
-    PushDrawStack(&Stack, (draw_stack_frame){.Node = Root, .AccScroll = Vec2F32(0.f, 0.f), .Clip = RectF32(0, 0, 0, 0)});
-
-    while(!IsDrawStackEmpty(&Stack))
-    {
-        draw_stack_frame Frame      = PopDrawStack(&Stack);
-        final_style      FinalStyle = ComputeFinalStyle(Frame.Node, Pipeline);
-        rect_f32         ChildClip  = Frame.Clip;
-
-        // Batching ( TODO: Rewrite this correctly)
-
-        // BUG: Incorrect Batching/Clippinga
-        // a node's own clip should not be applied to itself... So we must only compare the frame.clip to the current clip?
-        // Meaning... We only set the clip to the frame stack when the node has a clip but do not try to check for batching??
-
-        render_batch_list     *List      = 0;
-        render_pass_params_ui *UIParams  = &Pass->Params.UI.Params;
-        rect_group_params      NewParams = {.Transform = Mat3x3Identity(), .Clip = Frame.Clip};
-
-        {
-            rect_group_node *GroupNode = UIParams->Last;
-
-            b32 CanMerge = 1;
-            if(GroupNode)
-            {
-                // Text Params
-                if(HasFlag(Frame.Node->Flags, UILayoutNode_TextIsBound))
-                {
-                    NewParams.AtlasTextureView = Frame.Node->Value.DisplayText->Atlas;
-                    NewParams.AtlasTextureSize = Frame.Node->Value.DisplayText->AtlasSize;
-                }
-
-                CanMerge = CanMergeRectGroupParams(&GroupNode->Params, &NewParams);
-            }
-
-            if (!GroupNode || !CanMerge)
-            {
-                GroupNode = PushArray(Pipeline->FrameArena, rect_group_node, 1);
-                GroupNode->BatchList.BytesPerInstance = sizeof(ui_rect);
-
-                AppendToLinkedList(UIParams, GroupNode, UIParams->Count);
-            }
-
-            GroupNode->Params = NewParams;        // BUG: This is simply wrong.
-            List              = &GroupNode->BatchList;
-        }
-
-
-        // Drawing
-
-        // NOTE: Move this?
-        vec2_f32 ChildAccScroll = Frame.AccScroll;
-        if (HasFlag(Frame.Node->Flags, UILayoutNode_IsScrollRegion))
-        {
-            PruneScrollContextNodes(Frame.Node);
-            vec2_f32 NodeScroll = GetScrollTranslation(Frame.Node);
-
-            ChildAccScroll.X += NodeScroll.X;
-            ChildAccScroll.Y += NodeScroll.Y;
-        }
-
-        rect_f32 RectBounds = MakeRectFromNode(Frame.Node, Frame.AccScroll);
-
-        if (HasFlag(Frame.Node->Flags, UILayoutNode_DrawBackground))
-        {
-            ui_rect *Rect = PushDataInBatchList(Pipeline->FrameArena, List);
-            Rect->RectBounds  = RectBounds;
-            Rect->Color       = FinalStyle.Properties[StyleProperty_Color].Color;
-            Rect->CornerRadii = FinalStyle.Properties[StyleProperty_CornerRadius].CornerRadius;
-            Rect->Softness    = FinalStyle.Properties[StyleProperty_Softness].Float32;
-        }
-
-        if (HasFlag(Frame.Node->Flags, UILayoutNode_DrawBorders))
-        {
-            ui_rect *Rect = PushDataInBatchList(Pipeline->FrameArena, List);
-            Rect->RectBounds  = RectBounds;
-            Rect->Color       = FinalStyle.Properties[StyleProperty_BorderColor].Color;
-            Rect->CornerRadii = FinalStyle.Properties[StyleProperty_CornerRadius].CornerRadius;
-            Rect->BorderWidth = FinalStyle.Properties[StyleProperty_BorderWidth].Float32;
-            Rect->Softness    = FinalStyle.Properties[StyleProperty_Softness].Float32;
-        }
-
-        if (HasFlag(Frame.Node->Flags, UILayoutNode_DrawText))
-        {
-            ui_color     TextColor = FinalStyle.Properties[StyleProperty_TextColor].Color;
-            ui_glyph_run *Run      = Frame.Node->Value.DisplayText;
-
-            for (u32 Idx = 0; Idx < Run->GlyphCount; ++Idx)
-            {
-                ui_rect *Rect = PushDataInBatchList(Pipeline->FrameArena, List);
-                Rect->SampleAtlas       = 1.f;
-                Rect->AtlasSampleSource = Run->Glyphs[Idx].Source;
-                Rect->RectBounds        = TranslatedRectF32(Run->Glyphs[Idx].Position, Frame.AccScroll);
-                Rect->Color             = TextColor;
-                Rect->Softness          = 1.f;
-            }
-        }
-
-        if(HasFlag(Frame.Node->Flags, UILayoutNode_HasClip))
-        {
-            ChildClip = InsetRectF32(MakeRectFromNode(Frame.Node, Vec2F32(0.f, 0.f)), UIGetBorderWidth(FinalStyle.Properties));
-
-            rect_f32 EmptyClip     = RectF32Zero();
-            b32      ParentHasClip = (MemoryCompare(&Frame.Clip, &EmptyClip, sizeof(rect_f32)) != 0);
-
-            if(ParentHasClip)
-            {
-                ChildClip = IntersectRectF32(Frame.Clip, ChildClip);
-            }
-        }
-
-        IterateLinkedListBackward(Frame.Node, ui_layout_node *, Child)
-        {
-            if (!(HasFlag(Child->Flags, UILayoutNode_IsPruned)))
-            {
-                PushDrawStack(&Stack, (draw_stack_frame){.Node = Child, .AccScroll = ChildAccScroll, .Clip = ChildClip});
-            }
-        }
-
-    }
 }

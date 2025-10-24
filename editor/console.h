@@ -31,5 +31,4 @@ typedef struct editor_console_ui
     u32 MessageTail;
 } editor_console_ui;
 
-internal void ConsoleUI            (editor_console_ui *Console);
-external void ConsolePrintMessage  (byte_string Message, ConsoleMessage_Severity Severity, ui_layout_node *Node);
+internal void ConsoleUI  (editor_console_ui *Console);

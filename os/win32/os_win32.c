@@ -238,7 +238,7 @@ wWinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPWSTR CmdLine, i32 ShowCmd
 
         ShowEditorUI();
 
-        UIEndFrame();
+        // NOTE: There is no UIEndFrame for now. Quite weird, but we do not need it...
 
         SubmitRenderCommands(RenderState.Renderer, OSWin32GetClientSize(HWindow), &RenderState.PassList);
 

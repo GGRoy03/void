@@ -1,4 +1,5 @@
-// [Properties]
+// --------------------------------------------------------------------------------------------------
+// Public API Getters Implementation
 
 internal f32 
 UIGetBorderWidth(style_property Properties[StyleProperty_Count])
@@ -77,78 +78,30 @@ UIGetFont(style_property Properties[StyleProperty_Count])
     return Result;
 }
 
-// [Styles]
-
-internal ui_style_override_node *
-AllocateStyleOverrideNode(StyleProperty_Type Type, memory_arena *Arena)
-{
-    ui_style_override_node *Result = PushArray(Arena, ui_style_override_node, 1);
-    if(Result)
-    {
-        Result->Value.IsSet = 1;
-        Result->Value.Type  = Type;
-    }
-
-    return Result;
-}
+// --------------------------------------------------------------------------------------------------
+// Style Manipulation Internal API
 
 internal void
-UISetStyleProperty(StyleProperty_Type Type, style_property Value, ui_pipeline *Pipeline)
+SetStyleProperty(ui_node Node, style_property Value, ui_node_style *Computed, memory_arena *Arena)
 {
-    ui_layout_node *Node = GetLastAddedLayoutNode(Pipeline->LayoutTree);
-    if(Node)
+    // BUG: Could read garbage. Just need to check if it's a valid node, but its validity depends
+    // on the tree. Uhm... What do we really want to store on the node?
+
+    ui_node_style *NodeStyle = Computed + Node.IndexInTree;
+    if(NodeStyle)
     {
-        ui_node_style *NodeStyle = GetNodeStyle(Node->Index, Pipeline);
-        if(NodeStyle)
+        ui_style_override_node *Override = PushStruct(Arena, ui_style_override_node);
+        if(Override)
         {
-            ui_style_override_node *Override = AllocateStyleOverrideNode(Type, Pipeline->StaticArena);
-            if(Override)
-            {
-                Override->Value       = Value;
-                Override->Value.IsSet = 1;
-                AppendToLinkedList((&NodeStyle->Overrides), Override, NodeStyle->Overrides.Count);
-            }
+            Override->Value       = Value;
+            Override->Value.IsSet = 1;
+            AppendToLinkedList((&NodeStyle->Overrides), Override, NodeStyle->Overrides.Count);
         }
     }
-}
-
-internal void
-UISetTextColor(ui_color Color, ui_pipeline *Pipeline)
-{
-    UISetStyleProperty(StyleProperty_TextColor, (style_property){.Type = StyleProperty_TextColor, .Color = Color}, Pipeline);
-}
-
-internal void
-SuperposeStyle(style_property *BaseProperties, style_property *LayerProperties)
-{
-    ForEachEnum(StyleProperty_Type, StyleProperty_Count, Type)
-    {
-        if(LayerProperties[Type].IsSet)
-        {
-            BaseProperties[Type] = LayerProperties[Type];
-        }
-    }
-}
-
-internal ui_node_style *
-GetNodeStyle(u32 Index, ui_pipeline *Pipeline)
-{
-    ui_node_style *Result = 0;
-
-    // WARN:
-    // Will become faulty logic once we implement some sort of free-list
-    // for the tree. Maybe we just check against the node capacity?
-
-    if(Index < Pipeline->LayoutTree->NodeCount)
-    {
-        Result = Pipeline->NodesStyle + Index;
-    }
-
-    return Result;
 }
 
 internal ui_cached_style *
-GetCachedStyle(ui_style_registry *Registry, u32 Index)
+GetCachedStyle(u32 Index, ui_style_registry *Registry)
 {
     ui_cached_style *Result = 0;
 
@@ -160,13 +113,54 @@ GetCachedStyle(ui_style_registry *Registry, u32 Index)
     return Result;
 }
 
-internal style_property *
-UIGetStyleEffect(ui_cached_style *Cached, StyleEffect_Type Effect)
+// --------------------------------------------------------------------------------------------------
+// Style Manipulation Public API
+
+internal void
+SetUITextColor(ui_node Node, ui_color Color, ui_subtree *Subtree, memory_arena *Arena)
 {
-    style_property *Result = Cached->Properties[Effect];
+    Assert(Node.CanUse);
+
+    SetStyleProperty(Node, (style_property){.Type = StyleProperty_TextColor, .Color = Color}, Subtree->ComputedStyles, Arena);
+}
+
+//
+
+internal style_property *
+GetBaseStyle(u32 StyleIndex, ui_style_registry *Registry)
+{
+    style_property  *Result = 0;
+    ui_cached_style *Cached = GetCachedStyle(StyleIndex, Registry);
+
+    if(Cached)
+    {
+        Result = Cached->Properties[StyleEffect_Base];
+    }
+
     return Result;
 }
 
+internal style_property *
+GetHoverStyle(u32 StyleIndex, ui_style_registry *Registry)
+{
+    style_property  *Result = 0;
+    ui_cached_style *Cached = GetCachedStyle(StyleIndex, Registry);
+
+    if(Cached)
+    {
+        Result = Cached->Properties[StyleEffect_Hover];
+    }
+
+    return Result;
+}
+
+internal style_property *
+GetComputedStyle(u32 NodeIndex, ui_subtree *Subtree)
+{
+    ui_node_style  *NodeStyle = Subtree->ComputedStyles + NodeIndex;
+    style_property *Result    = NodeStyle->ComputedProperties;
+    return Result;
+}
 
 // [Helpers]
 

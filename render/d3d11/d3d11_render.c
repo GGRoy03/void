@@ -393,7 +393,7 @@ SubmitRenderCommands(render_handle HRenderer, vec2_i32 Resolution, render_pass_l
                     Uniform.Transform[1]        = Vec4F32(NodeParams.Transform.c1r0, NodeParams.Transform.c1r1, NodeParams.Transform.c1r2, 0);
                     Uniform.Transform[2]        = Vec4F32(NodeParams.Transform.c2r0, NodeParams.Transform.c2r1, NodeParams.Transform.c2r2, 0);
                     Uniform.ViewportSizeInPixel = Vec2F32((f32)Resolution.X, (f32)Resolution.Y);
-                    Uniform.AtlasSizeInPixel    = NodeParams.AtlasTextureSize;
+                    Uniform.AtlasSizeInPixel    = NodeParams.TextureSize;
 
                     D3D11_MAPPED_SUBRESOURCE Resource = { 0 };
                     DeviceContext->lpVtbl->Map(DeviceContext, (ID3D11Resource *)UniformBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
@@ -405,7 +405,7 @@ SubmitRenderCommands(render_handle HRenderer, vec2_i32 Resolution, render_pass_l
                 ID3D11InputLayout        *ILayout   = Renderer->ILayouts[RenderPass_UI];
                 ID3D11VertexShader       *VShader   = Renderer->VShaders[RenderPass_UI];
                 ID3D11PixelShader        *PShader   = Renderer->PShaders[RenderPass_UI];
-                ID3D11ShaderResourceView *AtlasView = D3D11GetShaderView(NodeParams.AtlasTextureView);
+                ID3D11ShaderResourceView *AtlasView = D3D11GetShaderView(NodeParams.Texture);
 
                 // OM
                 DeviceContext->lpVtbl->OMSetRenderTargets(DeviceContext, 1, &Renderer->RenderView, 0);

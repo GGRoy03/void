@@ -1,5 +1,5 @@
-external void
-ConsolePrintMessage(byte_string Message, ConsoleMessage_Severity Severity, ui_layout_node *ScrollBuffer)
+internal void
+ConsolePrintMessage(byte_string Message, ConsoleMessage_Severity Severity, memory_arena *Arena, ui_node BufferNode)
 {
     editor_console_ui *ConsoleUI = &EditorUI.ConsoleUI;
 
@@ -37,32 +37,24 @@ ConsolePrintMessage(byte_string Message, ConsoleMessage_Severity Severity, ui_la
 
     }
 
-    memory_region Local = EnterMemoryRegion(ConsoleUI->Arena);
+    byte_string FormattedMessage = ByteStringAppend(Message, Prefix, 0, Arena);
 
-    byte_string FormattedMessage = ByteStringAppend(Message, Prefix, 0, Local.Arena);
+    // NOTE: Love this, but it also means I need a LRU to manage resources.
+    // Which is somehwat easy to do. Then I don't even have to worry about
+    // anything and I just override the text.
 
-    UISubtreeBlock(ScrollBuffer, ConsoleUI->Pipeline)
-    {
-        UILabel(ConsoleStyle_Message, FormattedMessage, ConsoleUI->Pipeline);
-        UISetTextColor(TextColor, ConsoleUI->Pipeline);
-    }
-
-    LeaveMemoryRegion(Local);
-
-    Useless(TextColor);
+    BufferNode.FindChild(0, ConsoleUI->Pipeline)
+        .SetTextColor(TextColor, ConsoleUI->Pipeline);
+//      .SetText(FormattedMessage, ConsoleUI->Pipeline)
 }
 
 internal void
 ConsoleUI(editor_console_ui *ConsoleUI)
 {
+    // TODO: Clear the Console's arena every frame
+
     if(!ConsoleUI->IsInitialized)
     {
-        ui_pipeline_params PipelineParams = {0};
-        {
-            PipelineParams.ThemeFile = byte_string_literal("styles/editor_console.cim");
-        }
-        ConsoleUI->Pipeline = UICreatePipeline(PipelineParams);
-
         memory_arena_params ArenaParams = {0};
         {
             ArenaParams.AllocatedFromFile = __FILE__;
@@ -71,48 +63,64 @@ ConsoleUI(editor_console_ui *ConsoleUI)
             ArenaParams.CommitSize        = Kilobyte(4);
         }
 
-        ConsoleUI->MessageLimit = ConsoleConstant_MessageCountLimit;
-        ConsoleUI->Arena        = AllocateArena(ArenaParams);
+        ConsoleUI->Pipeline      = UICreatePipeline((ui_pipeline_params){.ThemeFile = byte_string_literal("styles/console.cim")});
+        ConsoleUI->MessageLimit  = ConsoleConstant_MessageCountLimit;
+        ConsoleUI->Arena         = AllocateArena(ArenaParams);
+        ConsoleUI->IsInitialized = 1;
 
-        UISubtreeBlock(0, ConsoleUI->Pipeline)
+        // Default Layout
         {
-            UIWindowBlock(ConsoleStyle_Window, ConsoleUI->Pipeline)
+            ui_subtree_params SubtreeParams = {.CreateNew = 1};
+
+            UISubtree(SubtreeParams, ConsoleUI->Pipeline)
             {
-                UIScrollViewID(ui_id("Console_ScrollBuffer"), ConsoleStyle_MessageView, ConsoleUI->Pipeline);
+                UIWindow(ConsoleStyle_Window, ConsoleUI->Pipeline)
+                {
+                    UIScrollView(ConsoleStyle_MessageView, ConsoleUI->Pipeline)
+                    {
+                        UIGetLast(ConsoleUI->Pipeline)
+                            .SetId(ui_id("Console_Buffer"), ConsoleUI->Pipeline);
+                    //      .ReserveChildren(60, ConsoleUI->Pipeline)
+                    }
+                }
             }
         }
 
-        ConsoleWriteMessage(info_message("ABCDEFGHIJKLMNOPQRSTUVWXYZ"));
-        ConsoleWriteMessage(info_message("abcdefghijklmnopqrstuvwxyz"));
-        ConsoleWriteMessage(info_message("I am trying to overflow 1"));
-        ConsoleWriteMessage(info_message("I am trying to overflow 2"));
-        ConsoleWriteMessage(info_message("I am trying to overflow 3"));
-        ConsoleWriteMessage(info_message("I am trying to overflow 4"));
-        ConsoleWriteMessage(info_message("I am trying to overflow 5"));
-        ConsoleWriteMessage(info_message("I am trying to overflow 6"));
-        ConsoleWriteMessage(info_message("I am trying to overflow 7"));
-        ConsoleWriteMessage(info_message("I am trying to overflow 8"));
-        ConsoleWriteMessage(info_message("I am trying to overflow 9"));
-        ConsoleWriteMessage(info_message("I am trying to overflow 10"));
-        ConsoleWriteMessage(info_message("I am trying to overflow 11"));
-        ConsoleWriteMessage(info_message("I am trying to overflow 12"));
+        // Scroll Test
+        {
+            ConsoleWriteMessage(info_message("ABCDEFGHIJKLMNOPQRSTUVWXYZ"));
+            ConsoleWriteMessage(info_message("abcdefghijklmnopqrstuvwxyz"));
+            ConsoleWriteMessage(info_message("I am trying to overflow 1"));
+            ConsoleWriteMessage(info_message("I am trying to overflow 2"));
+            ConsoleWriteMessage(info_message("I am trying to overflow 3"));
+            ConsoleWriteMessage(info_message("I am trying to overflow 4"));
+            ConsoleWriteMessage(info_message("I am trying to overflow 5"));
+            ConsoleWriteMessage(info_message("I am trying to overflow 6"));
+            ConsoleWriteMessage(info_message("I am trying to overflow 7"));
+            ConsoleWriteMessage(info_message("I am trying to overflow 8"));
+            ConsoleWriteMessage(info_message("I am trying to overflow 9"));
+            ConsoleWriteMessage(info_message("I am trying to overflow 10"));
+            ConsoleWriteMessage(info_message("I am trying to overflow 11"));
+            ConsoleWriteMessage(info_message("I am trying to overflow 12"));
+        }
 
-        ConsoleUI->IsInitialized = 1;
     }
 
-    UIPipelineBegin(ConsoleUI->Pipeline);
+    UIBeginPipeline(ConsoleUI->Pipeline);
 
     // Drain The Queue
     {
-        ui_layout_node     *ScrollBuffer = UIFindNodeById(ui_id("Console_ScrollBuffer"), ConsoleUI->Pipeline->IdTable);
-        console_queue_node *Node         = 0;
-
-        while((Node = PopConsoleMessageQueue(&UIState.Console)))
+        ui_node BufferNode = UIFindNodeById(ui_id("Console_Buffer"), ConsoleUI->Pipeline->IdTable);
+        if (BufferNode.CanUse)
         {
-            ConsolePrintMessage(ByteString(Node->Value.Text, Node->Value.TextSize), Node->Value.Severity, ScrollBuffer);
-            FreeConsoleNode(Node);
+            console_queue_node *Node = 0;
+            while ((Node = PopConsoleMessageQueue(&UIState.Console)))
+            {
+                ConsolePrintMessage(ByteString(Node->Value.Text, Node->Value.TextSize), Node->Value.Severity, ConsoleUI->Arena, BufferNode);
+                FreeConsoleNode(Node);
+            }
         }
     }
 
-    UIPipelineExecute(ConsoleUI->Pipeline);
+    UIExecuteAllSubtrees(ConsoleUI->Pipeline);
 }

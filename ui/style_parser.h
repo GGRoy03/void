@@ -246,7 +246,7 @@ internal tokenized_style_file TokenizeStyleFile  (os_read_file File, memory_aren
 
 // [Parsing Routines]
 
-internal ui_style_subregistry * ParseStyleFile       (tokenized_style_file *File, memory_arena *RoutineArena, memory_arena *OutputArena, style_file_debug_info *Debug);
+internal ui_style_registry * ParseStyleFile         (tokenized_style_file *File, memory_arena *RoutineArena, memory_arena *OutputArena, style_file_debug_info *Debug);
 internal style_header           ParseStyleHeader     (style_token_buffer *Buffer, style_file_debug_info *Debug);
 internal style_effect           ParseStyleEffect     (style_token_buffer *Buffer, style_file_debug_info *Debug);
 internal style_block            ParseStyleBlock      (style_token_buffer *Buffer, style_var_table *VarTable, style_file_debug_info *Debug);
@@ -267,7 +267,7 @@ internal size_t            GetStyleVarTableFootprint   (style_var_table_params P
 
 internal void           ValidateAttributeFormatting  (style_attribute *Attribute, style_file_debug_info *Debug);
 internal style_property ConvertAttributeToProperty   (style_attribute Attribute);
-internal void           CacheStyle                   (style *ParsedStyle, ui_style_subregistry *Registry, style_file_debug_info *Debug);
+internal void           CacheStyle                   (style *ParsedStyle, ui_style_registry *Registry, style_file_debug_info *Debug);
 
 // [Error Handling]
 

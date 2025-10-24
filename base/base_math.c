@@ -131,21 +131,21 @@ RectsIntersect(rect_f32 A, rect_f32 B)
 }
 
 internal f32
-RoundedRectSDF(vec2_f32 LocalPosition, vec2_f32 RectHalfSize, f32 Radius)
+RoundedRectSDF(rect_sdf_params Params)
 {
     // Abuse the symmetry and fold every point into the first quadrant.
     // Offset these points by RectHalfSize, to figure out if they still lay inside the quadrant.
     // If it still does, then we know the point was outside the rect, else it was inside.
 
-    vec2_f32 RadiusVector  = Vec2F32(Radius, Radius);
-    vec2_f32 FirstQuadrant = Vec2F32Add(Vec2F32Sub(Vec2F32Abs(LocalPosition), RectHalfSize), RadiusVector);
+    vec2_f32 RadiusVector  = Vec2F32(Params.Radius, Params.Radius);
+    vec2_f32 FirstQuadrant = Vec2F32Add(Vec2F32Sub(Vec2F32Abs(Params.PointPosition), Params.HalfSize), RadiusVector);
 
     // OuterDistance: If any axis is positive, take its length to figure out the closest distance to the boundary.
     // InnerDistance: If any axis is positive, this results in a 0. Else return the "less negative" value (Closest to edge)
 
     f32 OuterDistance = Vec2F32Length(Vec2F32(Max(FirstQuadrant.X, 0.f), Max(FirstQuadrant.Y, 0.f)));
     f32 InnerDistance = Min(Max(FirstQuadrant.X, FirstQuadrant.Y), 0.f);
-    f32 Result        = OuterDistance + InnerDistance - Radius;
+    f32 Result        = OuterDistance + InnerDistance - Params.Radius;
 
     return Result;
 }
