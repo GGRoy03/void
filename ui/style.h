@@ -60,25 +60,11 @@ typedef struct ui_style_registry
     ui_cached_style *Styles;
 } ui_style_registry;
 
-typedef struct ui_style_override_node ui_style_override_node;
-struct ui_style_override_node
-{
-    ui_style_override_node *Next;
-    style_property          Value;
-};
-
-typedef struct ui_style_override_list
-{
-    ui_style_override_node *First;
-    ui_style_override_node *Last;
-    u32                     Count;
-} ui_style_override_list;
-
 typedef struct ui_node_style
 {
-    u32                    CachedStyleIndex;
-    ui_style_override_list Overrides;
-    style_property         ComputedProperties[StyleProperty_Count];
+    b32            LayoutInfoIsBound;
+    u32            CachedStyleIndex;
+    style_property Properties[StyleProperty_Count];
 } ui_node_style;
 
 // UIGetBorderWidth:
@@ -109,17 +95,15 @@ internal ui_font         * UIGetFont          (style_property Properties[StylePr
 // GetHoverStyle:
 //
 
+internal ui_node_style * GetNodeStyle  (u32 Index, ui_subtree *Subtree);
+
 internal style_property * GetBaseStyle      (u32 StyleIndex, ui_style_registry *Registry);
 internal style_property * GetHoverStyle     (u32 CachedIndex, ui_style_registry *Registry);
-internal style_property * GetComputedStyle  (u32 NodeIndex, ui_subtree *Subtree);
 
 // UISetTextColor:
 //  Override a style at runtine.
 
-internal void SetUITextColor  (ui_node Node, ui_color Color, ui_subtree *Subtree, memory_arena *Arena);
-
-// [Styles]
-
+internal void UISetTextColor  (ui_node Node, ui_color Color, ui_subtree *Subtree);
 
 // [Helpers]
 

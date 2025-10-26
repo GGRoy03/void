@@ -1,79 +1,82 @@
-internal ui_node
-UIComponentAll_(u32 StyleIndex, bit_field Flags, byte_string Text, ui_pipeline *Pipeline)
+internal ui_node_chain * 
+UIComponentAll(u32 StyleIndex, bit_field Flags, byte_string Text)
 {
-    ui_node Node = {0};
+    ui_pipeline *Pipeline = GetCurrentPipeline();
+    Assert(Pipeline);
 
     ui_subtree *Subtree = Pipeline->CurrentSubtree;
-    if(Subtree)
+    Assert(Subtree);
+
+    bit_field FinalFlags = Flags;
+
+    style_property *BaseProperties = GetBaseStyle(StyleIndex, Pipeline->Registry);
     {
-        bit_field FinalFlags = Flags;
+        Assert(BaseProperties);
 
-        // Set draw flags depending on the style
-        style_property *BaseProperties = GetBaseStyle(StyleIndex, Pipeline->Registry);
+        ui_color BackgroundColor = UIGetColor(BaseProperties);
+        f32      BorderWidth     = UIGetBorderWidth(BaseProperties);
+
+        if(IsVisibleColor(BackgroundColor))
         {
-            ui_color BackgroundColor = UIGetColor(BaseProperties);
-            f32      BorderWidth     = UIGetBorderWidth(BaseProperties);
-
-            if(IsVisibleColor(BackgroundColor))
-            {
-                Assert(!HasFlag(Flags, UILayoutNode_DrawBackground));
-                SetFlag(FinalFlags, UILayoutNode_DrawBackground);
-            }
-
-            if(BorderWidth > 0.f)
-            {
-                Assert(!HasFlag(Flags, UILayoutNode_DrawBorders));
-                SetFlag(FinalFlags, UILayoutNode_DrawBorders);
-            }
+            Assert(!HasFlag(Flags, UILayoutNode_DrawBackground));
+            SetFlag(FinalFlags, UILayoutNode_DrawBackground);
         }
 
-        Node = AllocateUINode(BaseProperties, FinalFlags, Subtree);
-
-        // WARN: Still a work in progress.
-
-        if(Node.CanUse)
+        if(BorderWidth > 0.f)
         {
-            if(HasFlag(Flags, UILayoutNode_DrawText))
-            {
-                ui_resource_key   Key   = MakeUITextResourceKey(Text);
-                ui_resource_state State = FindUIResourceByKey(Key, UIState.ResourceTable);
-                if(State.Type == UIResource_None)
-                {
-                    ui_font *Font = UIGetFont(BaseProperties);
-                    UpdateUITextResource(State.Id, Text, Font, UIState.ResourceTable);
-                }
-                else
-                {
-                    Assert(!"Not Implemented");
-                }
-            }
-
-            if(HasFlag(Flags, UILayoutNode_IsScrollable))
-            {
-                BindScrollContext(Node, ScrollAxis_Y, Subtree->LayoutTree, Pipeline->StaticArena);
-            }
+            Assert(!HasFlag(Flags, UILayoutNode_DrawBorders));
+            SetFlag(FinalFlags, UILayoutNode_DrawBorders);
         }
     }
 
-    // NOTE: Uhm... Maybe we want explicit chains as much as we can...
-    // And this whole UIGetLast is mistake?
+    ui_node Node = AllocateUINode(BaseProperties, FinalFlags, Subtree);
+    Assert(Node.CanUse);
 
-    UIChain(Node);
+    // NOTE: This is messy, but where should I do it? Uhmmm..
+    // I really hate this. How can I bind it? I can't be lazy
+    // it has to come from here->node style.
+    ui_node_style *Style = GetNodeStyle(Node.IndexInTree, Subtree);
+    Style->CachedStyleIndex = StyleIndex;
 
-    return Node;
+    // WARN: Still a work in progress. Bit of a mess..
+
+    if(HasFlag(Flags, UILayoutNode_DrawText))
+    {
+        ui_resource_key   Key   = MakeUITextResourceKey(Text);
+        ui_resource_state State = FindUIResourceByKey(Key, UIState.ResourceTable);
+        if(State.Type == UIResource_None)
+        {
+            ui_font *Font = UIGetFont(BaseProperties);
+             UpdateUITextResource(State.Id, Text, Font, UIState.ResourceTable);
+        }
+        else
+        {
+            Assert(!"Not Implemented");
+        }
+    }
+
+    if(HasFlag(Flags, UILayoutNode_IsScrollable))
+    {
+        BindScrollContext(Node, ScrollAxis_Y, Subtree->LayoutTree, Pipeline->StaticArena);
+    }
+
+    ui_node_chain *Chain = UIChain(Node);
+    return Chain;
 }
 
-internal ui_node
-UIComponent_(u32 StyleIndex, bit_field Flags, ui_pipeline *Pipeline)
+internal ui_node_chain *
+UIComponent(u32 StyleIndex, bit_field Flags)
 {
-    ui_node Node = UIComponentAll_(StyleIndex, Flags, ByteString(0, 0), Pipeline);
-    return Node;
+    ui_node_chain *Chain = UIComponentAll(StyleIndex, Flags, ByteString(0, 0));
+    Assert(Chain);
+
+    return Chain;
 }
 
 // ------------------------------------------------------------------------
 
-internal ui_node
-UIWindow_(u32 StyleIndex, ui_pipeline *Pipeline)
+internal ui_node_chain *
+UIWindow(u32 StyleIndex)
 {
     bit_field Flags = 0;
     {
@@ -83,12 +86,12 @@ UIWindow_(u32 StyleIndex, ui_pipeline *Pipeline)
         SetFlag(Flags, UILayoutNode_IsParent);
     }
 
-    ui_node Node = UIComponent_(StyleIndex, Flags, Pipeline);
-    return Node;
+    ui_node_chain *Chain = UIComponent(StyleIndex, Flags);
+    return Chain;
 }
 
-internal ui_node
-UIScrollView_(u32 StyleIndex, ui_pipeline *Pipeline)
+internal ui_node_chain *
+UIScrollView(u32 StyleIndex)
 {
     bit_field Flags = 0;
     {
@@ -98,18 +101,18 @@ UIScrollView_(u32 StyleIndex, ui_pipeline *Pipeline)
         SetFlag(Flags, UILayoutNode_HasClip);
     }
 
-    ui_node Node = UIComponent_(StyleIndex, Flags, Pipeline);
-    return Node;
+    ui_node_chain *Chain = UIComponent(StyleIndex, Flags);
+    return Chain;
 }
 
-internal ui_node
-UILabel_(u32 StyleIndex, byte_string Text, ui_pipeline *Pipeline)
+internal ui_node_chain *
+UILabel(u32 StyleIndex, byte_string Text)
 {
     bit_field Flags = 0;
     {
         SetFlag(Flags, UILayoutNode_DrawText);
     }
 
-    ui_node Node = UIComponentAll_(StyleIndex, Flags, Text, Pipeline);
-    return Node;
+    ui_node_chain *Chain = UIComponentAll(StyleIndex, Flags, Text);
+    return Chain;
 }

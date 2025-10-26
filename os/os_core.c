@@ -68,10 +68,8 @@ OSIsMouseReleased(OSMouseButton_Type Button)
 }
 
 internal void
-OSClearInputs(void)
+OSClearInputs(os_inputs *Inputs)
 {
-    os_inputs *Inputs = OSGetInputs();
-
     Inputs->ScrollDeltaInLines = 0.f;
     Inputs->MouseDelta         = Vec2F32(0.f, 0.f);
 

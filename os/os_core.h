@@ -96,7 +96,7 @@ internal f32       OSGetScrollDelta     (void);
 internal b32       OSIsMouseClicked     (OSMouseButton_Type Button);
 internal b32       OSIsMouseHeld        (OSMouseButton_Type Button);
 internal b32       OSIsMouseReleased    (OSMouseButton_Type Button);
-internal void      OSClearInputs        (void);
+internal void      OSClearInputs        (os_inputs *Inputs);
 
 // [Files]
 
@@ -115,7 +115,6 @@ internal void         OSReleaseFile  (os_handle Handle);
 
 internal os_system_info * OSGetSystemInfo  (void);
 internal os_inputs      * OSGetInputs      (void);
-internal vec2_i32         OSGetClientSize  (void);
 
 // [Memory]
 

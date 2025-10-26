@@ -82,27 +82,20 @@ UIGetFont(style_property Properties[StyleProperty_Count])
 // Style Manipulation Internal API
 
 internal void
-SetStyleProperty(ui_node Node, style_property Value, ui_node_style *Computed, memory_arena *Arena)
+SetStyleProperty(ui_node Node, style_property Value, ui_subtree *Subtree)
 {
-    // BUG: Could read garbage. Just need to check if it's a valid node, but its validity depends
-    // on the tree. Uhm... What do we really want to store on the node?
-
-    ui_node_style *NodeStyle = Computed + Node.IndexInTree;
+    ui_node_style *NodeStyle = Subtree->ComputedStyles + Node.IndexInTree;
     if(NodeStyle)
     {
-        ui_style_override_node *Override = PushStruct(Arena, ui_style_override_node);
-        if(Override)
-        {
-            Override->Value       = Value;
-            Override->Value.IsSet = 1;
-            AppendToLinkedList((&NodeStyle->Overrides), Override, NodeStyle->Overrides.Count);
-        }
+        NodeStyle->Properties[Value.Type] = Value;
     }
 }
 
 internal ui_cached_style *
 GetCachedStyle(u32 Index, ui_style_registry *Registry)
 {
+    Assert(Registry);
+
     ui_cached_style *Result = 0;
 
     if(Index < Registry->StylesCount)
@@ -117,14 +110,29 @@ GetCachedStyle(u32 Index, ui_style_registry *Registry)
 // Style Manipulation Public API
 
 internal void
-SetUITextColor(ui_node Node, ui_color Color, ui_subtree *Subtree, memory_arena *Arena)
+UISetTextColor(ui_node Node, ui_color Color, ui_subtree *Subtree)
 {
     Assert(Node.CanUse);
+    Assert(Subtree);
 
-    SetStyleProperty(Node, (style_property){.Type = StyleProperty_TextColor, .Color = Color}, Subtree->ComputedStyles, Arena);
+    style_property Property = {.Type = StyleProperty_TextColor, .Color = Color};
+    SetStyleProperty(Node, Property, Subtree);
 }
 
 //
+
+internal ui_node_style *
+GetNodeStyle(u32 Index, ui_subtree *Subtree)
+{
+    ui_node_style *Result = 0;
+
+    if(Index < Subtree->NodeCount)
+    {
+        Result = Subtree->ComputedStyles + Index;
+    }
+
+    return Result;
+}
 
 internal style_property *
 GetBaseStyle(u32 StyleIndex, ui_style_registry *Registry)
@@ -151,14 +159,6 @@ GetHoverStyle(u32 StyleIndex, ui_style_registry *Registry)
         Result = Cached->Properties[StyleEffect_Hover];
     }
 
-    return Result;
-}
-
-internal style_property *
-GetComputedStyle(u32 NodeIndex, ui_subtree *Subtree)
-{
-    ui_node_style  *NodeStyle = Subtree->ComputedStyles + NodeIndex;
-    style_property *Result    = NodeStyle->ComputedProperties;
     return Result;
 }
 

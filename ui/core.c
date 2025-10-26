@@ -86,8 +86,9 @@ SetTextColorInChain(ui_color Color)
 {
     ui_node_chain *Result = GetNodeChain();
     Assert(Result);
+    Assert(Result->Subtree);
 
-    // TODO: Set the color or something
+    UISetTextColor(Result->Node, Color, Result->Subtree);
 
     return Result;
 }
@@ -97,9 +98,13 @@ SetStyleInChain(u32 StyleIndex)
 {
     ui_node_chain *Result = GetNodeChain();
     Assert(Result);
+    Assert(Result->Node.CanUse);
 
-    style_property *Props = GetBaseStyle(Result->Node.IndexInTree, 0);
-    // TODO: Call whatever is needed to set a style? Still unsure what I want.
+    ui_node_style *Style = GetNodeStyle(Result->Node.IndexInTree, Result->Subtree);
+    Assert(Style);
+
+    Style->CachedStyleIndex  = StyleIndex;
+    Style->LayoutInfoIsBound = 0;
 
     return Result;
 }
@@ -109,6 +114,8 @@ FindChildInChain(u32 Index)
 {
     ui_node_chain *Result = GetNodeChain();
     Assert(Result);
+    Assert(Result->Node.CanUse);
+    Assert(Result->Subtree);
 
     ui_node Child = FindLayoutChild(Result->Node, Index, Result->Subtree);
     Result->Node = Child;
@@ -121,11 +128,10 @@ ReserveChildrenInChain(u32 Amount)
 {
     ui_node_chain *Result = GetNodeChain();
     Assert(Result);
+    Assert(Result->Node.CanUse);
+    Assert(Result->Subtree);
 
-    for(u32 Idx = 0; Idx < Amount; Idx++)
-    {
-        // TODO: Allocate a node or something?
-    }
+    ReserveLayoutChildren(Result->Node, Amount, Result->Subtree);
 
     return Result;
 }
@@ -135,6 +141,7 @@ SetNodeIdInChain(byte_string Id)
 {
     ui_node_chain *Result = GetNodeChain();
     Assert(Result);
+    Assert(Result->Node.CanUse);
 
     SetNodeId(Id, Result->Node, GetCurrentPipeline()->IdTable);
 
@@ -143,6 +150,10 @@ SetNodeIdInChain(byte_string Id)
 
 // -------------------------------------------------------------
 // UI Node Public API Implementation
+
+// NOTE: This could be smarter, we do not have to push a chain in every case.
+// If they are from the same subtree then we can just replace the node,
+// but we do not have enough information on the node yet.
 
 internal ui_node_chain *
 UIChain(ui_node Node)
@@ -166,6 +177,8 @@ UIChain(ui_node Node)
     Assert(Subtree);
 
     Result = PushStruct(Subtree->FrameData, ui_node_chain);
+    Assert(Result);
+
     Result->Node            = Node;
     Result->Subtree         = Subtree;
     Result->Prev            = Current;
@@ -177,16 +190,6 @@ UIChain(ui_node Node)
 
     GetCurrentPipeline()->Chain = Result;
 
-    return Result;
-}
-
-internal ui_node_chain *
-UIGetLast(void)
-{
-    ui_pipeline *Pipeline = GetCurrentPipeline();
-    Assert(Pipeline);
-
-    ui_node_chain *Result = Pipeline->Chain;
     return Result;
 }
 
@@ -248,7 +251,7 @@ RecordUIHoverEvent(ui_node Node, ui_pipeline *Source, ui_event_list *Events, mem
 }
 
 // ----------------------------------------------------------------------------------
-// UI Resource Cache Private Implemntation
+// UI Resource Cache Private Implementation
 
 typedef struct ui_resource_entry
 {
@@ -527,9 +530,10 @@ IsValidSubtree(ui_subtree *Subtree)
 }
 
 internal void
-UIBeginSubtree(ui_subtree_params Params, ui_pipeline *Pipeline)
+UIBeginSubtree(ui_subtree_params Params)
 {
-    Assert(Pipeline && "Pipeline is NULL");
+    ui_pipeline *Pipeline = GetCurrentPipeline();
+    Assert(Pipeline);
 
     memory_arena *Persist = Pipeline->StaticArena;
     Assert(Persist);
@@ -563,6 +567,7 @@ UIBeginSubtree(ui_subtree_params Params, ui_pipeline *Pipeline)
                 Arena = AllocateArena(Params);
             }
 
+            SubtreeNode->Value.NodeCount      = Params.NodeCount;
             SubtreeNode->Value.FrameData      = Arena;
             SubtreeNode->Value.LayoutTree     = LayoutTree;
             SubtreeNode->Value.ComputedStyles = PushArray(Persist, ui_node_style  , Params.NodeCount);
@@ -578,12 +583,15 @@ UIBeginSubtree(ui_subtree_params Params, ui_pipeline *Pipeline)
     }
 }
 
-// NOTE: What was this for?
-
 internal void
 UIEndSubtree(ui_subtree_params Params)
 {
     Useless(Params);
+
+    ui_pipeline *Pipeline = GetCurrentPipeline();
+    Assert(Pipeline);
+
+    Pipeline->Chain = 0;
 }
 
 // NOTE: This is thinning out which is good. Soon I won't need these allocations

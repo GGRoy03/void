@@ -68,11 +68,14 @@ typedef enum UILayoutNode_Flag
 internal u64              GetLayoutTreeFootprint   (u64 NodeCount);
 internal ui_layout_tree * PlaceLayoutTreeInMemory  (u64 NodeCount, void *Memory);
 
-internal ui_node          UIFindChild              (ui_node Node, u32 Index, ui_layout_tree *Tree);
+internal ui_node FindLayoutChild        (ui_node Node, u32 Index, ui_subtree *Subtree);
+internal void    ReserveLayoutChildren  (ui_node Node, u32 Amount, ui_subtree *Subtree);
 
+internal void    UIEnd                  (void);
+
+// NOTE: This API is not great..
 
 internal ui_node AllocateUINode(style_property Properties[StyleProperty_Count], bit_field Flags, ui_subtree *Subtree);
-internal void    UIEnd         (ui_pipeline *Pipeline); // NOTE: What?
 
 // -------------------------------------------------------------------------------------------------------------------
 // ui_hit_test:
@@ -130,17 +133,17 @@ internal ui_node_id_table * PlaceNodeIdTableInMemory  (ui_node_id_table_params P
 // ui_node_id_table:
 //   Opaque pointer to the table.
 //
-// UISetNodeId:
+// SetNodeId:
 //  If the table or the node are invalid, this function has no effect.
 //  If an entry with the same name already exists, this function has no effect.
 //
-// UIFindNodeById:
-//  Returns the node if found (Must be inserted via SetNodeId) or 0 if not.
+// FindNodeById:
+//  Returns the node if found (Must be inserted via SetNodeId) or an unusable one if not.
 // -------------------------------------------------------------------------------------------------------------------
 
 typedef struct ui_node_id_table ui_node_id_table;
 
-internal void    UISetNodeId     (byte_string Id, ui_node Node, ui_node_id_table *Table);
-internal ui_node UIFindNodeById  (byte_string Id, ui_node_id_table *Table);
+internal void    SetNodeId     (byte_string Id, ui_node Node, ui_node_id_table *Table);
+internal ui_node FindNodeById  (byte_string Id, ui_node_id_table *Table);
 
 // -------------------------------------------------------------------------------------------------------------------

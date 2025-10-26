@@ -82,10 +82,6 @@ typedef struct ui_layout_tree
     u64             NodeCount;
     ui_layout_node *Nodes;
 
-    // Info
-    u64 DepthLimit;
-    u64 NodeLimit;
-
     // Depth
     ui_parent_stack ParentStack;
 } ui_layout_tree;
@@ -151,15 +147,6 @@ NodeToLayoutNode(ui_node Node, ui_layout_tree *Tree)
     return Result;
 }
 
-internal ui_node
-LayoutNodeToNode(ui_layout_node *Node)
-{
-    Assert(Node && "Calling LayoutNodeToNode with a NULL node");
-
-    ui_node Result = {.IndexInTree = Node->Index, .SubtreeId = Node->SubIndex};
-    return Result;
-}
-
 internal ui_parent_stack
 BeginParentStack(u64 Size, memory_arena *Arena)
 {
@@ -180,7 +167,7 @@ IsValidParentStack(ui_parent_stack *Stack)
 internal void
 PushParentStack(ui_layout_node *Node, ui_parent_stack *Stack)
 {
-    Assert(IsValidParentStack(Stack) && "Calling PushParentStack with an invalid stack");
+    Assert(IsValidParentStack(Stack));
 
     if(Stack->NextWrite < Stack->Size)
     {
@@ -191,7 +178,7 @@ PushParentStack(ui_layout_node *Node, ui_parent_stack *Stack)
 internal ui_layout_node *
 PeekParentStack(ui_parent_stack *Stack)
 {
-    Assert(IsValidParentStack(Stack) && "Calling PeekParentStack with an invalid stack");
+    Assert(IsValidParentStack(Stack));
 
     ui_layout_node *Result = 0;
 
@@ -206,12 +193,50 @@ PeekParentStack(ui_parent_stack *Stack)
 internal void
 PopParentStack(ui_parent_stack *Stack)
 {
-    Assert(IsValidParentStack(Stack) && "Calling PopParentStack with an invalid stack");
+    Assert(IsValidParentStack(Stack));
 
     if(Stack->NextWrite > 0)
     {
         --Stack->NextWrite;
     }
+}
+
+internal ui_layout_node *
+CreateAndInsertLayoutNode(ui_subtree *Subtree, bit_field Flags)
+{
+    Assert(Subtree);
+
+    ui_layout_tree *Tree = Subtree->LayoutTree;
+    Assert(Tree);
+
+    ui_layout_node *Result = GetFreeLayoutNode(Tree);
+    if(Result)
+    {
+        Result->Flags    = Flags;
+        Result->SubIndex = Subtree->Id;
+
+        if (!IsValidParentStack(&Tree->ParentStack))
+        {
+            Tree->ParentStack = BeginParentStack(Tree->NodeCapacity, Subtree->FrameData);
+        }
+
+        Result->Last   = 0;
+        Result->Next   = 0;
+        Result->First  = 0;
+        Result->Parent = PeekParentStack(&Tree->ParentStack);
+
+        if (Result->Parent)
+        {
+            AppendToDoublyLinkedList(Result->Parent, Result, Result->Parent->ChildCount);
+        }
+
+        if (HasFlag(Result->Flags, UILayoutNode_IsParent))
+        {
+            PushParentStack(Result, &Tree->ParentStack);
+        }
+    }
+
+    return Result;
 }
 
 // -------------------------------------------------------------
@@ -247,92 +272,74 @@ PlaceLayoutTreeInMemory(u64 NodeCount, void *Memory)
 }
 
 internal ui_node
-UIFindChild(ui_node Node, u32 Index, ui_layout_tree *Tree)
+FindLayoutChild(ui_node Node, u32 Index, ui_subtree *Subtree)
 {
-    ui_node Result = {.IndexInTree = InvalidUINodeIndex};
+    Assert(Node.CanUse);
+    Assert(IsValidSubtree(Subtree));
 
-    ui_layout_node *LayoutNode = NodeToLayoutNode(Node, Tree);
+    ui_node Result = {0};
+
+    ui_layout_node *LayoutNode = NodeToLayoutNode(Node, Subtree->LayoutTree);
     if(IsValidLayoutNode(LayoutNode))
     {
-        if(Index < LayoutNode->ChildCount)
+        ui_layout_node *Child = LayoutNode->First;
+        while(Index--)
         {
-            u32 Count = 0;
+            Child = Child->Next;
+        }
 
-            IterateLinkedList(LayoutNode, ui_layout_node *, Child)
-            {
-                if(Count != Index)
-                {
-                    ++Count;
-                }
-                else
-                {
-                    Result = LayoutNodeToNode(Child);
-                    break;
-                }
-            }
+        if(Child)
+        {
+            Result.CanUse      = 1;
+            Result.SubtreeId   = Subtree->Id;
+            Result.IndexInTree = Child->Index;
         }
     }
 
     return Result;
 }
 
+internal void
+ReserveLayoutChildren(ui_node Node, u32 Amount, ui_subtree *Subtree)
+{
+    Assert(Node.CanUse);
+    Assert(Subtree);
+
+    ui_layout_tree *Tree = Subtree->LayoutTree;
+    Assert(Tree);
+
+    b32 NeedPush = (PeekParentStack(&Tree->ParentStack)->Index != Node.IndexInTree);
+
+    if(NeedPush)
+    {
+        ui_layout_node *LayoutNode = GetLayoutNode(Node.IndexInTree, Tree);
+        Assert(LayoutNode);
+
+        PushParentStack(LayoutNode, &Tree->ParentStack);
+    }
+
+    for(u32 Idx = 0; Idx < Amount; ++Idx)
+    {
+        AllocateUINode(0, 0, Subtree);
+    }
+
+    if(NeedPush)
+    {
+        PopParentStack(&Tree->ParentStack);
+    }
+}
+
 internal ui_node
 AllocateUINode(style_property Properties[StyleProperty_Count], bit_field Flags, ui_subtree *Subtree)
 {
-    Assert(Subtree && "Calling AllocateUINode with a NULL 'Subtree' pointer");
+    Assert(Subtree);
 
     ui_node Result = {.CanUse = 0};
 
-    ui_layout_tree *Tree = Subtree->LayoutTree;
-    ui_layout_node *Node = GetFreeLayoutNode(Tree);
-    if(Node)
+    ui_layout_node *Node = CreateAndInsertLayoutNode(Subtree, Flags);
+    if (Node)
     {
-        Node->Flags    = Flags;
-        Node->SubIndex = Subtree->Id;
-
-        // Hierarchy
-        {
-            if (!IsValidParentStack(&Tree->ParentStack))
-            {
-                Tree->ParentStack = BeginParentStack(Tree->NodeCount, Subtree->FrameData);
-            }
-
-            Node->Last = 0;
-            Node->Next = 0;
-            Node->First = 0;
-            Node->Parent = PeekParentStack(&Tree->ParentStack);
-
-            if (Node->Parent)
-            {
-                AppendToDoublyLinkedList(Node->Parent, Node, Node->Parent->ChildCount);
-            }
-
-            if (HasFlag(Node->Flags, UILayoutNode_IsParent))
-            {
-                PushParentStack(Node, &Tree->ParentStack);
-            }
-        }
-
-        if(Properties)
-        {
-            vec2_unit  Size    = UIGetSize(Properties);
-            ui_spacing Spacing = UIGetSpacing(Properties);
-            ui_padding Padding = UIGetPadding(Properties);
-
-            Node->Value.Width   = Size.X;
-            Node->Value.Height  = Size.Y;
-            Node->Value.Padding = Padding;
-            Node->Value.Spacing = Spacing;
-
-            // NOTE: This is the only part I somewhat dislike...
-            style_property *ComputedStyle = GetComputedStyle(Node->Index, Subtree);
-            if(ComputedStyle)
-            {
-                MemoryCopy(ComputedStyle, Properties, sizeof(style_property) * StyleProperty_Count);
-            }
-        }
-
-        Result = (ui_node){.IndexInTree = Node->Index, .SubtreeId = Subtree->Id, .CanUse = 1};
+        Result = (ui_node){ .IndexInTree = Node->Index, .SubtreeId = Subtree->Id, .CanUse = 1 };
     }
 
     return Result;
@@ -345,10 +352,16 @@ BindTextResource(ui_node Node, ui_subtree *Subtree, ui_resource_key Key)
 }
 
 internal void
-UIEnd(ui_pipeline *Pipeline)
+UIEnd()
 {
-    ui_subtree     *Subtree    = Pipeline->CurrentSubtree; Assert(Subtree);
-    ui_layout_tree *LayoutTree = Subtree->LayoutTree;      Assert(LayoutTree);
+    ui_pipeline *Pipeline = GetCurrentPipeline();
+    Assert(Pipeline);
+
+    ui_subtree *Subtree = Pipeline->CurrentSubtree;
+    Assert(Subtree);
+
+    ui_layout_tree *LayoutTree = Subtree->LayoutTree;
+    Assert(LayoutTree);
 
     PopParentStack(&LayoutTree->ParentStack);
 }
@@ -412,6 +425,35 @@ PopDrawStack(draw_stack *Stack)
     draw_stack_frame Result = Stack->Frames[--Stack->NextWrite];
     return Result;
 }
+
+internal void
+EnsureNodeStyle(ui_layout_node *Node, ui_subtree *Subtree)
+{
+    ui_node_style *Style = GetNodeStyle(Node->Index, Subtree);
+    {
+        Assert(Style);
+
+        ui_pipeline *Pipeline = GetCurrentPipeline();
+        Assert(Pipeline);
+
+        style_property *Properties = GetBaseStyle(Style->CachedStyleIndex, Pipeline->Registry);
+        Assert(Properties);
+
+        vec2_unit  Size    = UIGetSize(Properties);
+        ui_spacing Spacing = UIGetSpacing(Properties);
+        ui_padding Padding = UIGetPadding(Properties);
+
+        Node->Value.Width   = Size.X;
+        Node->Value.Height  = Size.Y;
+        Node->Value.Padding = Padding;
+        Node->Value.Spacing = Spacing;
+
+        MemoryCopy(Style->Properties, Properties, sizeof(style_property) * StyleProperty_Count);
+
+        Style->LayoutInfoIsBound = 1;
+    }
+}
+
 // NOTE: So this must generate events. Click, Hover, Drag, Resize, ...
 
 internal b32 
@@ -692,10 +734,25 @@ PreOrderMeasure(ui_layout_node *Root, memory_arena *Arena, ui_subtree *Subtree)
         while (!IsNodeQueueEmpty(&Queue))
         {
             ui_layout_node *Node = PopNodeQueue(&Queue);
+            Assert(Node);
+
+            ui_node_style *Style = GetNodeStyle(Node->Index, Subtree);
+            Assert(Style);
+
+            if(!Node->Parent)
+            {
+                EnsureNodeStyle(Node, Subtree);
+
+                Assert(Node->Value.Width.Type  == UIUnit_Float32);
+                Assert(Node->Value.Height.Type == UIUnit_Float32);
+                Node->Value.FinalWidth  = Node->Value.Width.Float32;
+                Node->Value.FinalHeight = Node->Value.Height.Float32;
+            }
+
             ui_layout_box *Box = &Node->Value;
 
-            f32 AvWidth = Box->FinalWidth - (Box->Padding.Left + Box->Padding.Right);
-            f32 AvHeight = Box->FinalHeight - (Box->Padding.Top + Box->Padding.Bot);
+            f32 AvWidth  = Box->FinalWidth  - (Box->Padding.Left + Box->Padding.Right);
+            f32 AvHeight = Box->FinalHeight - (Box->Padding.Top  + Box->Padding.Bot);
 
             if (HasFlag(Node->Flags, UILayoutNode_IsScrollable))
             {
@@ -715,8 +772,10 @@ PreOrderMeasure(ui_layout_node *Root, memory_arena *Arena, ui_subtree *Subtree)
 
             IterateLinkedList(Node, ui_layout_node *, Child)
             {
+                EnsureNodeStyle(Child, Subtree);
+
                 Box = &Child->Value;
-                Box->FinalWidth = ConvertUnitToFloat(Box->Width, AvWidth);
+                Box->FinalWidth  = ConvertUnitToFloat(Box->Width , AvWidth );
                 Box->FinalHeight = ConvertUnitToFloat(Box->Height, AvHeight);
 
                 PushNodeQueue(&Queue, Child);
@@ -741,8 +800,8 @@ PostOrderMeasure(ui_layout_node *Root, ui_subtree *Subtree)
         ui_resource_state State = FindUIResourceByKey(Key, UIState.ResourceTable);
         ui_glyph_run     *Run   = (ui_glyph_run *)State.Resource;
 
-        Assert(Run                           && "Node is marked as having text but no glyph run is provided");
-        Assert(State.Type == UIResource_Text && "Queried resource is not the type we expect");
+        Assert(Run);
+        Assert(State.Type == UIResource_Text);
 
         // TODO: Handle other units
         f32 InnerAvWidth = 0.f;
@@ -851,7 +910,8 @@ DrawSubtree(ui_layout_node *Root, u64 NodeLimit, ui_subtree *Subtree, memory_are
             draw_stack_frame Frame          = PopDrawStack(&Stack);
             rect_f32         ChildClip      = Frame.Clip;
             vec2_f32         ChildAccScroll = Frame.AccScroll;
-            style_property  *Computed       = GetComputedStyle(Frame.Node->Index, Subtree);
+
+            ui_node_style *Style = GetNodeStyle(Frame.Node->Index, Subtree);
 
             render_batch_list *BatchList = 0;
             {
@@ -900,19 +960,19 @@ DrawSubtree(ui_layout_node *Root, u64 NodeLimit, ui_subtree *Subtree, memory_are
                 {
                     ui_rect *Rect = PushDataInBatchList(Arena, BatchList);
                     Rect->RectBounds  = MakeRectFromNode(Frame.Node, Frame.AccScroll);
-                    Rect->Color       = UIGetColor(Computed);
-                    Rect->CornerRadii = UIGetCornerRadius(Computed);
-                    Rect->Softness    = UIGetSoftness(Computed);
+                    Rect->Color       = UIGetColor(Style->Properties);
+                    Rect->CornerRadii = UIGetCornerRadius(Style->Properties);
+                    Rect->Softness    = UIGetSoftness(Style->Properties);
                 }
 
                 if (HasFlag(Frame.Node->Flags, UILayoutNode_DrawBorders))
                 {
                     ui_rect *Rect = PushDataInBatchList(Arena, BatchList);
                     Rect->RectBounds  = MakeRectFromNode(Frame.Node, Frame.AccScroll);
-                    Rect->Color       = UIGetBorderColor(Computed);
-                    Rect->CornerRadii = UIGetCornerRadius(Computed);
-                    Rect->BorderWidth = UIGetBorderWidth(Computed);
-                    Rect->Softness    = UIGetSoftness(Computed);
+                    Rect->Color       = UIGetBorderColor(Style->Properties);
+                    Rect->CornerRadii = UIGetCornerRadius(Style->Properties);
+                    Rect->BorderWidth = UIGetBorderWidth(Style->Properties);
+                    Rect->Softness    = UIGetSoftness(Style->Properties);
                 }
 
                 if(HasFlag(Frame.Node->Flags, UILayoutNode_DrawText))
@@ -925,7 +985,7 @@ DrawSubtree(ui_layout_node *Root, u64 NodeLimit, ui_subtree *Subtree, memory_are
                     Assert(Run                           && "Node is marked as having text but no glyph run is provided");
                     Assert(State.Type == UIResource_Text && "Queried resource is not the type we expect");
 
-                    ui_color TextColor = UIGetTextColor(Computed);
+                    ui_color TextColor = UIGetTextColor(Style->Properties);
                     for(u32 Idx = 0; Idx < Run->GlyphCount; ++Idx)
                     {
                         ui_rect *Rect = PushDataInBatchList(Arena, BatchList);
@@ -950,7 +1010,7 @@ DrawSubtree(ui_layout_node *Root, u64 NodeLimit, ui_subtree *Subtree, memory_are
 
                 if(HasFlag(Frame.Node->Flags, UILayoutNode_HasClip))
                 {
-                    ChildClip = InsetRectF32(MakeRectFromNode(Frame.Node, Vec2F32(0.f, 0.f)), UIGetBorderWidth(Computed));
+                    ChildClip = InsetRectF32(MakeRectFromNode(Frame.Node, Vec2F32(0.f, 0.f)), UIGetBorderWidth(Style->Properties));
 
                     rect_f32 EmptyClip     = RectF32Zero();
                     b32      ParentHasClip = (MemoryCompare(&Frame.Clip, &EmptyClip, sizeof(rect_f32)) != 0);
@@ -999,21 +1059,13 @@ ComputeLayout(ui_subtree *Subtree, memory_arena *Arena)
     Assert(Tree);
 
     ui_layout_node *Root = GetLayoutNode(0, Tree);
-    Assert(Root);
-    Assert(Root->Value.Width.Type  == UIUnit_Float32);
-    Assert(Root->Value.Height.Type == UIUnit_Float32);
-
-    Root->Value.FinalWidth  = Root->Value.Width.Float32;
-    Root->Value.FinalHeight = Root->Value.Height.Float32;
 
     memory_region Local = EnterMemoryRegion(Arena);
-
     {
         PreOrderMeasure     (Root, Local.Arena, Subtree);
         PostOrderMeasure    (Root             , Subtree);
         PreOrderPlace       (Root, Local.Arena, Subtree);
     }
-
     LeaveMemoryRegion(Local);
 }
 
@@ -1267,7 +1319,7 @@ PlaceNodeIdTableInMemory(ui_node_id_table_params Params, void *Memory)
 }
 
 internal void
-UISetNodeId(byte_string Id, ui_node Node, ui_node_id_table *Table)
+SetNodeId(byte_string Id, ui_node Node, ui_node_id_table *Table)
 {
     if(!IsValidNodeIdTable(Table))
     {
@@ -1290,7 +1342,7 @@ UISetNodeId(byte_string Id, ui_node Node, ui_node_id_table *Table)
 }
 
 internal ui_node
-UIFindNodeById(byte_string Id, ui_node_id_table *Table)
+FindNodeById(byte_string Id, ui_node_id_table *Table)
 {
     ui_node Result = {0};
 

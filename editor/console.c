@@ -67,18 +67,16 @@ ConsolePrintMessage(console_output Output, ui_node BufferNode, editor_console_ui
     {
         u32 ChildIndex = Console->MessageHead++;
 
-        UIChain(BufferNode).FindChild(ChildIndex)
-            .SetTextColor(Output.TextColor);
-    //      .SetStyle(ConsoleStyle_Message)
-    //      .SetText(FormattedMessage)
+        UIChain(BufferNode)->FindChild(ChildIndex)
+            ->SetStyle(ConsoleStyle_Message)
+            ->SetTextColor(Output.TextColor);
+    //      ->SetText(FormattedMessage)
     }
 }
 
 internal void
 ConsoleUI(editor_console_ui *Console)
 {
-    UIBeginAllSubtrees(Console->Pipeline);
-
     // TODO: Clear the Console's arena every frame.
 
     if(!Console->IsInitialized)
@@ -100,16 +98,13 @@ ConsoleUI(editor_console_ui *Console)
         {
             ui_subtree_params SubtreeParams = {.CreateNew = 1, .NodeCount = 1024};
 
-            UISubtree(SubtreeParams, Console->Pipeline)
+            UISubtree(SubtreeParams)
             {
-                UIWindow(ConsoleStyle_Window, Console->Pipeline)
+                UIBlock(UIWindow(ConsoleStyle_Window))
                 {
-                    UIScrollView(ConsoleStyle_MessageView, Console->Pipeline)
-                    {
-                        UIGetLast()
-                            .SetId(ui_id("Console_Buffer"))
-                            .ReserveChildren(Console->MessageLimit);
-                    }
+                    UIScrollView(ConsoleStyle_MessageView)
+                        ->SetId(ui_id("Console_Buffer"))
+                        ->ReserveChildren(Console->MessageLimit);
                 }
             }
         }
@@ -133,9 +128,11 @@ ConsoleUI(editor_console_ui *Console)
         }
     }
 
+    UIBeginAllSubtrees(Console->Pipeline);
+
     // Drain The Queue
     {
-        ui_node BufferNode = UIFindNodeById(ui_id("Console_Buffer"), Console->Pipeline->IdTable);
+        ui_node BufferNode = FindNodeById(ui_id("Console_Buffer"), Console->Pipeline->IdTable);
         if (BufferNode.CanUse)
         {
             console_queue_node *Node = 0;

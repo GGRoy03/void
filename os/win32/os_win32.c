@@ -237,7 +237,7 @@ wWinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPWSTR CmdLine, i32 ShowCmd
     b32 IsRunning = 1;
     while(IsRunning)
     {
-        OSClearInputs();
+        OSClearInputs(&OSWin32State.Inputs);
 
         MSG Message;
         while(PeekMessage(&Message, 0, 0, 0, PM_REMOVE))
@@ -252,13 +252,20 @@ wWinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPWSTR CmdLine, i32 ShowCmd
             DispatchMessage(&Message);
         }
 
+        vec2_i32 ClientSize = Vec2I32(0, 0);
+        {
+            ClientSize = OSWin32GetClientSize(HWindow);
+
+            UIState.WindowSize = ClientSize;
+        }
+
         UIBeginFrame();
 
         ShowEditorUI();
 
         // NOTE: There is no UIEndFrame for now. Quite weird, but we do not need it...
 
-        SubmitRenderCommands(RenderState.Renderer, OSWin32GetClientSize(HWindow), &RenderState.PassList);
+        SubmitRenderCommands(RenderState.Renderer, ClientSize, &RenderState.PassList);
 
         Sleep(5);
     }

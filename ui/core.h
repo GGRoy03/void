@@ -115,10 +115,11 @@ struct ui_node_chain
     ui_subtree    *Subtree;
     ui_node_chain *Prev;
 
+    // Style
     ui_node_chain  * (*SetTextColor)     (ui_color Color);
     ui_node_chain  * (*SetStyle)         (u32 StyleIndex);
 
-    // Hierarchy
+    // Layout
     ui_node_chain * (*FindChild)        (u32 Index);
     ui_node_chain * (*ReserveChildren)  (u32 Count);
 
@@ -126,8 +127,7 @@ struct ui_node_chain
     ui_node_chain * (*SetId)            (byte_string Id);
 };
 
-internal ui_node_chain * UIChain    (ui_node Node);
-internal ui_node_chain * UIGetLast  (void);
+internal ui_node_chain * UIChain  (ui_node Node);
 
 // ui_event:
 
@@ -287,6 +287,7 @@ typedef struct ui_state
     // State
     ui_pipeline    *CurrentPipeline;
     ui_layout_node *CapturedNode;
+    vec2_i32        WindowSize;
 
     // Systems
     console_queue Console;
@@ -372,11 +373,11 @@ struct ui_pipeline
     memory_arena *StaticArena;
 };
 
-#define UISubtree(Params, Pipeline) DeferLoop(UIBeginSubtree(Params, Pipeline), UIEndSubtree(Params));
+#define UISubtree(Params) DeferLoop(UIBeginSubtree(Params), UIEndSubtree(Params))
 
 internal b32 IsValidSubtree  (ui_subtree *Subtree);
 
-internal void          UIBeginSubtree       (ui_subtree_params Params, ui_pipeline *Pipeline);
+internal void          UIBeginSubtree       (ui_subtree_params Params);
 internal void          UIEndSubtree         (ui_subtree_params Params);
 
 internal ui_pipeline * UICreatePipeline      (ui_pipeline_params Params);
