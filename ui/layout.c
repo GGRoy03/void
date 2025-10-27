@@ -459,8 +459,10 @@ RecordUIHoverEvent(ui_layout_node *Node, ui_subtree *Subtree)
 }
 
 internal void
-ProcessUIEventList(ui_event_list *Events)
+ProcessEventList(ui_event_list *Events)
 {
+    Assert(Events);
+
     IterateLinkedList(Events, ui_event_node *, Node)
     {
         ui_event *Event = &Node->Value;
@@ -561,25 +563,29 @@ EnsureNodeStyle(ui_layout_node *Node, ui_subtree *Subtree)
         ui_pipeline *Pipeline = GetCurrentPipeline();
         Assert(Pipeline);
 
-        style_property *Properties = GetCachedProperties(Style->CachedStyleIndex, StyleState_Basic, Pipeline->Registry);
-        Assert(Properties);
+        style_property *Basic = GetCachedProperties(Style->CachedStyleIndex, StyleState_Basic, Pipeline->Registry);
+        style_property *Hover = GetCachedProperties(Style->CachedStyleIndex, StyleState_Hover, Pipeline->Registry);
 
-        vec2_unit  Size    = UIGetSize(Properties);
-        ui_spacing Spacing = UIGetSpacing(Properties);
-        ui_padding Padding = UIGetPadding(Properties);
+        Assert(Basic);
+        Assert(Hover);
 
-        Node->Value.Width   = Size.X;
-        Node->Value.Height  = Size.Y;
-        Node->Value.Padding = Padding;
-        Node->Value.Spacing = Spacing;
+        MemoryCopy(Style->Properties[StyleState_Basic], Basic, sizeof(style_property) * StyleProperty_Count);
+        MemoryCopy(Style->Properties[StyleState_Hover], Hover, sizeof(style_property) * StyleProperty_Count);
 
-        MemoryCopy(Style->Properties, Properties, sizeof(style_property) * StyleProperty_Count);
+        {
+            vec2_unit  Size    = UIGetSize(Basic);
+            ui_spacing Spacing = UIGetSpacing(Basic);
+            ui_padding Padding = UIGetPadding(Basic);
+
+            Node->Value.Width   = Size.X;
+            Node->Value.Height  = Size.Y;
+            Node->Value.Padding = Padding;
+            Node->Value.Spacing = Spacing;
+        }
 
         Style->LayoutInfoIsBound = 1;
     }
 }
-
-// NOTE: So this must generate events. Click, Hover, Drag, Resize, ...
 
 internal b32 
 FindHitNode(vec2_f32 MousePosition, ui_layout_node *Root, ui_subtree *Subtree)
@@ -595,7 +601,7 @@ FindHitNode(vec2_f32 MousePosition, ui_layout_node *Root, ui_subtree *Subtree)
         MouseIsOutsideHitbox = RoundedRectSDF(Params);
     }
 
-    if(!MouseIsOutsideHitbox)
+    if(MouseIsOutsideHitbox <= 0.f)
     {
         IterateLinkedListBackward(Root, ui_layout_node *, Child)
         {
@@ -1217,6 +1223,13 @@ HitTestLayout(ui_subtree *Subtree, memory_arena *Arena)
     Assert(Root);
 
     FindHitNode(OSGetMousePosition(), Root, Subtree);
+
+    if(Subtree->Events)
+    {
+        // NOTE: Unsure when it is the right time to process events..
+
+        ProcessEventList(Subtree->Events);
+    }
 }
 
 internal void
