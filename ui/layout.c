@@ -366,6 +366,132 @@ UIEnd()
 }
 
 // -----------------------------------------------------------
+// UI Event Internal Implementation
+
+typedef enum UIEvent_Type
+{
+    UIEvent_Hover  = 1 << 0,
+    UIEvent_Click  = 1 << 1,
+    UIEvent_Resize = 1 << 2,
+    UIEvent_Drag   = 1 << 3,
+} UIEvent_Type;
+
+typedef struct ui_hover_event
+{
+    ui_layout_node *Node;
+} ui_hover_event;
+
+typedef struct ui_click_event
+{
+    ui_layout_tree *Tree;
+    ui_node         Node;
+} ui_click_event;
+
+typedef struct ui_resize_event
+{
+    ui_layout_tree *Tree;
+    ui_node         Node;
+    vec2_f32        Delta;
+} ui_resize_event;
+
+typedef struct ui_drag_event
+{
+    ui_layout_tree *Tree;
+    ui_node         Node;
+    vec2_f32        Delta;
+} ui_drag_event;
+
+typedef struct ui_scroll_event
+{
+    ui_layout_tree *Tree;
+    ui_node         Node;
+    f32             Delta;
+} ui_scroll_event;
+
+typedef struct ui_event
+{
+    UIEvent_Type Type;
+    union
+    {
+        ui_hover_event  Hover;
+        ui_click_event  Click;
+        ui_resize_event Resize;
+        ui_drag_event   Drag;
+        ui_scroll_event Scroll;
+    };
+} ui_event;
+
+typedef struct ui_event_node ui_event_node;
+struct ui_event_node
+{
+    ui_event_node *Next;
+    ui_event       Value;
+};
+
+typedef struct ui_event_list
+{
+    ui_event_node *First;
+    ui_event_node *Last;
+    u32            Count;
+} ui_event_list;
+
+internal void 
+RecordUIEvent(ui_event Event, ui_subtree *Subtree)
+{
+    if(!Subtree->Events)
+    {
+        Subtree->Events = PushStruct(Subtree->FrameData, ui_event_list);
+    }
+
+    ui_event_node *Node = PushStruct(Subtree->FrameData, ui_event_node);
+    if(Node)
+    {
+        Node->Value = Event;
+        AppendToLinkedList(Subtree->Events, Node, Subtree->Events->Count);
+    }
+}
+
+internal void
+RecordUIHoverEvent(ui_layout_node *Node, ui_subtree *Subtree)
+{
+    ui_event Event = {.Type = UIEvent_Hover, .Hover.Node = Node};
+    RecordUIEvent(Event, Subtree);
+}
+
+internal void
+ProcessUIEventList(ui_event_list *Events)
+{
+    IterateLinkedList(Events, ui_event_node *, Node)
+    {
+        ui_event *Event = &Node->Value;
+
+        switch(Event->Type)
+        {
+
+        case UIEvent_Hover:
+        {
+            ui_hover_event Hover = Event->Hover;
+
+            SetFlag(Hover.Node->Flags, UILayoutNode_IsHovered);
+        } break;
+
+        case UIEvent_Click:
+        {
+        } break;
+
+        case UIEvent_Resize:
+        {
+        } break;
+
+        case UIEvent_Drag:
+        {
+        } break;
+
+        }
+    }
+}
+
+// -----------------------------------------------------------
 // Layout Pass Internal Helpers/Types
 
 typedef struct draw_stack_frame
@@ -546,9 +672,9 @@ FindHitNode(vec2_f32 MousePosition, ui_layout_node *Root, ui_subtree *Subtree)
         {
         }
 
-        if(HasFlag(Root->Flags, UILayoutNode_IsHoverable))
+        // NOTE: What should be the conditions here?
         {
-            // RecordUIHoverEvent(LayoutNodeToNode(Root), Pipeline, &Pipeline->Events, Pipeline->FrameArena);
+            RecordUIHoverEvent(Root, Subtree);
         }
 
         if(HasFlag(Root->Flags, UILayoutNode_IsScrollable) && ScrollDelta != 0.f)
@@ -891,6 +1017,49 @@ PostOrderMeasure(ui_layout_node *Root, ui_subtree *Subtree)
     }
 }
 
+internal style_property *
+ComputeFinalStyle(ui_layout_node *Node, ui_subtree *Subtree)
+{
+    style_property *Result = 0;
+
+    ui_node_style  *NodeStyle = GetNodeStyle(Node->Index, Subtree);
+    StyleState_Type State     = StyleState_Basic;
+
+    if(HasFlag(Node->Flags, UILayoutNode_IsHovered))
+    {
+        State = StyleState_Hover;
+
+        // NOTE: This could be bad if other parts of the code depend on this flag.
+        ClearFlag(Node->Flags, UILayoutNode_IsHovered);
+    }
+
+    if(State == StyleState_Basic)
+    {
+        Result = NodeStyle->Properties[State]; // Get base properties.
+    }
+    else
+    {
+        Result = PushArray(Subtree->FrameData, style_property, StyleProperty_Count);
+
+        if(Result)
+        {
+
+            MemoryCopy(Result, NodeStyle->Properties[StyleState_Basic], sizeof(NodeStyle->Properties[StyleState_Basic]));
+
+            ForEachEnum(StyleProperty_Type, StyleProperty_Count, Prop)
+            {
+                if(NodeStyle->Properties[State][Prop].IsSet)
+                {
+                    Result[Prop] = NodeStyle->Properties[State][Prop];
+                }
+            }
+        }
+    }
+
+    Assert(Result);
+    return Result;
+}
+
 internal void
 DrawSubtree(ui_layout_node *Root, u64 NodeLimit, ui_subtree *Subtree, memory_arena *Arena)
 {
@@ -906,8 +1075,6 @@ DrawSubtree(ui_layout_node *Root, u64 NodeLimit, ui_subtree *Subtree, memory_are
             draw_stack_frame Frame          = PopDrawStack(&Stack);
             rect_f32         ChildClip      = Frame.Clip;
             vec2_f32         ChildAccScroll = Frame.AccScroll;
-
-            ui_node_style *Style = GetNodeStyle(Frame.Node->Index, Subtree);
 
             render_batch_list *BatchList = 0;
             {
@@ -950,29 +1117,30 @@ DrawSubtree(ui_layout_node *Root, u64 NodeLimit, ui_subtree *Subtree, memory_are
                 BatchList    = &Node->BatchList;
             }
 
+            style_property *Style = ComputeFinalStyle(Frame.Node, Subtree);
+
             // Draw Flags
             {
-                ui_color BackgroundColor = UIGetColor(Style->Properties[StyleState_Basic]);
+                ui_color BackgroundColor = UIGetColor(Style);
                 if(IsVisibleColor(BackgroundColor))
                 {
                     ui_rect *Rect = PushDataInBatchList(Arena, BatchList);
                     Rect->RectBounds  = MakeRectFromNode(Frame.Node, Frame.AccScroll);
                     Rect->Color       = BackgroundColor;
-                    Rect->CornerRadii = UIGetCornerRadius(Style->Properties[StyleState_Basic]);
-                    Rect->Softness    = UIGetSoftness(Style->Properties[StyleState_Basic]);
+                    Rect->CornerRadii = UIGetCornerRadius(Style);
+                    Rect->Softness    = UIGetSoftness(Style);
                 }
 
-
-                ui_color BorderColor = UIGetBorderColor(Style->Properties[StyleState_Basic]);
-                f32      BorderWidth = UIGetBorderWidth(Style->Properties[StyleState_Basic]);
+                ui_color BorderColor = UIGetBorderColor(Style);
+                f32      BorderWidth = UIGetBorderWidth(Style);
                 if(IsVisibleColor(BorderColor) && BorderWidth > 0.f)
                 {
                     ui_rect *Rect = PushDataInBatchList(Arena, BatchList);
                     Rect->RectBounds  = MakeRectFromNode(Frame.Node, Frame.AccScroll);
                     Rect->Color       = BorderColor;
-                    Rect->CornerRadii = UIGetCornerRadius(Style->Properties[StyleState_Basic]);
+                    Rect->CornerRadii = UIGetCornerRadius(Style);
                     Rect->BorderWidth = BorderWidth;
-                    Rect->Softness    = UIGetSoftness(Style->Properties[StyleState_Basic]);
+                    Rect->Softness    = UIGetSoftness(Style);
                 }
 
                 if(HasFlag(Frame.Node->Flags, UILayoutNode_DrawText))
@@ -985,7 +1153,7 @@ DrawSubtree(ui_layout_node *Root, u64 NodeLimit, ui_subtree *Subtree, memory_are
                     Assert(Run);
                     Assert(State.Type == UIResource_Text);
 
-                    ui_color TextColor = UIGetTextColor(Style->Properties[StyleState_Basic]);
+                    ui_color TextColor = UIGetTextColor(Style);
                     for(u32 Idx = 0; Idx < Run->GlyphCount; ++Idx)
                     {
                         ui_rect *Rect = PushDataInBatchList(Arena, BatchList);
@@ -1010,7 +1178,7 @@ DrawSubtree(ui_layout_node *Root, u64 NodeLimit, ui_subtree *Subtree, memory_are
 
                 if(HasFlag(Frame.Node->Flags, UILayoutNode_HasClip))
                 {
-                    ChildClip = InsetRectF32(MakeRectFromNode(Frame.Node, Vec2F32(0.f, 0.f)), UIGetBorderWidth(Style->Properties[StyleState_Basic]));
+                    ChildClip = InsetRectF32(MakeRectFromNode(Frame.Node, Vec2F32(0.f, 0.f)), UIGetBorderWidth(Style));
 
                     rect_f32 EmptyClip     = RectF32Zero();
                     b32      ParentHasClip = (MemoryCompare(&Frame.Clip, &EmptyClip, sizeof(rect_f32)) != 0);

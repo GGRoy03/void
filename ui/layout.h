@@ -61,6 +61,9 @@ typedef enum UILayoutNode_Flag
     UILayoutNode_PlaceChildrenX  = 1 << 8,
     UILayoutNode_PlaceChildrenY  = 1 << 9,
     UILayoutNode_IsParent        = 1 << 10,
+
+    // Frame State
+    UILayoutNode_IsHovered       = 1 << 11,
 } UILayoutNode_Flag;
 
 internal u64              GetLayoutTreeFootprint   (u64 NodeCount);

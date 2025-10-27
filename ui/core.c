@@ -193,59 +193,6 @@ UIChain(ui_node Node)
     return Result;
 }
 
-// -------------------------------------------------------------
-// Events Public API Implementation
-
-internal void
-ProcessUIEventList(ui_event_list *Events)
-{
-    IterateLinkedList(Events, ui_event_node *, Node)
-    {
-        ui_event *Event = &Node->Value;
-
-        switch(Event->Type)
-        {
-
-        case UIEvent_Hover:
-        {
-            ui_hover_event Hover = Event->Hover;
-
-            ui_node_style *Style = GetNodeStyle(Hover.NodeIndex, Hover.Subtree);
-            Assert(Style);
-        } break;
-
-        case UIEvent_Click:
-        {
-        } break;
-
-        case UIEvent_Resize:
-        {
-        } break;
-
-        case UIEvent_Drag:
-        {
-        } break;
-
-        }
-    }
-}
-
-internal void
-RecordUIEvent(ui_event Event, ui_event_list *Events, memory_arena *Arena)
-{
-    ui_event_node *Node = PushStruct(Arena, ui_event_node);
-    if(Node)
-    {
-        Node->Value = Event;
-        AppendToLinkedList(Events, Node, Events->Count);
-    }
-}
-
-internal void
-RecordUIHoverEvent(ui_node Node, ui_event_list *Events, memory_arena *Arena)
-{
-}
-
 // ----------------------------------------------------------------------------------
 // UI Resource Cache Private Implementation
 
@@ -648,6 +595,8 @@ UIBeginAllSubtrees(ui_pipeline *Pipeline)
         ui_subtree *Subtree = &Node->Value;
 
         ClearArena(Subtree->FrameData);
+
+        Subtree->Events = 0;
     }
 
     UIState.CurrentPipeline = Pipeline;

@@ -129,83 +129,6 @@ struct ui_node_chain
 
 internal ui_node_chain * UIChain  (ui_node Node);
 
-// ui_event:
-
-typedef struct ui_layout_node ui_layout_node;
-
-typedef enum UIEvent_Type
-{
-    UIEvent_Hover  = 1 << 0,
-    UIEvent_Click  = 1 << 1,
-    UIEvent_Resize = 1 << 2,
-    UIEvent_Drag   = 1 << 3,
-} UIEvent_Type;
-
-typedef struct ui_hover_event
-{
-    u32         NodeIndex;
-    ui_subtree *Subtree;
-} ui_hover_event;
-
-typedef struct ui_click_event
-{
-    ui_layout_tree *Tree;
-    ui_node         Node;
-} ui_click_event;
-
-typedef struct ui_resize_event
-{
-    ui_layout_tree *Tree;
-    ui_node         Node;
-    vec2_f32        Delta;
-} ui_resize_event;
-
-typedef struct ui_drag_event
-{
-    ui_layout_tree *Tree;
-    ui_node         Node;
-    vec2_f32        Delta;
-} ui_drag_event;
-
-typedef struct ui_scroll_event
-{
-    ui_layout_tree *Tree;
-    ui_node         Node;
-    f32             Delta;
-} ui_scroll_event;
-
-typedef struct ui_event
-{
-    UIEvent_Type Type;
-    union
-    {
-        ui_hover_event  Hover;
-        ui_click_event  Click;
-        ui_resize_event Resize;
-        ui_drag_event   Drag;
-        ui_scroll_event Scroll;
-    };
-} ui_event;
-
-typedef struct ui_event_node ui_event_node;
-struct ui_event_node
-{
-    ui_event_node *Next;
-    ui_event       Value;
-};
-
-typedef struct ui_event_list
-{
-    ui_event_node *First;
-    ui_event_node *Last;
-    u32            Count;
-} ui_event_list;
-
-internal void RecordUIEvent       (ui_event Event, ui_event_list *Events, memory_arena *Arena);
-internal void ProcessUIEventList  (ui_event_list *Events);
-
-internal void RecordUIHoverEvent  (ui_node Node, ui_event_list *Events, memory_arena *Arena);
-
 // ------------------------------------------------------------------------------------
 
 #include <immintrin.h>
@@ -307,6 +230,8 @@ internal b32              IsNormalizedColor  (ui_color Color);
 
 // ------------------
 
+typedef struct ui_event_list ui_event_list;
+
 typedef struct ui_subtree_params
 {
     b32 CreateNew;
@@ -322,7 +247,8 @@ typedef struct ui_subtree
     ui_resource_key *Resources;
 
     // Frame
-    memory_arena *FrameData;
+    memory_arena  *FrameData;
+    ui_event_list *Events;
 
     // Info
     u64 NodeCount;
@@ -360,7 +286,6 @@ struct ui_pipeline
     ui_node_id_table  *IdTable;  // NOTE: Should this be stored on the tree? Think so
 
     // Frame/State
-    ui_event_list  Events;
     ui_node_chain *Chain;
 
     // Subtree
