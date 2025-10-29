@@ -151,6 +151,8 @@ ResolveCachedIndex(u32 Index)
 internal ui_node_style *
 GetNodeStyle(u32 Index, ui_subtree *Subtree)
 {
+    Assert(Subtree);
+
     ui_node_style *Result = 0;
 
     if(Index < Subtree->NodeCount)

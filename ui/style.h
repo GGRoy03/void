@@ -35,6 +35,7 @@ typedef enum StyleState_Type
 typedef struct style_property
 {
     b32 IsSet;
+    b32 IsSetRuntime;
 
     StyleProperty_Type Type;
     union

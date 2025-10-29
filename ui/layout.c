@@ -60,6 +60,9 @@ typedef struct ui_layout_box
     ui_padding     Padding;
     UIDisplay_Type Display;
 
+    // Draw Info
+    vec2_f32 VisualOffset;
+
     // Resources ( TODO: Make this a resource?)
     ui_scroll_context *ScrollContext;
 } ui_layout_box;
@@ -403,19 +406,29 @@ UpdateNodeIfNeeded(u32 NodeIndex, ui_subtree *Subtree)
         ui_pipeline *Pipeline = GetCurrentPipeline();
         Assert(Pipeline);
 
-        style_property *Basic = GetCachedProperties(Style->CachedStyleIndex, StyleState_Basic, Pipeline->Registry);
-        style_property *Hover = GetCachedProperties(Style->CachedStyleIndex, StyleState_Hover, Pipeline->Registry);
+        style_property *Cached[StyleState_Count] = {0};
+        Cached[StyleState_Basic] = GetCachedProperties(Style->CachedStyleIndex, StyleState_Basic, Pipeline->Registry);
+        Cached[StyleState_Hover] = GetCachedProperties(Style->CachedStyleIndex, StyleState_Hover, Pipeline->Registry);
 
-        Assert(Basic);
-        Assert(Hover);
+        ForEachEnum(StyleState_Type, StyleState_Count, State)
+        {
+            Assert(Cached[State]);
 
-        MemoryCopy(Style->Properties[StyleState_Basic], Basic, sizeof(style_property) * StyleProperty_Count);
-        MemoryCopy(Style->Properties[StyleState_Hover], Hover, sizeof(style_property) * StyleProperty_Count);
-
+            ForEachEnum(StyleProperty_Type, StyleProperty_Count, Prop)
+            {
+                if(!Style->Properties[State][Prop].IsSetRuntime)
+                {
+                    Style->Properties[State][Prop] = Cached[State][Prop];
+                }
+            }
+        }
 
         ui_layout_node *LayoutNode = GetLayoutNode(NodeIndex, Subtree->LayoutTree);
         Assert(LayoutNode);
         {
+            style_property *Basic = Style->Properties[StyleState_Basic];
+            Assert(Basic);
+
             f32            BorderWidth = UIGetBorderWidth(Basic);
             vec2_unit      Size        = UIGetSize(Basic);
             ui_spacing     Spacing     = UIGetSpacing(Basic);
@@ -638,15 +651,15 @@ typedef struct ui_click_event
 
 typedef struct ui_resize_event
 {
-    ui_layout_tree *Tree;
-    ui_node         Node;
+    ui_subtree     *Subtree;
+    ui_layout_node *Node;
     vec2_f32        Delta;
 } ui_resize_event;
 
 typedef struct ui_drag_event
 {
-    ui_layout_tree *Tree;
-    ui_node         Node;
+    ui_subtree     *Subtree;
+    ui_layout_node *Node;
     vec2_f32        Delta;
 } ui_drag_event;
 
@@ -714,6 +727,20 @@ RecordUIScrollEvent(ui_layout_node *Node, f32 Delta, ui_subtree *Subtree)
 }
 
 internal void
+RecordUIResizeEvent(ui_layout_node *Node, vec2_f32 Delta, ui_subtree *Subtree)
+{
+    ui_event Event = {.Type = UIEvent_Resize, .Resize.Node = Node, .Resize.Delta = Delta, .Resize.Subtree = Subtree};
+    RecordUIEvent(Event, Subtree);
+}
+
+internal void
+RecordUIDragEvent(ui_layout_node *Node, vec2_f32 Delta, ui_subtree *Subtree)
+{
+    ui_event Event = {.Type = UIEvent_Drag, .Resize.Node = Node, .Resize.Delta = Delta, .Resize.Subtree = Subtree};
+    RecordUIEvent(Event, Subtree);
+}
+
+internal void
 ProcessEventList(ui_event_list *Events)
 {
     Assert(Events);
@@ -738,10 +765,42 @@ ProcessEventList(ui_event_list *Events)
 
         case UIEvent_Resize:
         {
+            // BUG:
+            // This is not nice! It has a frame of lag.
+            // We should recompute the subtree that is resized.
+            // Perhaps even parent in some cases?
+            // It also directly writes to the style which is heh.
+
+            ui_resize_event Resize = Event->Resize;
+
+            ui_node_style *Style = GetNodeStyle(Resize.Node->Index, Resize.Subtree);
+            vec2_unit      Size  = UIGetSize(Style->Properties[StyleState_Basic]);
+
+            Assert(Size.X.Type == UIUnit_Float32);
+            Assert(Size.X.Type == UIUnit_Float32);
+
+            Size.X.Float32 += Resize.Delta.X;
+            Size.Y.Float32 += Resize.Delta.Y;
+
+            Style->Properties[StyleState_Basic][StyleProperty_Size].Vec2         = Size;
+            Style->Properties[StyleState_Basic][StyleProperty_Size].IsSetRuntime = 1;
+
+            Style->IsLastVersion = 0;
+
         } break;
 
         case UIEvent_Drag:
         {
+            ui_drag_event Drag = Event->Drag;
+
+            // NOTE:
+            // When placing the content, the cursor is infered from the content box.
+            // Now. There is two cases where we must handle the dragging.
+            // Moving all of the drag target and children's position. 
+            // That should be achieved by translating the content box? Rather, the outerbox.
+            // So measuring shouldn't care about sizing? Yeah.
+            // But then placing is weird, because it always assume the content box is correctly placed right now.
+            // The only easy way to do this is to store a drag translation on the nodes.
         } break;
 
         case UIEvent_Scroll:
@@ -749,6 +808,8 @@ ProcessEventList(ui_event_list *Events)
             ui_scroll_event Scroll = Event->Scroll;
             Assert(Scroll.Node);
             Assert(Scroll.Delta);
+
+            // NOTE: Why is this not a single call?
 
             ScrollNode(Scroll.Delta, Scroll.Node);
             UpdateScrollNode(Scroll.Node);
@@ -764,7 +825,8 @@ ProcessEventList(ui_event_list *Events)
 typedef struct draw_stack_frame
 {
     ui_layout_node *Node;
-    vec2_f32        AccScroll;
+    vec2_f32        AccOrigin; // NOTE: Should be merged?
+    vec2_f32        AccScroll; // NOTE: Should be merged?
     rect_f32        Clip;
 } draw_stack_frame;
 
@@ -844,80 +906,85 @@ FindHitNode(vec2_f32 MousePosition, ui_layout_node *Root, ui_subtree *Subtree)
             }
         }
 
-        f32      ScrollDelta  = OSGetScrollDelta();
-        vec2_f32 MouseDelta   = OSGetMouseDelta();
-        b32      MouseMoved   = (MouseDelta.X != 0 || MouseDelta.Y != 0);
-        b32      MouseClicked = OSIsMouseClicked(OSMouseButton_Left);
+        f32 ScrollDelta  = OSGetScrollDelta();
+        b32 MouseClicked = OSIsMouseClicked(OSMouseButton_Left);
 
-        if(HasFlag(Root->Flags, UILayoutNode_IsResizable) && MouseMoved && MouseClicked)
+        // Dynamic Events
         {
-            // NOTE: Can I not remove the SDF check? I am somewhat confused...
-            // Also, what are the conditions so that I can enter this branch?
-            // I do not think I care about the cursor. I'll let the user control it.
-            // So I do not care about intent, but rather, capture is what I am looking for.
-
-            vec2_f32 InnerSize = GetInnerBoxSize(&Root->Value);
-            vec2_f32 InnerPos  = GetInnerBoxPosition(&Root->Value);
-
-            f32 MouseIsOutsideBorder = 1.f;
+            if(HasFlag(Root->Flags, UILayoutNode_IsResizable) && MouseClicked && Subtree->CapturedNode == 0)
             {
-                // TODO: I'm pretty sure some of these parameters are wrong...
-                // What should the radius be given that the 4 corners could be different values?
+                vec2_f32 OuterSize = GetOuterBoxSize(&Root->Value);
+                vec2_f32 OuterPos  = GetOuterBoxPosition(&Root->Value);
 
-                rect_sdf_params Params = {0};
-                Params.Radius        = 0.f;
-                Params.HalfSize      = Vec2F32(InnerSize.X * 0.5f, InnerSize.Y * 0.5f);
-                Params.PointPosition = Vec2F32Sub(MousePosition, Vec2F32Add(InnerPos, Params.HalfSize));
-
-                MouseIsOutsideBorder = RoundedRectSDF(Params);
-            }
-
-            if(!MouseIsOutsideBorder)
-            {
-                f32 Left   = InnerPos.X;
-                f32 Top    = InnerPos.Y;
-                f32 Width  = InnerSize.X;
-                f32 Height = InnerSize.Y;
-
-                f32 CornerTolerance = 5.f;
-                f32 CornerX         = Left + Width  - CornerTolerance;
-                f32 CornerY         = Top  + Height - CornerTolerance;
-
-                // NOTE: Temporary
-                f32 BorderWidth = 0.f;
-
-                rect_f32 RightEdge  = RectF32(Left + Width - BorderWidth, Top, BorderWidth, Height);
-                rect_f32 BottomEdge = RectF32(Left, Top + Height - BorderWidth, Width, BorderWidth);
-                rect_f32 Corner     = RectF32(CornerX, CornerY, CornerTolerance, CornerTolerance);
-
-                if(IsPointInRect(Corner, MousePosition))
+                f32 MouseIsOutsideBorder = 1.f;
                 {
-                } else
-                if(IsPointInRect(RightEdge, MousePosition))
+                    // BUG:
+                    // Parameters aren't quite accurate.
+                    // What about 4 corners with different radiuses?
+
+                    rect_sdf_params Params = {0};
+                    Params.Radius        = 0.f;
+                    Params.HalfSize      = Vec2F32(OuterSize.X * 0.5f, OuterSize.Y * 0.5f);
+                    Params.PointPosition = Vec2F32Sub(MousePosition, Vec2F32Add(OuterPos, Params.HalfSize));
+
+                    MouseIsOutsideBorder = RoundedRectSDF(Params);
+                }
+
+                if(MouseIsOutsideBorder <= 0.f)
                 {
-                } else
-                if (IsPointInRect(BottomEdge, MousePosition))
-                {
+                    f32 Left        = OuterPos.X;
+                    f32 Top         = OuterPos.Y;
+                    f32 Width       = OuterSize.X;
+                    f32 Height      = OuterSize.Y;
+                    f32 BorderWidth = Root->Value.BorderWidth;
+
+                    f32 CornerTolerance = 5.f;
+                    f32 CornerX         = Left + Width  - CornerTolerance;
+                    f32 CornerY         = Top  + Height - CornerTolerance;
+
+                    rect_f32 RightEdge  = RectF32(Left + Width - BorderWidth, Top, BorderWidth, Height);
+                    rect_f32 BottomEdge = RectF32(Left, Top + Height - BorderWidth, Width, BorderWidth);
+                    rect_f32 Corner     = RectF32(CornerX, CornerY, CornerTolerance, CornerTolerance);
+
+                    if(IsPointInRect(Corner, MousePosition))
+                    {
+                        Subtree->Intent = UIIntent_ResizeXY;
+                    } else
+                    if(IsPointInRect(RightEdge, MousePosition))
+                    {
+                        Subtree->Intent = UIIntent_ResizeX;
+                    } else
+                    if (IsPointInRect(BottomEdge, MousePosition))
+                    {
+                        Subtree->Intent = UIIntent_ResizeY;
+                    }
+
+                    Subtree->CapturedNode = Root;
                 }
             }
+
+            if(HasFlag(Root->Flags, UILayoutNode_IsDraggable) && MouseClicked && Subtree->CapturedNode == 0)
+            {
+                Subtree->CapturedNode = Root;
+                Subtree->Intent       = UIIntent_Drag;
+            }
         }
 
-        if(HasFlag(Root->Flags, UILayoutNode_IsDraggable) && MouseMoved)
+        // Static Events
         {
-        }
+            if (HasFlag(Root->Flags, UILayoutNode_IsClickable) && MouseClicked)
+            {
+            }
 
-        if(HasFlag(Root->Flags, UILayoutNode_IsClickable) && MouseClicked)
-        {
-        }
+            if (Subtree->CapturedNode == 0)
+            {
+                RecordUIHoverEvent(Root, Subtree);
+            }
 
-        // NOTE: What should be the conditions here? Probably depends on the capture?
-        {
-            RecordUIHoverEvent(Root, Subtree);
-        }
-
-        if(HasFlag(Root->Flags, UILayoutNode_IsScrollable) && ScrollDelta != 0.f)
-        {
-            RecordUIScrollEvent(Root, ScrollDelta, Subtree);
+            if (HasFlag(Root->Flags, UILayoutNode_IsScrollable) && ScrollDelta != 0.f)
+            {
+                RecordUIScrollEvent(Root, ScrollDelta, Subtree);
+            }
         }
     }
 
@@ -969,12 +1036,9 @@ PreOrderPlace(ui_layout_node *Root, memory_arena *Arena, ui_subtree *Subtree)
             {
                 IterateLinkedList(Node, ui_layout_node *, Child)
                 {
-                    Child->Value.OuterBox   = TranslateRectF32(Child->Value.OuterBox, Cursor);
-                    Child->Value.InnerBox   = TranslateRectF32(Child->Value.InnerBox, Cursor);
-                    Child->Value.ContentBox = TranslateRectF32(Child->Value.ContentBox, Cursor);
+                    Child->Value.VisualOffset = Cursor;
 
                     vec2_f32 ChildSize = GetOuterBoxSize(&Child->Value);
-
                     Cursor.X += ChildSize.X + Box->Spacing.Horizontal;
                     if(Cursor.X > MaxCursor.X)
                     {
@@ -989,12 +1053,9 @@ PreOrderPlace(ui_layout_node *Root, memory_arena *Arena, ui_subtree *Subtree)
             {
                 IterateLinkedList(Node, ui_layout_node *, Child)
                 {
-                    Child->Value.OuterBox   = TranslateRectF32(Child->Value.OuterBox, Cursor);
-                    Child->Value.InnerBox   = TranslateRectF32(Child->Value.InnerBox, Cursor);
-                    Child->Value.ContentBox = TranslateRectF32(Child->Value.ContentBox, Cursor);
+                    Child->Value.VisualOffset = Cursor;
 
                     vec2_f32 ChildSize = GetOuterBoxSize(&Child->Value);
-
                     Cursor.Y += ChildSize.Y + Box->Spacing.Vertical;
                     if(Cursor.Y >= MaxCursor.Y)
                     {
@@ -1012,8 +1073,8 @@ PreOrderPlace(ui_layout_node *Root, memory_arena *Arena, ui_subtree *Subtree)
 
                 u32 FilledLine = 0.f;
                 f32 LineWidth  = 0.f;
-                f32 LineStartX = Cursor.X;
-                f32 LineStartY = Cursor.Y;
+                f32 LineStartX = 0.f;
+                f32 LineStartY = 0.f;
 
                 for(u32 Idx = 0; Idx < Run->GlyphCount; ++Idx)
                 {
@@ -1276,7 +1337,7 @@ DrawSubtree(ui_layout_node *Root, u64 NodeLimit, ui_subtree *Subtree, memory_are
 
     if(Pass && IsValidDrawStack(&Stack))
     {
-        PushDrawStack((draw_stack_frame){.Node = Root, .AccScroll = Vec2F32(0.f ,0.f), .Clip = RectF32(0, 0, 0, 0)}, &Stack);
+        PushDrawStack((draw_stack_frame){.Node = Root, .AccOrigin = Vec2F32(0.f, 0.f), .AccScroll = Vec2F32(0.f ,0.f), .Clip = RectF32(0, 0, 0, 0)}, &Stack);
 
         while(!IsDrawStackEmpty(&Stack))
         {
@@ -1323,10 +1384,11 @@ DrawSubtree(ui_layout_node *Root, u64 NodeLimit, ui_subtree *Subtree, memory_are
 
             style_property *Style = ComputeFinalStyle(Frame.Node, Subtree);
 
+            vec2_f32 NodeOrigin = Vec2F32Add(Vec2F32Add(Frame.AccOrigin, Frame.Node->Value.VisualOffset), Frame.AccScroll);
+            rect_f32 FinalRect  = TranslateRectF32(Frame.Node->Value.OuterBox, NodeOrigin);
+
             // Draws
             {
-                rect_f32 FinalRect = TranslateRectF32(Frame.Node->Value.OuterBox, Frame.AccScroll);
-
                 ui_color BackgroundColor = UIGetColor(Style);
                 if(IsVisibleColor(BackgroundColor))
                 {
@@ -1360,7 +1422,7 @@ DrawSubtree(ui_layout_node *Root, u64 NodeLimit, ui_subtree *Subtree, memory_are
                         ui_rect *Rect = PushDataInBatchList(Arena, BatchList);
                         Rect->SampleTexture = 1.f;
                         Rect->TextureSource = Run->Glyphs[Idx].Source;
-                        Rect->RectBounds    = TranslatedRectF32(Run->Glyphs[Idx].Position, Frame.AccScroll);
+                        Rect->RectBounds    = TranslatedRectF32(Run->Glyphs[Idx].Position, NodeOrigin);
                         Rect->Color         = TextColor;
                     }
                 }
@@ -1378,7 +1440,7 @@ DrawSubtree(ui_layout_node *Root, u64 NodeLimit, ui_subtree *Subtree, memory_are
 
                 if(HasFlag(Frame.Node->Flags, UILayoutNode_HasClip))
                 {
-                    ChildClip = Frame.Node->Value.ContentBox;
+                    ChildClip = TranslatedRectF32(Frame.Node->Value.ContentBox, NodeOrigin);
 
                     rect_f32 EmptyClip     = RectF32Zero();
                     b32      ParentHasClip = (MemoryCompare(&Frame.Clip, &EmptyClip, sizeof(rect_f32)) != 0);
@@ -1394,7 +1456,7 @@ DrawSubtree(ui_layout_node *Root, u64 NodeLimit, ui_subtree *Subtree, memory_are
             {
                 if (!(HasFlag(Child->Flags, UILayoutNode_DoNotDraw)) && Child->Value.Display != UIDisplay_None)
                 {
-                    PushDrawStack((draw_stack_frame){.Node = Child, .AccScroll = ChildAccScroll, .Clip = ChildClip}, &Stack);
+                    PushDrawStack((draw_stack_frame){.Node = Child, .AccOrigin = NodeOrigin, .AccScroll = ChildAccScroll, .Clip = ChildClip}, &Stack);
                 }
             }
         }
@@ -1416,7 +1478,54 @@ HitTestLayout(ui_subtree *Subtree, memory_arena *Arena)
     ui_layout_node *Root = GetLayoutNode(0, Tree);
     Assert(Root);
 
-    FindHitNode(OSGetMousePosition(), Root, Subtree);
+    b32 MouseReleased = OSIsMouseReleased(OSMouseButton_Left);
+    if(MouseReleased)
+    {
+        Subtree->CapturedNode = 0;
+        Subtree->Intent       = UIIntent_None;
+    }
+
+    vec2_f32 MousePosition = OSGetMousePosition();
+
+    FindHitNode(MousePosition, Root, Subtree);
+
+    // NOTE: 
+    // Could technically move this inside FindHitNode?
+
+    if(Subtree->CapturedNode)
+    {
+        vec2_f32 MouseDelta = OSGetMouseDelta();
+        b32      MouseMoved = (MouseDelta.X != 0 || MouseDelta.Y != 0);
+
+        if(MouseMoved)
+        {
+            ui_layout_node *Node = Subtree->CapturedNode;
+
+            if(Subtree->Intent >= UIIntent_ResizeX && Subtree->Intent <= UIIntent_ResizeXY)
+            {
+                vec2_f32 Delta = Vec2F32(0.f, 0.f);
+
+                if(Subtree->Intent == UIIntent_ResizeX)
+                {
+                    Delta.X = MouseDelta.X;
+                } else
+                if(Subtree->Intent == UIIntent_ResizeY)
+                {
+                    Delta.Y = MouseDelta.Y;
+                } else
+                if(Subtree->Intent == UIIntent_ResizeXY)
+                {
+                    Delta = MouseDelta;
+                }
+
+                RecordUIResizeEvent(Node, Delta, Subtree);
+            } else
+            if(Subtree->Intent == UIIntent_Drag)
+            {
+                RecordUIDragEvent(Node, MouseDelta, Subtree);
+            }
+        }
+    }
 
     if(Subtree->Events)
     {

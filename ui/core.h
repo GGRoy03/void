@@ -214,9 +214,8 @@ typedef struct ui_state
     memory_arena    *StaticData;
 
     // State
-    ui_pipeline    *CurrentPipeline;
-    ui_layout_node *CapturedNode;
-    vec2_i32        WindowSize;
+    ui_pipeline *CurrentPipeline;
+    vec2_i32     WindowSize;
 
     // Systems
     console_queue Console;
@@ -239,6 +238,15 @@ internal b32              IsNormalizedColor  (ui_color Color);
 
 typedef struct ui_event_list ui_event_list;
 
+typedef enum UIIntent_Type
+{
+    UIIntent_None     = 0,
+    UIIntent_Drag     = 1,
+    UIIntent_ResizeX  = 2,
+    UIIntent_ResizeY  = 3,
+    UIIntent_ResizeXY = 4,
+} UIIntent_Type;
+
 typedef struct ui_subtree_params
 {
     b32 CreateNew;
@@ -253,7 +261,11 @@ typedef struct ui_subtree
     ui_node_style   *ComputedStyles;
     ui_resource_key *Resources;
 
-    // Frame
+    // Semi-Transient
+    ui_layout_node  *CapturedNode;
+    UIIntent_Type    Intent;
+
+    // Transient
     memory_arena  *FrameData;
     ui_event_list *Events;
 

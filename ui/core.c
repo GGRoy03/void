@@ -47,22 +47,6 @@ IsNormalizedColor(ui_color Color)
 }
 
 // -------------------------------------------------------------
-// UI Context Public API Implementation
-
-internal void
-UIBeginFrame()
-{
-    ui_state *State = &UIState;
-
-    // Clear the state if needed
-    b32 MouseReleased = OSIsMouseReleased(OSMouseButton_Left);
-    if(MouseReleased)
-    {
-        State->CapturedNode = 0;
-    }
-}
-
-// -------------------------------------------------------------
 // UI Node Private API Implementation
 
 internal ui_node_chain *

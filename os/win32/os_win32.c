@@ -259,11 +259,7 @@ wWinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPWSTR CmdLine, i32 ShowCmd
             UIState.WindowSize = ClientSize;
         }
 
-        UIBeginFrame();
-
         ShowEditorUI();
-
-        // NOTE: There is no UIEndFrame for now. Quite weird, but we do not need it...
 
         SubmitRenderCommands(RenderState.Renderer, ClientSize, &RenderState.PassList);
 
