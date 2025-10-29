@@ -7,7 +7,6 @@ typedef enum ScrollAxis_Type
 typedef struct ui_scroll_context
 {
     vec2_f32        ContentSize;       // Logical Size for all of the content inside
-    vec2_f32        ContentWindowSize; // Actual size of the widget, what we see
     f32             ScrollOffset;      // Scroll Offset in pixel 0..ScrollAxis.Max
     f32             PixelPerLine;      // How many pixels to scroll per line.
     ScrollAxis_Type Axis;              // Which Axis the scroll is applied to
