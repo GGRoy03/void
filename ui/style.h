@@ -15,7 +15,13 @@ typedef enum StyleProperty_Type
     StyleProperty_TextColor    = 10,
     StyleProperty_Display      = 11,
 
-    StyleProperty_Count        = 12,
+    // Flex Properties
+    StyleProperty_FlexDirection  = 12,
+    StyleProperty_JustifyContent = 13,
+    StyleProperty_AlignItems     = 14,
+    StyleProperty_SelfAlign      = 15,
+
+    StyleProperty_Count        = 16,
     StyleProperty_None         = 666,
 } StyleProperty_Type;
 
@@ -86,18 +92,23 @@ typedef struct ui_node_style
 //   Small helpers to make code less verbose when querying properties.
 //   Ensure that it is a valid array of length StyleProperty_Count. No bounds checking are done.
 
-internal f32               UIGetBorderWidth   (style_property Properties[StyleProperty_Count]);
-internal f32               UIGetSoftness      (style_property Properties[StyleProperty_Count]);
-internal f32               UIGetFontSize      (style_property Properties[StyleProperty_Count]);
-internal vec2_unit         UIGetSize          (style_property Properties[StyleProperty_Count]);
-internal ui_color          UIGetColor         (style_property Properties[StyleProperty_Count]);
-internal ui_color          UIGetBorderColor   (style_property Properties[StyleProperty_Count]);
-internal ui_color          UIGetTextColor     (style_property Properties[StyleProperty_Count]);
-internal ui_padding        UIGetPadding       (style_property Properties[StyleProperty_Count]);
-internal ui_spacing        UIGetSpacing       (style_property Properties[StyleProperty_Count]);
-internal ui_corner_radius  UIGetCornerRadius  (style_property Properties[StyleProperty_Count]);
-internal ui_font         * UIGetFont          (style_property Properties[StyleProperty_Count]);
-internal UIDisplay_Type    UIGetDisplay       (style_property Properties[StyleProperty_Count]);
+internal f32                   UIGetBorderWidth    (style_property Properties[StyleProperty_Count]);
+internal f32                   UIGetSoftness       (style_property Properties[StyleProperty_Count]);
+internal f32                   UIGetFontSize       (style_property Properties[StyleProperty_Count]);
+internal vec2_unit             UIGetSize           (style_property Properties[StyleProperty_Count]);
+internal ui_color              UIGetColor          (style_property Properties[StyleProperty_Count]);
+internal ui_color              UIGetBorderColor    (style_property Properties[StyleProperty_Count]);
+internal ui_color              UIGetTextColor      (style_property Properties[StyleProperty_Count]);
+internal ui_padding            UIGetPadding        (style_property Properties[StyleProperty_Count]);
+internal ui_spacing            UIGetSpacing        (style_property Properties[StyleProperty_Count]);
+internal ui_corner_radius      UIGetCornerRadius   (style_property Properties[StyleProperty_Count]);
+internal ui_font             * UIGetFont           (style_property Properties[StyleProperty_Count]);
+internal UIDisplay_Type        UIGetDisplay        (style_property Properties[StyleProperty_Count]);
+internal UIFlexDirection_Type  UIGetFlexDirection  (style_property Properties[StyleProperty_Count]);
+internal UIJustifyContent_Type UIGetJustifyContent (style_property Properties[StyleProperty_Count]);
+internal UIAlignItems_Type     UIGetAlignItems     (style_property Properties[StyleProperty_Count]);
+internal UIAlignItems_Type     UIGetSelfAlign      (style_property Properties[StyleProperty_Count]);
+
 
 // GetHoverStyle:
 //

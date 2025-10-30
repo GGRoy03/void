@@ -21,7 +21,6 @@ CreateStyleRegistry(byte_string FileName, memory_arena *OutputArena)
         return Result;
     }
 
-
     os_handle FileHandle = OSFindFile(FileName);
     if(!OSIsValidHandle(FileHandle))
     {
@@ -218,10 +217,10 @@ ReadUnit(os_read_file *File, style_file_debug_info *Debug)
         {
             for(u32 Idx = 0; Idx < ArrayCount(StyleUnitKeywordTable); ++Idx)
             {
-                style_unit_keyword_entry Entry = StyleUnitKeywordTable[Idx];
+                style_parser_table_entry Entry = StyleUnitKeywordTable[Idx];
                 if(ByteStringMatches(Identifier, Entry.Name, NoFlag))
                 {
-                    Result.Type = Entry.UnitType;
+                    Result.Type = Entry.Value;
                     break;
                 }
             }
@@ -247,7 +246,7 @@ ReadIdentifier(os_read_file *File)
     while (IsValidFile(File))
     {
         u8 Character = PeekFile(File, 0);
-        if (IsAlpha(Character) || Character == '_')
+        if (IsAlpha(Character) || Character == '_' || Character == '-')
         {
             ++Result.Size;
             AdvanceFile(File, 1);
@@ -321,10 +320,10 @@ TokenizeStyleFile(os_read_file File, memory_arena *Arena, style_file_debug_info 
                 style_token *Token = 0;
                 for(u32 Idx = 0; Idx < ArrayCount(StyleKeywordTable); ++Idx)
                 {
-                    style_keyword_table_entry Entry = StyleKeywordTable[Idx];
+                    style_parser_table_entry Entry = StyleKeywordTable[Idx];
                     if(ByteStringMatches(Identifier, Entry.Name, StringMatch_NoFlag))
                     {
-                        Token = EmitStyleToken(&Result.Buffer, Entry.TokenType, AtLine, AtByte);
+                        Token = EmitStyleToken(&Result.Buffer, Entry.Value, AtLine, AtByte);
                         break;
                     }
                 }
@@ -486,10 +485,10 @@ ParseStyleState(style_token_buffer *Buffer, style_file_debug_info *Debug)
             StyleState_Type EffectType = StyleState_None;
             for(u32 Idx = 0; Idx < ArrayCount(StyleStateTable); ++Idx)
             {
-                style_state_table_entry Entry = StyleStateTable[Idx];
+                style_parser_table_entry Entry = StyleStateTable[Idx];
                 if(ByteStringMatches(Name->Identifier, Entry.Name, StringMatch_NoFlag))
                 {
-                    EffectType = Entry.StateType;
+                    EffectType = Entry.Value;
                     break;
                 }
             }
@@ -501,7 +500,7 @@ ParseStyleState(style_token_buffer *Buffer, style_file_debug_info *Debug)
             }
             else
             {
-                ReportStyleFileError(Debug, error_message("Found invalid effect. Must be: [base OR hover OR click]"));
+                ReportStyleFileError(Debug, error_message("Found invalid effect. Must be: [base OR hover]"));
             }
         }
         else
@@ -525,10 +524,10 @@ ParseStyleAttribute(style_token_buffer *Buffer, style_var_table *VarTable, style
             StyleProperty_Type PropertyType = StyleProperty_None;
             for(u32 Idx = 0; Idx < ArrayCount(StylePropertyTable); ++Idx)
             {
-                style_property_table_entry Entry = StylePropertyTable[Idx];
+                style_parser_table_entry Entry = StylePropertyTable[Idx];
                 if(ByteStringMatches(Name->Identifier, Entry.Name, StringMatch_NoFlag))
                 {
-                    PropertyType = Entry.PropertyType;
+                    PropertyType = Entry.Value;
                     break;
                 }
             }
@@ -586,7 +585,6 @@ ParseStyleAttribute(style_token_buffer *Buffer, style_var_table *VarTable, style
             else
             {
                 ReportStyleFileError(Debug, error_message("Found unknown variable. (Token 3)"));
-
                 Attribute.HadError = 1;
             }
         }
@@ -1092,7 +1090,6 @@ ValidateAttributeFormatting(style_attribute *Attribute, style_file_debug_info *D
             if(!Valid)
             {
                 ErrorMessage = byte_string_literal("Invalid Format. All values in the vector must be >= 0.0 AND <= 255.0");
-                break;
             }
         }
 
@@ -1111,7 +1108,6 @@ ValidateAttributeFormatting(style_attribute *Attribute, style_file_debug_info *D
         if(Attribute->Unit.Float32 <= 0)
         {
             ErrorMessage = byte_string_literal("Invalid Format. Value must be > 0.0");
-            break;
         }
     } break;
 
@@ -1123,7 +1119,6 @@ ValidateAttributeFormatting(style_attribute *Attribute, style_file_debug_info *D
            Vector.Z.Type != UIUnit_Float32 || Vector.W.Type != UIUnit_Float32)
         {
             ErrorMessage = byte_string_literal("Invalid Format. Should be: [Float, Float, Float, Float]");
-            break;
         }
     } break;
 
@@ -1132,7 +1127,18 @@ ValidateAttributeFormatting(style_attribute *Attribute, style_file_debug_info *D
         if(Attribute->ParsedAs != StyleToken_String)
         {
             ErrorMessage = byte_string_literal("Invalid Format. Value must be a \"string\"");
-            break;
+        }
+    } break;
+
+    case StyleProperty_Display:
+    case StyleProperty_FlexDirection:
+    case StyleProperty_JustifyContent:
+    case StyleProperty_AlignItems:
+    case StyleProperty_SelfAlign:
+    {
+        if(Attribute->ParsedAs != StyleToken_String)
+        {
+            ErrorMessage = byte_string_literal("Invalid Format. Value must be a string");
         }
     } break;
 
@@ -1145,7 +1151,7 @@ ValidateAttributeFormatting(style_attribute *Attribute, style_file_debug_info *D
 
     if(IsValidByteString(ErrorMessage))
     {
-        ReportStyleFileError(Debug, error_message((char *)ErrorMessage.String));
+        ReportStyleFileError(Debug, error_message(ErrorMessage.String));
 
         Attribute->IsSet = 0;
     }
@@ -1206,6 +1212,71 @@ ConvertAttributeToProperty(style_attribute Attribute)
             Property.CornerRadius.TopRight = Attribute.Vector.V.Y.Float32;
             Property.CornerRadius.BotRight = Attribute.Vector.V.Z.Float32;
             Property.CornerRadius.BotLeft  = Attribute.Vector.V.W.Float32;
+        } break;
+
+        case StyleProperty_Display:
+        {
+            for(u32 Idx = 0; Idx < ArrayCount(StyleDisplayTable); ++Idx)
+            {
+                style_parser_table_entry Entry = StyleDisplayTable[Idx];
+                if(ByteStringMatches(Entry.Name, Attribute.String, NoFlag))
+                {
+                    Property.Enum = Entry.Value;
+                    break;
+                }
+            }
+        } break;
+
+        case StyleProperty_FlexDirection:
+        {
+            for(u32 Idx = 0; Idx < ArrayCount(FlexDirectionKeywordTable); ++Idx)
+            {
+                style_parser_table_entry Entry = FlexDirectionKeywordTable[Idx];
+                if(ByteStringMatches(Entry.Name, Attribute.String, NoFlag))
+                {
+                    Property.Enum = Entry.Value;
+                    break;
+                }
+            }
+        } break;
+
+        case StyleProperty_JustifyContent:
+        {
+            for(u32 Idx = 0; Idx < ArrayCount(JustifyContentKeywordTable); ++Idx)
+            {
+                style_parser_table_entry Entry = JustifyContentKeywordTable[Idx];
+                if(ByteStringMatches(Entry.Name, Attribute.String, NoFlag))
+                {
+                    Property.Enum = Entry.Value;
+                    break;
+                }
+            }
+        } break;
+
+        case StyleProperty_AlignItems:
+        {
+            for(u32 Idx = 0; Idx < ArrayCount(AlignItemKeywordTable); ++Idx)
+            {
+                style_parser_table_entry Entry = AlignItemKeywordTable[Idx];
+                if(ByteStringMatches(Entry.Name, Attribute.String, NoFlag))
+                {
+                    Property.Enum = Entry.Value;
+                    break;
+                }
+            }
+        } break;
+
+        case StyleProperty_SelfAlign:
+        {
+            for(u32 Idx = 0; Idx < ArrayCount(SelfAlignItemKeywordTable); ++Idx)
+            {
+                style_parser_table_entry Entry = SelfAlignItemKeywordTable[Idx];
+                if(ByteStringMatches(Entry.Name, Attribute.String, NoFlag))
+                {
+                    Property.Enum = Entry.Value;
+                    break;
+                }
+            }
         } break;
 
         default:

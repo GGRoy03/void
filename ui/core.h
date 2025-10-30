@@ -1,4 +1,3 @@
-// [CONSTANTS]
 
 typedef enum UIUnit_Type
 {
@@ -12,7 +11,50 @@ typedef enum UIDisplay_Type
 {
     UIDisplay_Normal = 0, // NOTE: Placeholder, so we get something that isn't None.
     UIDisplay_None   = 1,
+    UIDisplay_Flex   = 2,
 } UIDisplay_Type;
+
+typedef enum UIAxis_Type
+{
+    UIAxis_None = 0,
+    UIAxis_X    = 1,
+    UIAxis_Y    = 2,
+    UIAxis_XY   = 3,
+} UIAxis_Type;
+
+// Flex:
+//   UIFlexDirection_Type:
+//     Which axis is the main axis when placing flex items.
+//     Will default to UIFlexDirection_Row if nothing is specified.
+//
+//   UIFlexJustify:
+//
+//   UIFlexAlign:
+
+typedef enum UIFlexDirection_Type
+{
+    UIFlexDirection_Row    = 0,
+    UIFlexDirection_Column = 1,
+} UIFlexDirection_Type;
+
+typedef enum UIJustifyContent_Type
+{
+    UIJustifyContent_Start        = 0,
+    UIJustifyContent_Center       = 1,
+    UIJustifyContent_End          = 2,
+    UIJustifyContent_SpaceBetween = 3,
+    UIJustifyContent_SpaceAround  = 4,
+    UIJustifyContent_SpaceEvenly  = 5,
+} UIJustifyContent_Type;
+
+typedef enum UIAlignItems_Type
+{
+    UIAlignItems_None    = 0,
+    UIAlignItems_Start   = 1,
+    UIAlignItems_Center  = 2,
+    UIAlignItems_End     = 3,
+    UIAlignItems_Stretch = 4,
+} UIAlignItems_Type;
 
 // [FORWARD DECLARATIONS]
 

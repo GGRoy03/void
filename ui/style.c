@@ -85,6 +85,35 @@ UIGetDisplay(style_property Properties[StyleProperty_Count])
     return Result;
 }
 
+internal UIFlexDirection_Type
+UIGetFlexDirection(style_property Properties[StyleProperty_Count])
+{
+    UIFlexDirection_Type Result = Properties[StyleProperty_FlexDirection].Enum;
+    return Result;
+}
+
+internal UIJustifyContent_Type
+UIGetJustifyContent(style_property Properties[StyleProperty_Count])
+{
+    UIJustifyContent_Type Result = Properties[StyleProperty_JustifyContent].Enum;
+    return Result;
+}
+
+internal UIAlignItems_Type
+UIGetAlignItems(style_property Properties[StyleProperty_Count])
+{
+    UIAlignItems_Type Result = Properties[StyleProperty_AlignItems].Enum;
+    return Result;
+}
+
+internal UIAlignItems_Type
+UIGetSelfAlign(style_property Properties[StyleProperty_Count])
+{
+    UIAlignItems_Type Result = Properties[StyleProperty_SelfAlign].Enum;
+    return Result;
+}
+
+
 // --------------------------------------------------------------------------------------------------
 // Style Manipulation Internal API
 

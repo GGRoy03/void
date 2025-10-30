@@ -162,48 +162,29 @@ typedef struct style_var_table
     style_var_entry *Entries;
 } style_var_table;
 
-// [Table Entries]
-// Types used as part of lookup tables used when parsing.
+// [Tables]
 
-typedef struct style_keyword_table_entry
-{
-    byte_string     Name;
-    StyleToken_Type TokenType;
-} style_keyword_table_entry;
-
-typedef struct style_state_table_entry
-{
-    byte_string     Name;
-    StyleState_Type StateType;
-} style_state_table_entry;
-
-typedef struct style_property_table_entry
-{
-    byte_string        Name;
-    StyleProperty_Type PropertyType;
-} style_property_table_entry;
-
-typedef struct style_unit_keyword_entry
+typedef struct style_parser_table_entry
 {
     byte_string Name;
-    UIUnit_Type UnitType;
-} style_unit_keyword_entry;
+    u32         Value;
+} style_parser_table_entry;
 
 // [Tables]
 
-read_only global style_keyword_table_entry StyleKeywordTable[] = 
+read_only global style_parser_table_entry StyleKeywordTable[] = 
 {
     {byte_string_compile("style"), StyleToken_Style},
     {byte_string_compile("var")  , StyleToken_Var  },
 };
 
-read_only global style_state_table_entry StyleStateTable[] = 
+read_only global style_parser_table_entry StyleStateTable[] = 
 {
     {byte_string_compile("base") , StyleState_Basic},
     {byte_string_compile("hover"), StyleState_Hover},
 };
 
-read_only global style_property_table_entry StylePropertyTable[] =
+read_only global style_parser_table_entry StylePropertyTable[] =
 {
     {byte_string_compile("size")        , StyleProperty_Size        },
     {byte_string_compile("color")       , StyleProperty_Color       },
@@ -216,11 +197,60 @@ read_only global style_property_table_entry StylePropertyTable[] =
     {byte_string_compile("borderwidth") , StyleProperty_BorderWidth },
     {byte_string_compile("bordercolor") , StyleProperty_BorderColor },
     {byte_string_compile("cornerradius"), StyleProperty_CornerRadius},
+
+    // Layout Properties
+    {byte_string_compile("display"), StyleProperty_Display},
+
+    // Flex Properties
+    {byte_string_compile("flex-direction") , StyleProperty_FlexDirection },
+    {byte_string_compile("justify-content"), StyleProperty_JustifyContent},
+    {byte_string_compile("align-items")    , StyleProperty_AlignItems    },
+    {byte_string_compile("self-align")     , StyleProperty_SelfAlign     },
 };
 
-read_only global style_unit_keyword_entry StyleUnitKeywordTable[] =
+read_only global style_parser_table_entry StyleUnitKeywordTable[] =
 {
     {byte_string_compile("auto"), UIUnit_Auto},
+};
+
+read_only global style_parser_table_entry StyleDisplayTable[] =
+{
+    {byte_string_compile("none")  , UIDisplay_None  },
+    {byte_string_compile("normal"), UIDisplay_Normal},
+    {byte_string_compile("flex")  , UIDisplay_Flex  },
+};
+
+read_only global style_parser_table_entry FlexDirectionKeywordTable [] =
+{
+    {byte_string_compile("row")   , UIFlexDirection_Row   },
+    {byte_string_compile("column"), UIFlexDirection_Column},
+};
+
+read_only global style_parser_table_entry JustifyContentKeywordTable [] =
+{
+    {byte_string_compile("start")        , UIJustifyContent_Start       },
+    {byte_string_compile("center")       , UIJustifyContent_Center      },
+    {byte_string_compile("end")          , UIJustifyContent_End         },
+    {byte_string_compile("space-between"), UIJustifyContent_SpaceBetween},
+    {byte_string_compile("space-around") , UIJustifyContent_SpaceAround },
+    {byte_string_compile("space-evenly") , UIJustifyContent_SpaceEvenly },
+};
+
+read_only global style_parser_table_entry AlignItemKeywordTable [] =
+{
+    {byte_string_compile("start")  , UIAlignItems_Start  },
+    {byte_string_compile("center") , UIAlignItems_Center },
+    {byte_string_compile("end")    , UIAlignItems_End    },
+    {byte_string_compile("stretch"), UIAlignItems_Stretch},
+};
+
+read_only global style_parser_table_entry SelfAlignItemKeywordTable [] =
+{
+    {byte_string_compile("start")    , UIAlignItems_Start  },
+    {byte_string_compile("center")   , UIAlignItems_Center },
+    {byte_string_compile("align-end"), UIAlignItems_End    },
+    {byte_string_compile("stretch")  , UIAlignItems_Stretch},
+    {byte_string_compile("none")     , UIAlignItems_None  },
 };
 
 // [Runtime API]

@@ -61,7 +61,6 @@ UIWindow(u32 StyleIndex)
 {
     bit_field Flags = 0;
     {
-        SetFlag(Flags, UILayoutNode_PlaceChildrenY);
         SetFlag(Flags, UILayoutNode_IsDraggable);
         SetFlag(Flags, UILayoutNode_IsResizable);
         SetFlag(Flags, UILayoutNode_IsParent);
