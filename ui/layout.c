@@ -623,6 +623,9 @@ UpdateScrollNode(f32 ScrolledLines, ui_layout_node *Node)
 // -----------------------------------------------------------
 // UI Event Internal Implementation
 
+// -----------------------------------------------------------
+// UI Event Internal Implementation
+
 internal void PreOrderPlaceSubtree(ui_layout_node *Root, ui_subtree *Subtree);
 
 typedef enum UIEvent_Type
@@ -750,15 +753,9 @@ ClearUIEvents(ui_event_list *EventList)
 {
     Assert(EventList);
 
-    // NOTE:
-    // Clear Frame Related Stuff:
-
     EventList->First = 0;
     EventList->Last  = 0;
     EventList->Count = 0;
-
-    // NOTE:
-    // Clear Focus if needed.
 
     b32 MouseReleased = OSIsMouseReleased(OSMouseButton_Left);
     if(MouseReleased && EventList->Focused)
@@ -774,182 +771,210 @@ ClearUIEvents(ui_event_list *EventList)
 }
 
 internal b32
-GenerateUIEvents(vec2_f32 MousePosition, ui_layout_node *Root, memory_arena *Arena, ui_event_list *Result)
+IsMouseInsideOuterBox(vec2_f32 MousePosition, ui_layout_node *Node)
 {
-    // NOTE: First pass:
-    // If we have no focused nodes, try and find a node to focus else just produce some events.
+    vec2_f32 OuterSize  = GetOuterBoxSize(&Node->Value);
+    vec2_f32 OuterPos   = GetOuterBoxPosition(&Node->Value);
+    vec2_f32 OuterHalf  = Vec2F32(OuterSize.X * 0.5f, OuterSize.Y * 0.5f);
+    vec2_f32 Center     = Vec2F32Add(OuterPos, OuterHalf);
+    vec2_f32 LocalMouse = Vec2F32Sub(MousePosition, Center);
 
-    if(!Result->Focused)
+    rect_sdf_params Params = {0};
+    Params.HalfSize      = OuterHalf;
+    Params.PointPosition = LocalMouse;
+
+    f32 Distance = RoundedRectSDF(Params);
+    return Distance <= 0.f;
+}
+
+internal b32
+IsMouseInsideBorder(vec2_f32 MousePosition, ui_layout_node *Node)
+{
+    vec2_f32 InnerSize   = GetInnerBoxSize(&Node->Value);
+    vec2_f32 InnerPos    = GetInnerBoxPosition(&Node->Value);
+    vec2_f32 InnerHalf   = Vec2F32(InnerSize.X * 0.5f, InnerSize.Y * 0.5f);
+    vec2_f32 InnerCenter = Vec2F32Add(InnerPos, InnerHalf);
+
+    rect_sdf_params Params = {0};
+    Params.Radius        = 0.f;
+    Params.HalfSize      = InnerHalf;
+    Params.PointPosition = Vec2F32Sub(MousePosition, InnerCenter);
+
+    f32 Distance = RoundedRectSDF(Params);
+    return Distance >= 0.f;
+}
+
+internal UIIntent_Type
+DetermineResizeIntent(vec2_f32 MousePosition, ui_layout_node *Node)
+{
+    vec2_f32 InnerSize = GetInnerBoxSize(&Node->Value);
+    vec2_f32 InnerPos  = GetInnerBoxPosition(&Node->Value);
+
+    f32 Left        = InnerPos.X;
+    f32 Top         = InnerPos.Y;
+    f32 Width       = InnerSize.X;
+    f32 Height      = InnerSize.Y;
+    f32 BorderWidth = Node->Value.BorderWidth;
+
+    f32 CornerTolerance = 5.f;
+    f32 CornerX         = Left + Width;
+    f32 CornerY         = Top  + Height;
+
+    rect_f32 RightEdge  = RectF32(Left + Width, Top, BorderWidth, Height);
+    rect_f32 BottomEdge = RectF32(Left, Top + Height, Width, BorderWidth);
+    rect_f32 Corner     = RectF32(CornerX, CornerY, CornerTolerance, CornerTolerance);
+
+    UIIntent_Type Result = UIIntent_None;
+
+    if(IsPointInRect(Corner, MousePosition))
     {
-        f32 MouseIsOutsideHitbox = 1.f;
+        Result = UIIntent_ResizeXY;
+    } else
+    if(IsPointInRect(RightEdge, MousePosition))
+    {
+        Result = UIIntent_ResizeX;
+    } else
+    if(IsPointInRect(BottomEdge, MousePosition))
+    {
+        Result = UIIntent_ResizeY;
+    }
+
+    return Result;
+}
+
+internal b32
+AttemptNodeFocus(vec2_f32 MousePosition, ui_layout_node *Root, memory_arena *Arena, ui_event_list *Result)
+{
+    if(!IsMouseInsideOuterBox(MousePosition, Root))
+    {
+        return 0;
+    }
+
+    IterateLinkedListBackward(Root, ui_layout_node *, Child)
+    {
+        b32 ChildCaptured = AttemptNodeFocus(MousePosition, Child, Arena, Result);
+        if(ChildCaptured)
         {
-            vec2_f32 OuterSize = GetOuterBoxSize(&Root->Value);
-            vec2_f32 OuterPos  = GetOuterBoxPosition(&Root->Value);
-
-            vec2_f32 OuterHalf  = Vec2F32(OuterSize.X * 0.5f, OuterSize.Y * 0.5f);
-            vec2_f32 Center     = Vec2F32Add(OuterPos, OuterHalf);
-            vec2_f32 LocalMouse = Vec2F32Sub(MousePosition, Center);
-
-            rect_sdf_params Params = {0};
-            Params.HalfSize      = OuterHalf;
-            Params.PointPosition = LocalMouse;
-
-            MouseIsOutsideHitbox = RoundedRectSDF(Params);
+            return 1;
         }
+    }
 
-        if(MouseIsOutsideHitbox <= 0.f)
+    b32 MouseClicked = OSIsMouseClicked(OSMouseButton_Left);
+
+    if(HasFlag(Root->Flags, UILayoutNode_IsResizable) && MouseClicked)
+    {
+        if(IsMouseInsideBorder(MousePosition, Root))
         {
-            IterateLinkedListBackward(Root, ui_layout_node *, Child)
-            {
-                b32 Finished = GenerateUIEvents(MousePosition, Child, Arena, Result);
-                if(Finished)
-                {
-                    return Finished;
-                }
-            }
-
-            b32 MouseClicked = OSIsMouseClicked(OSMouseButton_Left);
-
-            if(HasFlag(Root->Flags, UILayoutNode_IsResizable) && MouseClicked)
-            {
-                vec2_f32 InnerSize = GetInnerBoxSize(&Root->Value);
-                vec2_f32 InnerPos  = GetInnerBoxPosition(&Root->Value);
-
-                f32 MouseIsOutsideBorder = 1.f;
-                {
-                    vec2_f32 InnerHalf   = Vec2F32(InnerSize.X * 0.5f, InnerSize.Y * 0.5f);
-                    vec2_f32 InnerCenter = Vec2F32Add(InnerPos, InnerHalf);
-
-                    rect_sdf_params Params = {0};
-                    Params.Radius        = 0.f;
-                    Params.HalfSize      = InnerHalf;
-                    Params.PointPosition = Vec2F32Sub(MousePosition, InnerCenter);
-
-                    MouseIsOutsideBorder = RoundedRectSDF(Params);
-                }
-
-                if(MouseIsOutsideBorder >= 0.f)
-                {
-                    f32 Left        = InnerPos.X;
-                    f32 Top         = InnerPos.Y;
-                    f32 Width       = InnerSize.X;
-                    f32 Height      = InnerSize.Y;
-                    f32 BorderWidth = Root->Value.BorderWidth;
-
-                    f32 CornerTolerance = 5.f;
-                    f32 CornerX         = Left + Width;
-                    f32 CornerY         = Top  + Height;
-
-                    rect_f32 RightEdge  = RectF32(Left + Width, Top, BorderWidth, Height);
-                    rect_f32 BottomEdge = RectF32(Left, Top + Height, Width, BorderWidth);
-                    rect_f32 Corner     = RectF32(CornerX, CornerY, CornerTolerance, CornerTolerance);
-
-                    if(IsPointInRect(Corner, MousePosition))
-                    {
-                        Result->Intent = UIIntent_ResizeXY;
-                    } else
-                    if(IsPointInRect(RightEdge, MousePosition))
-                    {
-                        Result->Intent = UIIntent_ResizeX;
-                    } else
-                    if (IsPointInRect(BottomEdge, MousePosition))
-                    {
-                        Result->Intent = UIIntent_ResizeY;
-                    }
-
-                    Result->Focused = Root;
-
-                    return 1;
-                }
-            }
-
-            if(HasFlag(Root->Flags, UILayoutNode_IsDraggable) && MouseClicked)
+            UIIntent_Type Intent = DetermineResizeIntent(MousePosition, Root);
+            if(Intent != UIIntent_None)
             {
                 Result->Focused = Root;
-                Result->Intent  = UIIntent_Drag;
-
+                Result->Intent  = Intent;
                 return 1;
             }
-
-            if (MouseClicked)
-            {
-                if(HasFlag(Root->Flags, UILayoutNode_HasTextInput))
-                {
-                    Result->Focused = Root;
-                    Result->Intent  = UIIntent_InputText;
-                }
-
-                RecordUIClickEvent(Root, Result, Arena);
-
-                return 1;
-            }
-
-            f32 ScrollDelta = OSGetScrollDelta();
-            if (HasFlag(Root->Flags, UILayoutNode_IsScrollable) && ScrollDelta != 0.f)
-            {
-                RecordUIScrollEvent(Root, ScrollDelta, Result, Arena);
-            }
-
-            RecordUIHoverEvent(Root, Result, Arena);
         }
     }
 
-    // NOTE: Second pass:
-    // Acts on the focused node and produces events.
-
-    if(Result->Focused)
+    if(HasFlag(Root->Flags, UILayoutNode_IsDraggable) && MouseClicked)
     {
-        vec2_f32 MouseDelta = OSGetMouseDelta();
-        b32      MouseMoved = (MouseDelta.X != 0 || MouseDelta.Y != 0);
-
-        if(MouseMoved)
-        {
-            if(Result->Intent >= UIIntent_ResizeX && Result->Intent <= UIIntent_ResizeXY)
-            {
-                vec2_f32 Delta = Vec2F32(0.f, 0.f);
-
-                if(Result->Intent == UIIntent_ResizeX)
-                {
-                    Delta.X = MouseDelta.X;
-                } else
-                if(Result->Intent == UIIntent_ResizeY)
-                {
-                    Delta.Y = MouseDelta.Y;
-                } else
-                if(Result->Intent == UIIntent_ResizeXY)
-                {
-                    Delta = MouseDelta;
-                }
-
-                RecordUIResizeEvent(Result->Focused, Delta, Result, Arena);
-            } else
-            if(Result->Intent == UIIntent_Drag)
-            {
-                RecordUIDragEvent(Result->Focused, MouseDelta, Result, Arena);
-            }
-        }
+        Result->Focused = Root;
+        Result->Intent  = UIIntent_Drag;
+        return 1;
     }
 
-    // NOTE: Third pass:
-    // Read inputs from the OS and produces events.
-    // This is still a massive work in progress.
-
-    if(Result->Focused)
+    if(MouseClicked)
     {
-        if(Result->Intent == UIIntent_InputText)
+        if(HasFlag(Root->Flags, UILayoutNode_HasTextInput))
         {
-            os_text_action_buffer *TextBuffer = OSGetTextActionBuffer();
-            for(u32 Idx = 0; Idx < TextBuffer->Count; ++Idx)
-            {
-                os_text_action *TextAction = &TextBuffer->Actions[Idx];
-
-                byte_string Text = ByteString(TextAction->UTF8, TextAction->Size);
-                RecordUITextInputEvent(Text, Result->Focused, Result, Arena);
-            }
+            Result->Focused = Root;
+            Result->Intent  = UIIntent_InputText;
         }
+
+        RecordUIClickEvent(Root, Result, Arena);
+        return 1;
     }
 
+    f32 ScrollDelta = OSGetScrollDelta();
+    if(HasFlag(Root->Flags, UILayoutNode_IsScrollable) && ScrollDelta != 0.f)
+    {
+        RecordUIScrollEvent(Root, ScrollDelta, Result, Arena);
+    }
+
+    RecordUIHoverEvent(Root, Result, Arena);
     return 0;
+}
+
+internal void
+GenerateFocusedNodeEvents(ui_event_list *Events, memory_arena *Arena)
+{
+    if(!Events->Focused)
+    {
+        return;
+    }
+
+    vec2_f32 MouseDelta = OSGetMouseDelta();
+    b32      MouseMoved = (MouseDelta.X != 0 || MouseDelta.Y != 0);
+
+    if(!MouseMoved)
+    {
+        return;
+    }
+
+    if(Events->Intent >= UIIntent_ResizeX && Events->Intent <= UIIntent_ResizeXY)
+    {
+        vec2_f32 Delta = Vec2F32(0.f, 0.f);
+
+        if(Events->Intent == UIIntent_ResizeX)
+        {
+            Delta.X = MouseDelta.X;
+        } else
+        if(Events->Intent == UIIntent_ResizeY)
+        {
+            Delta.Y = MouseDelta.Y;
+        } else
+        if(Events->Intent == UIIntent_ResizeXY)
+        {
+            Delta = MouseDelta;
+        }
+
+        RecordUIResizeEvent(Events->Focused, Delta, Events, Arena);
+    } else
+    if(Events->Intent == UIIntent_Drag)
+    {
+        RecordUIDragEvent(Events->Focused, MouseDelta, Events, Arena);
+    }
+}
+
+internal void
+GenerateInputEvents(ui_event_list *Events, memory_arena *Arena)
+{
+    if(!Events->Focused)
+    {
+        return;
+    }
+
+    // NOTE:
+    // This is a huge WIP.
+
+    os_text_action_buffer *TextBuffer = OSGetTextActionBuffer();
+    for(u32 Idx = 0; Idx < TextBuffer->Count; ++Idx)
+    {
+        os_text_action *TextAction = &TextBuffer->Actions[Idx];
+        byte_string Text = ByteString(TextAction->UTF8, TextAction->Size);
+        RecordUITextInputEvent(Text, Events->Focused, Events, Arena);
+    }
+}
+
+internal void
+GenerateUIEvents(vec2_f32 MousePosition, ui_layout_node *Root, memory_arena *Arena, ui_event_list *Result)
+{
+    if(!Result->Focused)
+    {
+        AttemptNodeFocus(MousePosition, Root, Arena, Result);
+    }
+
+    GenerateFocusedNodeEvents(Result, Arena);
+    GenerateInputEvents(Result, Arena);
 }
 
 internal void
@@ -967,26 +992,18 @@ ProcessUIEvents(ui_event_list *Events, ui_subtree *Subtree)
         case UIEvent_Hover:
         {
             ui_hover_event Hover = Event->Hover;
-
-            // NOTE: I really dislike this as well.
-
             SetFlag(Hover.Node->Flags, UILayoutNode_IsHovered);
         } break;
 
         case UIEvent_Click:
         {
-            // NOTE:
-            // Still unsure.
         } break;
+
+        // BUG:
+        // Frame of lag is very bad!
 
         case UIEvent_Resize:
         {
-            // BUG:
-            // This is not nice! It has a frame of lag.
-            // We should recompute the subtree that is resized.
-            // Perhaps even parent in some cases?
-            // It also directly writes to the style which is heh.
-
             ui_resize_event Resize = Event->Resize;
 
             ui_node_style *Style = GetNodeStyle(Resize.Node->Index, Subtree);
@@ -1029,10 +1046,6 @@ ProcessUIEvents(ui_event_list *Events, ui_subtree *Subtree)
             ui_resource_table *Table = UIState.ResourceTable;
             ui_layout_node    *Node  = TextInput.Node;
 
-            // NOTE:
-            // Maybe do not check here? Just check as we are processing the inputs for the UI. Yeah this needs the biggest cleanup.
-            // I believe this check is now useless.
-
             if(Node && HasFlag(Node->Flags, UILayoutNode_HasTextInput))
             {
                 ui_resource_key   TextInputKey   = MakeResourceKey(UIResource_TextInput, Node->Index, Subtree);
@@ -1057,8 +1070,6 @@ ProcessUIEvents(ui_event_list *Events, ui_subtree *Subtree)
                     ui_node_style *Style = GetNodeStyle(Node->Index, Subtree);
                     ui_font       *Font  = UIGetFont(Style->Properties[StyleState_Basic]);
 
-                    // NOTE:
-                    // 0 kinda just means I don't know?? Yeah... Not great.
                     byte_string DefaultText = ByteString(Input->UserData, 0);
 
                     Text = PlaceUITextInMemory(DefaultText, Input->Size, Font, Memory);
@@ -1847,9 +1858,6 @@ PaintTreeFromRoot(ui_layout_node *Root, ui_subtree *Subtree)
                     AccScroll.Y += NodeScroll.Y;
                 }
 
-                // NOTE:
-                // This code is confusing as hell.
-
                 if(HasFlag(Frame.Node->Flags, UILayoutNode_HasClip))
                 {
                     rect_f32 EmptyClip     = RectF32Zero();
@@ -1934,7 +1942,7 @@ PaintSubtree(ui_subtree *Subtree)
 // [Binds]
 
 // TODO:
-// Make this a reosurce.
+// Make this a resource.
 
 internal void
 BindScrollContext(ui_node Node, ScrollAxis_Type Axis, ui_layout_tree *Tree, memory_arena *Arena)
