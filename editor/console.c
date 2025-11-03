@@ -75,64 +75,67 @@ ConsolePrintMessage(console_output Output, ui_node BufferNode, editor_console_ui
     }
 }
 
-internal void
-ConsoleUI(editor_console_ui *Console)
+internal b32
+InitializeConsoleUI(editor_console_ui *Console)
 {
-    // TODO: Clear the Console's arena every frame.
+    Assert(!Console->IsInitialized);
 
-    if(!Console->IsInitialized)
+    Console->MessageLimit     = ConsoleConstant_MessageCountLimit;
+    Console->PromptBufferSize = ConsoleConstant_PromptBufferSize;
+
+    memory_arena_params ArenaParams = {0};
     {
-        memory_arena_params ArenaParams = {0};
+        ArenaParams.AllocatedFromFile = __FILE__;
+        ArenaParams.AllocatedFromLine = __LINE__;
+        ArenaParams.ReserveSize       = Kilobyte(64);
+        ArenaParams.CommitSize        = Kilobyte(4);
+    }
+    Console->Arena        = AllocateArena(ArenaParams);
+    Console->PromptBuffer = PushArray(Console->Arena, u8, Console->PromptBufferSize);
+
+    ui_pipeline_params PipelineParams =
+    {
+        .ThemeFile = byte_string_literal("styles/console.cim"),
+    };
+    Console->Pipeline = UICreatePipeline(PipelineParams);
+
+    ui_subtree_params SubtreeParams =
+    {
+        .CreateNew = 1,
+        .NodeCount = 1024,
+    };
+
+    UISubtree(SubtreeParams)
+    {
+        UIBlock(UIWindow(ConsoleStyle_Window))
         {
-            ArenaParams.AllocatedFromFile = __FILE__;
-            ArenaParams.AllocatedFromLine = __LINE__;
-            ArenaParams.ReserveSize       = Kilobyte(64);
-            ArenaParams.CommitSize        = Kilobyte(4);
-        }
-
-        Console->Pipeline      = UICreatePipeline((ui_pipeline_params){.ThemeFile = byte_string_literal("styles/console.cim")});
-        Console->MessageLimit  = ConsoleConstant_MessageCountLimit;
-        Console->Arena         = AllocateArena(ArenaParams);
-        Console->IsInitialized = 1;
-
-        // Default Layout
-        {
-            ui_subtree_params SubtreeParams = {.CreateNew = 1, .NodeCount = 1024};
-
-            UISubtree(SubtreeParams)
+            UIBlock(
+            UIScrollView(ConsoleStyle_MessageView)
+                ->SetId(ui_id("Console_Buffer"))
+                ->ReserveChildren(Console->MessageLimit))
             {
-                UIBlock(UIWindow(ConsoleStyle_Window))
-                {
-                    UIScrollView(ConsoleStyle_MessageView)
-                        ->SetId(ui_id("Console_Buffer"))
-                        ->ReserveChildren(Console->MessageLimit)
-                        ->Stop();
-
-                    UITextInput(Console->PromptBuffer, Console->PromptBufferSize, ConsoleStyle_Prompt);
-                }
             }
-        }
 
-        // Scroll Test
-        {
-            ConsoleWriteMessage(info_message("ABCDEFGHIJKLMNOPQRSTUVWXYZ"));
-            ConsoleWriteMessage(info_message("abcdefghijklmnopqrstuvwxyz"));
-            ConsoleWriteMessage(info_message("I am trying to overflow 1"));
-            ConsoleWriteMessage(info_message("I am trying to overflow 2"));
-            ConsoleWriteMessage(info_message("I am trying to overflow 3"));
-            ConsoleWriteMessage(info_message("I am trying to overflow 4"));
-            ConsoleWriteMessage(info_message("I am trying to overflow 5"));
-            ConsoleWriteMessage(info_message("I am trying to overflow 6"));
-            ConsoleWriteMessage(info_message("I am trying to overflow 7"));
-            ConsoleWriteMessage(info_message("I am trying to overflow 8"));
-            ConsoleWriteMessage(info_message("I am trying to overflow 9"));
-            ConsoleWriteMessage(info_message("I am trying to overflow 10"));
-            ConsoleWriteMessage(info_message("I am trying to overflow 11"));
-            ConsoleWriteMessage(info_message("I am trying to overflow 12"));
+            UITextInput(Console->PromptBuffer, Console->PromptBufferSize, ConsoleStyle_Prompt);
         }
     }
 
+    ConsoleWriteMessage(info_message("ABCDEFGHIJKLMNOPQRSTUVWXYZ"));
+    ConsoleWriteMessage(info_message("abcdefghijklmnopqrstuvwxyz"));
+
+    return 1;
+}
+
+internal void
+ConsoleUI(editor_console_ui *Console)
+{
+    if(!Console->IsInitialized)
+    {
+        Console->IsInitialized = InitializeConsoleUI(Console);
+    }
+
     UIBeginAllSubtrees(Console->Pipeline);
+    ClearArena(Console->Arena);
 
     // Drain The Queue
     {
