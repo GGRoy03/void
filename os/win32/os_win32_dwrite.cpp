@@ -170,19 +170,24 @@ OSReleaseFontContext(os_font_context *Context)
 extern "C" os_glyph_info
 OSGetGlyphInfo(byte_string UTF8, f32 FontSize, os_font_context *Context)
 {
+    Assert(UTF8.String);
+    Assert(UTF8.Size);
+    Assert(Context);
+
     os_glyph_info   Result  = {{0}};
     IDWriteFactory *Factory = OSWin32State.DWriteFactory; Assert(Factory);
     memory_arena   *Arena   = OSWin32State.Arena;         Assert(Arena);
 
     memory_region Local = EnterMemoryRegion(Arena);
 
-    // BUG: When this fails, the console queue crashes? Why?
+    // BUG: When this fails, the console queue crashes? Why? Wonder if it's a C vs CPP diff?
     if(!IsValidOSFontContext(Context))
     {
         ConsoleWriteMessage(error_message("Calling OSGetGlyphInfo with an invalid font context. See os/core.h"));
         return Result;
     }
 
+    // BUG: When this fails, the console queue crashes? Why? Wonder if it's a C vs CPP diff?
     unicode_decode DecodedUTF8 = DecodeByteString(UTF8.String, UTF8.Size);
     wide_string    UTF16       = ByteStringToWideString(Arena, UTF8);
     if(DecodedUTF8.Codepoint == _UI32_MAX || !IsValidWideString(UTF16))

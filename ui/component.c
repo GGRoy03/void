@@ -89,7 +89,7 @@ UITextInput(u8 *TextBuffer, u64 TextBufferSize, u32 StyleIndex)
         Assert(Memory && Commited);
 
         ui_text_input *TextInput = (ui_text_input *)Memory;
-        TextInput->UserData = TextBuffer;
+        TextInput->UserData = ByteString(TextBuffer, strlen((char *)TextBuffer));
         TextInput->Size     = TextBufferSize;
 
         UpdateResourceTable(State.Id, Key, TextInput, UIResource_TextInput, UIState.ResourceTable);

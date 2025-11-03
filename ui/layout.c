@@ -1046,40 +1046,45 @@ ProcessUIEvents(ui_event_list *Events, ui_subtree *Subtree)
             ui_resource_table *Table = UIState.ResourceTable;
             ui_layout_node    *Node  = TextInput.Node;
 
+            ui_node_style *Style = GetNodeStyle(Node->Index, Subtree);
+            ui_font       *Font  = UIGetFont(Style->Properties[StyleState_Basic]);
+
             if(Node && HasFlag(Node->Flags, UILayoutNode_HasTextInput))
             {
                 ui_resource_key   TextInputKey   = MakeResourceKey(UIResource_TextInput, Node->Index, Subtree);
                 ui_resource_state TextInputState = FindResourceByKey(TextInputKey, Table);
 
-                ui_text_input *Input = TextInputState.Resource;
-                Assert(Input);
-                Assert(Input->UserData);
-                Assert(Input->Size);
-
                 ui_resource_key   TextKey   = MakeResourceKey(UIResource_Text, Node->Index, Subtree);
                 ui_resource_state TextState = FindResourceByKey(TextKey, Table);
+
+                ui_text_input *Input = TextInputState.Resource;
+                Assert(Input);
+                Assert(Input->UserData.String);
+                Assert(Input->Size);
 
                 ui_text *Text = TextState.Resource;
                 if(!Text)
                 {
+                    // NOTE:
+                    // These manual allocations should not exist. But we have no allocator for the resources.
+
                     u64   Size     = GetUITextFootprint(Input->Size);
                     void *Memory   = OSReserveMemory(Size);
                     b32   Commited = OSCommitMemory(Memory, Size);
                     Assert(Memory && Commited);
 
-                    ui_node_style *Style = GetNodeStyle(Node->Index, Subtree);
-                    ui_font       *Font  = UIGetFont(Style->Properties[StyleState_Basic]);
-
-                    byte_string DefaultText = ByteString(Input->UserData, 0);
-
-                    Text = PlaceUITextInMemory(DefaultText, Input->Size, Font, Memory);
+                    Text = PlaceUITextInMemory(ByteString(0, 0), Input->Size, Font, Memory);
                     Assert(Text);
+
+                    if(IsValidByteString(Input->UserData))
+                    {
+                        AppendToUIText(Input->UserData, Font, Text);
+                    }
 
                     UpdateResourceTable(TextState.Id, TextKey, Text, UIResource_Text, Table);
                 }
 
-                ui_node_style *Style = GetNodeStyle(Node->Index, Subtree);
-                ui_font       *Font  = UIGetFont(Style->Properties[StyleState_Basic]);
+                Assert(IsValidByteString(TextInput.UTF8Text));
                 AppendToUIText(TextInput.UTF8Text, Font, Text);
 
                 if(Text->ShapedCount > 0)

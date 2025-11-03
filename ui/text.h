@@ -102,8 +102,8 @@ typedef struct ui_text
 
 typedef struct ui_text_input
 {
-    u8 *UserData;
-    u64 Size;
+    byte_string UserData;
+    u64         Size;
 } ui_text_input;
 
 internal u64       GetUITextFootprint   (u64 TextSize);

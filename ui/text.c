@@ -238,7 +238,7 @@ PlaceUITextInMemory(byte_string Text, u64 BufferSize, ui_font *Font, void *Memor
         Result->Atlas       = GetFontAtlas(Font);
         Result->AtlasSize   = Font->TextureSize;
 
-        while(Result->ShapedCount < Result->ShapedLimit && Text.String[Result->ShapedCount])
+        while(Result->ShapedCount < Result->ShapedLimit && Text.String && Text.String[Result->ShapedCount])
         {
             // WARN:
             // This decoding looks garbage. And it is.
