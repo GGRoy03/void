@@ -1,33 +1,30 @@
 #pragma once
 
-// NOTE:
-// I wonder if we can differentiate between layout and style:
-// Instead of having cached style we have cached_properties (Or whatever)
-// This contains [StyleProperties][LayoutProperties][Other]
-// Unsure yet what this accomplishes.
-
 typedef enum StyleProperty_Type
 {
     StyleProperty_Size         = 0,
     StyleProperty_Color        = 1,
     StyleProperty_Padding      = 2,
     StyleProperty_Spacing      = 3,
-    StyleProperty_Font         = 4,
-    StyleProperty_FontSize     = 5,
-    StyleProperty_Softness     = 6,
-    StyleProperty_BorderColor  = 7,
-    StyleProperty_BorderWidth  = 8,
-    StyleProperty_CornerRadius = 9,
-    StyleProperty_TextColor    = 10,
-    StyleProperty_Display      = 11,
+    StyleProperty_Softness     = 4,
+    StyleProperty_BorderColor  = 5,
+    StyleProperty_BorderWidth  = 6,
+    StyleProperty_CornerRadius = 7,
+    StyleProperty_Display      = 8,
+
+    // Text Properties
+    StyleProperty_Font         = 9,
+    StyleProperty_FontSize     = 10,
+    StyleProperty_TextAlign    = 11,
+    StyleProperty_TextColor    = 12,
 
     // Flex Properties
-    StyleProperty_FlexDirection  = 12,
-    StyleProperty_JustifyContent = 13,
-    StyleProperty_AlignItems     = 14,
-    StyleProperty_SelfAlign      = 15,
+    StyleProperty_FlexDirection  = 13,
+    StyleProperty_JustifyContent = 14,
+    StyleProperty_AlignItems     = 15,
+    StyleProperty_SelfAlign      = 16,
 
-    StyleProperty_Count        = 16,
+    StyleProperty_Count        = 17,
     StyleProperty_None         = 666,
 } StyleProperty_Type;
 

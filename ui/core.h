@@ -9,7 +9,7 @@ typedef enum UIUnit_Type
 
 typedef enum UIDisplay_Type
 {
-    UIDisplay_Normal = 0, // NOTE: Placeholder, so we get something that isn't None.
+    UIDisplay_Normal = 0,
     UIDisplay_None   = 1,
     UIDisplay_Flex   = 2,
 } UIDisplay_Type;
@@ -21,6 +21,15 @@ typedef enum UIAxis_Type
     UIAxis_Y    = 2,
     UIAxis_XY   = 3,
 } UIAxis_Type;
+
+typedef enum UIAlign_Type
+{
+    UIAlign_Start   = 0,
+    UIAlign_Center  = 1,
+    UIAlign_End     = 2,
+    UIAlign_Stretch = 3,
+    UIAlign_None    = 4,
+} UIAlign_Type;
 
 // Flex:
 //   UIFlexDirection_Type:
@@ -240,13 +249,6 @@ internal ui_text * QueryTextResource  (u32 NodeIndex, ui_subtree *Subtree, ui_re
 
 typedef struct ui_style_registry ui_style_registry;
 
-typedef struct ui_pipeline_list
-{
-    ui_pipeline *First;
-    ui_pipeline *Last;
-    u32          Count;
-} ui_pipeline_list;
-
 typedef struct ui_font ui_font;
 typedef struct ui_font_list
 {
@@ -255,14 +257,21 @@ typedef struct ui_font_list
     u32      Count;
 } ui_font_list;
 
+typedef struct ui_pipeline_buffer
+{
+    ui_pipeline *Values;
+    u32          Count;
+    u32          Size;
+} ui_pipeline_buffer;
+
 typedef struct ui_state
 {
     // Resources
-    ui_resource_table *ResourceTable;
+    ui_resource_table  *ResourceTable;
+    ui_pipeline_buffer  Pipelines;
 
     // NOTE: What about this?
     ui_font_list     Fonts;
-    ui_pipeline_list Pipelines;
 
     memory_arena    *StaticData;
 
@@ -358,26 +367,22 @@ typedef struct ui_pipeline_params
     byte_string ThemeFile;
 } ui_pipeline_params;
 
-typedef struct ui_pipeline ui_pipeline;
-struct ui_pipeline
+typedef struct ui_pipeline
 {
-    ui_pipeline *Next;
+    // User State (WIP)
+    void *VShader;
+    void *PShader;
 
-    // State
+
+    // Internal State (DO NOT TOUCH)
     ui_style_registry *Registry;
-    ui_node_id_table  *IdTable;  // NOTE: Should this be stored on the tree? Think so
-
-    // Frame/State
-    ui_node_chain *Chain;
-
-    // Subtree
-    u64             NextSubtreeId;
-    ui_subtree     *CurrentSubtree;
-    ui_subtree_list Subtrees;
-
-    // Memory
-    memory_arena *StaticArena;
-};
+    ui_node_id_table  *IdTable;
+    ui_node_chain     *Chain;
+    u64                NextSubtreeId;
+    ui_subtree        *CurrentSubtree;
+    ui_subtree_list    Subtrees;
+    memory_arena      *StaticArena;
+} ui_pipeline;
 
 #define UISubtree(Params) DeferLoop(UIBeginSubtree(Params), UIEndSubtree(Params))
 

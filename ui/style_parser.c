@@ -53,16 +53,19 @@ read_only global style_parser_table_entry StylePropertyTable[] =
     {byte_string_compile("color")       , StyleProperty_Color       },
     {byte_string_compile("padding")     , StyleProperty_Padding     },
     {byte_string_compile("spacing")     , StyleProperty_Spacing     },
-    {byte_string_compile("font")        , StyleProperty_Font        },
-    {byte_string_compile("fontsize")    , StyleProperty_FontSize    },
     {byte_string_compile("softness")    , StyleProperty_Softness    },
-    {byte_string_compile("textcolor")   , StyleProperty_TextColor   },
     {byte_string_compile("borderwidth") , StyleProperty_BorderWidth },
     {byte_string_compile("bordercolor") , StyleProperty_BorderColor },
     {byte_string_compile("cornerradius"), StyleProperty_CornerRadius},
 
     // Layout Properties
     {byte_string_compile("display"), StyleProperty_Display},
+
+    // Text Properties
+    {byte_string_compile("font")      , StyleProperty_Font     },
+    {byte_string_compile("font-size") , StyleProperty_FontSize },
+    {byte_string_compile("text-align"), StyleProperty_TextAlign},
+    {byte_string_compile("text-color"), StyleProperty_TextColor},
 
     // Flex Properties
     {byte_string_compile("flex-direction") , StyleProperty_FlexDirection },
@@ -116,6 +119,12 @@ read_only global style_parser_table_entry SelfAlignTable[] =
     {byte_string_compile("none")   , UIAlignItems_None  },
 };
 
+read_only global style_parser_table_entry TextAlignTable[] =
+{
+    {byte_string_compile("start")  , UIAlign_Start  },
+    {byte_string_compile("center") , UIAlign_Center },
+    {byte_string_compile("end")    , UIAlign_End    },
+};
 
 #define InvalidStyleTableResult Bit32
 
@@ -1003,6 +1012,7 @@ ConvertToStyleProperty(style_token *Value, StyleProperty_Type PropType, style_fi
 
     case StyleProperty_Display:
     case StyleProperty_SelfAlign:
+    case StyleProperty_TextAlign:
     case StyleProperty_AlignItems:
     case StyleProperty_FlexDirection:
     case StyleProperty_JustifyContent:
@@ -1025,6 +1035,11 @@ ConvertToStyleProperty(style_token *Value, StyleProperty_Type PropType, style_fi
         {
             Table     = SelfAlignTable;
             TableSize = ArrayCount(SelfAlignTable);
+        } else
+        if(PropType == StyleProperty_TextAlign)
+        {
+            Table     = TextAlignTable;
+            TableSize = ArrayCount(TextAlignTable);
         } else
         if(PropType == StyleProperty_AlignItems)
         {

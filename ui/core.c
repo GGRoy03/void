@@ -1,6 +1,273 @@
+// ------------------------------------------------------------------------------
+// Node Id Map Implementation
+
+#define NodeIdTable_EmptyMask  1 << 0       // 1st bit
+#define NodeIdTable_DeadMask   1 << 1       // 2nd bit
+#define NodeIdTable_TagMask    0xFF & ~0x03 // High 6 bits
+
+typedef struct ui_node_id_hash
+{
+    u64 Value;
+} ui_node_id_hash;
+
+typedef struct ui_node_id_entry
+{
+    ui_node_id_hash Hash;
+    ui_node         Node;
+} ui_node_id_entry;
+
+typedef struct ui_node_id_table
+{
+    u8               *MetaData;
+    ui_node_id_entry *Buckets;
+
+    u64 GroupSize;
+    u64 GroupCount;
+
+    u64 HashMask;
+} ui_node_id_table;
+
+internal b32
+IsValidNodeIdTable(ui_node_id_table *Table)
+{
+    b32 Result = (Table && Table->MetaData && Table->Buckets && Table->GroupCount);
+    return Result;
+}
+
+internal u32
+GetNodeIdGroupIndexFromHash(ui_node_id_hash Hash, ui_node_id_table *Table)
+{
+    u32 Result = Hash.Value & Table->HashMask;
+    return Result;
+}
+
+internal u8
+GetNodeIdTagFromHash(ui_node_id_hash Hash)
+{
+    u8 Result = Hash.Value & NodeIdTable_TagMask;
+    return Result;
+}
+
+internal ui_node_id_hash
+ComputeNodeIdHash(byte_string Id)
+{
+    // WARN: Again, unsure if this hash is strong enough since hash-collisions
+    // are fatal. Fatal in the sense that they will return invalid data.
+
+    ui_node_id_hash Result = {HashByteString(Id)};
+    return Result;
+}
+
+internal ui_node_id_entry *
+FindNodeIdEntry(ui_node_id_hash Hash, ui_node_id_table *Table)
+{
+    u32 ProbeCount = 0;
+    u32 GroupIndex = GetNodeIdGroupIndexFromHash(Hash, Table);
+
+    while(1)
+    {
+        u8 *Meta = Table->MetaData + (GroupIndex * Table->GroupSize);
+        u8  Tag  = GetNodeIdTagFromHash(Hash);
+
+        __m128i MetaVector = _mm_loadu_si128((__m128i *)Meta);
+        __m128i TagVector  = _mm_set1_epi8(Tag);
+
+        // Uses a 6 bit tags to search a matching tag thorugh the meta-data
+        // using vectors of bytes instead of comparing full hashes directly.
+
+        i32 TagMask = _mm_movemask_epi8(_mm_cmpeq_epi8(MetaVector, TagVector));
+        while(TagMask)
+        {
+            u32 Lane  = FindFirstBit(TagMask);
+            u32 Index = Lane + (GroupIndex * Table->GroupSize);
+
+            ui_node_id_entry *Entry = Table->Buckets + Index;
+            if(Hash.Value == Entry->Hash.Value)
+            {
+                return Entry;
+            }
+
+            TagMask &= TagMask - 1;
+        }
+
+        // Check for slots that have never been used. If we find any it means that
+        // our value has never been inserted in the map, since, otherwise, it would
+        // have been inserted in that free slot. Keep proving if no never-used slot
+        // have been found.
+
+        __m128i EmptyVector = _mm_set1_epi8(NodeIdTable_EmptyMask);
+        i32     EmptyMask   = _mm_movemask_epi8(_mm_cmpeq_epi8(MetaVector, EmptyVector));
+
+        if(!EmptyMask)
+        {
+            ProbeCount++;
+            GroupIndex = (GroupIndex + (ProbeCount * ProbeCount)) & (Table->GroupCount - 1);
+        }
+        else
+        {
+            break;
+        }
+    }
+
+    return 0;
+}
+
+internal void
+InsertNodeId(ui_node_id_hash Hash, ui_node Node, ui_node_id_table *Table)
+{
+    u32 ProbeCount = 0;
+    u32 GroupIndex = GetNodeIdGroupIndexFromHash(Hash, Table);
+
+    while(1)
+    {
+        u8     *Meta       = Table->MetaData + (GroupIndex * Table->GroupSize);
+        __m128i MetaVector = _mm_loadu_si128((__m128i *)Meta);
+
+        // First check for empty entries (never-used), if one is found insert it and
+        // set the meta-data to the tag (which will clear all state bits)
+
+        __m128i EmptyVector = _mm_set1_epi8(NodeIdTable_EmptyMask);
+        i32     EmptyMask   = _mm_movemask_epi8(_mm_cmpeq_epi8(MetaVector, EmptyVector));
+
+        if(EmptyMask)
+        {
+            u32 Lane  = FindFirstBit(EmptyMask);
+            u32 Index = Lane + (GroupIndex * Table->GroupSize);
+
+            ui_node_id_entry *Entry = Table->Buckets + Index;
+            Entry->Hash = Hash;
+            Entry->Node = Node;
+
+            Meta[Lane] = GetNodeIdTagFromHash(Hash);
+
+            break;
+        }
+
+        // Then check for dead entries in the meta-vector, if one is found insert it and
+        // set the meta-data to the tag which will clear all state bits
+
+        __m128i DeadVector = _mm_set1_epi8(NodeIdTable_DeadMask);
+        i32     DeadMask   = _mm_movemask_epi8(_mm_cmpeq_epi8(MetaVector, DeadVector));
+
+        if(DeadMask)
+        {
+            u32 Lane  = FindFirstBit(DeadMask);
+            u32 Index = Lane + (GroupIndex * Table->GroupSize);
+
+            ui_node_id_entry *Entry = Table->Buckets + Index;
+            Entry->Hash = Hash;
+            Entry->Node = Node;
+
+            Meta[Lane] = GetNodeIdTagFromHash(Hash);
+
+            break;
+        }
+
+        ProbeCount++;
+        GroupIndex = (GroupIndex + (ProbeCount * ProbeCount)) & (Table->GroupCount - 1);
+    }
+}
+
+internal u64
+GetNodeIdTableFootprint(ui_node_id_table_params Params)
+{
+    u64 GroupTotal = Params.GroupSize * Params.GroupCount;
+
+    u64 MetaDataSize = GroupTotal * sizeof(u8);
+    u64 BucketsSize  = GroupTotal * sizeof(ui_node_id_entry);
+    u64 Result       = sizeof(ui_node_id_table) + MetaDataSize + BucketsSize;
+
+    return Result;
+}
+
+internal ui_node_id_table *
+PlaceNodeIdTableInMemory(ui_node_id_table_params Params, void *Memory)
+{
+    Assert(Params.GroupSize == 16);
+    Assert(Params.GroupCount > 0 && IsPowerOfTwo(Params.GroupCount));
+
+    ui_node_id_table *Result = 0;
+
+    if(Memory)
+    {
+        u64 GroupTotal = Params.GroupSize * Params.GroupCount;
+
+        u8 *              MetaData = (u8 *)Memory;
+        ui_node_id_entry *Entries  = (ui_node_id_entry *)(MetaData + GroupTotal);
+
+        Result = (ui_node_id_table *)(Entries + GroupTotal);
+        Result->MetaData   = MetaData;
+        Result->Buckets    = Entries;
+        Result->GroupSize  = Params.GroupSize;
+        Result->GroupCount = Params.GroupCount;
+        Result->HashMask   = Params.GroupCount - 1;
+
+        for(u32 Idx = 0; Idx < GroupTotal; ++Idx)
+        {
+            Result->MetaData[Idx] = NodeIdTable_EmptyMask;
+        }
+    }
+
+    return Result;
+}
+
+internal void
+SetNodeId(byte_string Id, ui_node Node, ui_node_id_table *Table)
+{
+    if(!IsValidNodeIdTable(Table))
+    {
+        return;
+    }
+
+    ui_node_id_hash   Hash  = ComputeNodeIdHash(Id);
+    ui_node_id_entry *Entry = FindNodeIdEntry(Hash, Table);
+
+    if(!Entry)
+    {
+        InsertNodeId(Hash, Node, Table);
+    }
+    else
+    {
+        // TODO: Show which ID is faulty.
+
+        ConsoleWriteMessage(warn_message("ID could not be set because it already exists for this pipeline"));
+    }
+}
+
+internal ui_node
+FindNodeById(byte_string Id, ui_node_id_table *Table)
+{
+    ui_node Result = {0};
+
+    if(IsValidByteString(Id) && IsValidNodeIdTable(Table))
+    {
+        ui_node_id_hash   Hash  = ComputeNodeIdHash(Id);
+        ui_node_id_entry *Entry = FindNodeIdEntry(Hash, Table);
+
+        if(Entry)
+        {
+            Result = Entry->Node;
+        }
+        else
+        {
+            // TODO: Show which ID is faulty.
+            ConsoleWriteMessage(warn_message("Could not find queried node."));
+        }
+    }
+    else
+    {
+        ConsoleWriteMessage(warn_message("Invalid Arguments Provided. See ui/layout.h for information."));
+    }
+
+    return Result;
+}
+
+// ----------------------------------------------------------------------------
+
 // [Helpers]
 
 internal ui_color
+
 UIColor(f32 R, f32 G, f32 B, f32 A)
 {
     ui_color Result = { R, G, B, A };
@@ -122,7 +389,7 @@ FindNodeChildInChain(u32 Index)
     Assert(Result->Node.CanUse);
     Assert(Result->Subtree);
 
-    ui_node Child = FindLayoutChild(Result->Node, Index, Result->Subtree);
+    ui_node Child = FindLayoutChild(Result->Node.IndexInTree, Index, Result->Subtree);
     Result->Node = Child;
 
     return Result;
@@ -642,49 +909,54 @@ UIEndSubtree(ui_subtree_params Params)
     Pipeline->Chain = 0;
 }
 
-// NOTE: This is thinning out which is good. Soon I won't need these allocations
-// I am guessing. This construct may still be useful.
+internal ui_pipeline *
+GetFreeUIPipeline(void)
+{
+    ui_pipeline_buffer *Buffer = &UIState.Pipelines;
+    Assert(Buffer);
+    Assert(Buffer->Count < Buffer->Size); // NOTE: Wrong ui_config.h!
+
+    ui_pipeline *Result = Buffer->Values + Buffer->Count++;
+
+    return Result;
+}
 
 internal ui_pipeline *
 UICreatePipeline(ui_pipeline_params Params)
 {
     ui_state    *State  = &UIState;
-    ui_pipeline *Result = PushArray(State->StaticData, ui_pipeline, 1);
+    ui_pipeline *Result = GetFreeUIPipeline();
+    Assert(Result);
 
-    if(Result)
+    // Static Data
     {
-        // Static Data
-        {
-            memory_arena_params ArenaParams = { 0 };
-            ArenaParams.AllocatedFromFile = __FILE__;
-            ArenaParams.AllocatedFromLine = __LINE__;
-            ArenaParams.ReserveSize       = Megabyte(1);
-            ArenaParams.CommitSize        = Kilobyte(1);
+        memory_arena_params ArenaParams = { 0 };
+        ArenaParams.AllocatedFromFile = __FILE__;
+        ArenaParams.AllocatedFromLine = __LINE__;
+        ArenaParams.ReserveSize       = Megabyte(1);
+        ArenaParams.CommitSize        = Kilobyte(1);
 
-            Result->StaticArena = AllocateArena(ArenaParams);
-        }
-
-        // Node Id Table
-        {
-            ui_node_id_table_params Params = { 0 };
-            Params.GroupSize  = NodeIdTable_128Bits;
-            Params.GroupCount = 32;
-
-            u64   Footprint = GetNodeIdTableFootprint(Params);
-            void *Memory    = PushArray(Result->StaticArena, u8, Footprint);
-
-            Result->IdTable = PlaceNodeIdTableInMemory(Params, Memory);
-        }
-
-        // Registry
-        {
-            Result->Registry = CreateStyleRegistry(Params.ThemeFile, Result->StaticArena);
-        }
-
-        AppendToLinkedList((&State->Pipelines), Result, State->Pipelines.Count);
-
-        State->CurrentPipeline = Result;
+        Result->StaticArena = AllocateArena(ArenaParams);
     }
+
+    // Node Id Table
+    {
+        ui_node_id_table_params Params = { 0 };
+        Params.GroupSize  = NodeIdTable_128Bits;
+        Params.GroupCount = 32;
+
+        u64   Footprint = GetNodeIdTableFootprint(Params);
+        void *Memory    = PushArray(Result->StaticArena, u8, Footprint);
+
+        Result->IdTable = PlaceNodeIdTableInMemory(Params, Memory);
+    }
+
+    // Registry - Maybe just return a buffer?
+    {
+        Result->Registry = CreateStyleRegistry(Params.ThemeFile, Result->StaticArena);
+    }
+
+    State->CurrentPipeline = Result;
 
     return Result;
 }

@@ -239,6 +239,8 @@ wWinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPWSTR CmdLine, i32 ShowCmd
             }
 
             UIState.StaticData = AllocateArena(Params);
+            UIState.Pipelines.Values = PushArray(UIState.StaticData, ui_pipeline, UIPipeline_Count);
+            UIState.Pipelines.Size   = UIPipeline_Count;
         }
 
         // Resource Table

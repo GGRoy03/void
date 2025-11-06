@@ -66,7 +66,7 @@ internal ui_layout_tree * PlaceLayoutTreeInMemory  (u64 NodeCount, void *Memory)
 internal ui_node          AllocateUINode           (bit_field Flags, ui_subtree *Subtree);
 internal void             UIEnd                    (void);
 
-internal ui_node FindLayoutChild        (ui_node Node, u32 Index, ui_subtree *Subtree);
+internal ui_node FindLayoutChild        (u32 NodeIndex, u32 ChildIndex, ui_subtree *Subtree);
 internal void    ReserveLayoutChildren  (ui_node Node, u32 Amount, ui_subtree *Subtree);
 
 internal void UpdateNodeIfNeeded    (u32 NodeIndex, ui_subtree *Subtree);
