@@ -61,22 +61,106 @@ FormatConsoleOutput(byte_string Message, ConsoleMessage_Severity Severity, memor
 }
 
 internal void
-ConsolePrintMessage(console_output Output, ui_node BufferNode, editor_console_ui *Console)
+ConsolePrintMessage(console_output Output, ui_node BufferNode, console_ui *Console)
 {
-    if(IsValidConsoleOutput(Output))
-    {
-        u32 ChildIndex = Console->MessageHead++;
+    Assert(BufferNode.CanUse);
+    Assert(IsValidConsoleOutput(Output));
 
-        UIChain(BufferNode)
-            ->FindChild(ChildIndex)
-            ->SetStyle(ConsoleStyle_Message)
-            ->SetTextColor(Output.TextColor)
-            ->SetText(Output.Message);
+    u32 ChildIndex = Console->MessageHead++;
+
+    ui_node Child = UINodeFindChild(BufferNode, ChildIndex);
+    {
+        UINodeSetStyle(Child, ConsoleStyle_Message);
+        UINodeSetTextColor(Child, Output.TextColor);
+        UINodeSetText(Child, Output.Message);
     }
 }
 
+internal void
+ReadConsolePrompt(console_ui *Console)
+{
+    Assert(Console);
+
+    u8 *Start = Console->PromptBuffer;
+    u32 Size  = Console->PromptBufferSize;
+    u8 *End   = Start + Size;
+
+    while(Start < End)
+    {
+        while(Start < End && IsWhiteSpace(*Start))
+        {
+            ++Start;
+        }
+
+        if(Start >= End)
+        {
+            break;
+        }
+
+        if(*Start == '/')
+        {
+            ++Start;
+
+            u8  FlagName[8]    = {0};
+            u32 FlagNameLength = 0;
+
+            while((Start < End) && (FlagNameLength < ArrayCount(FlagName) - 1) && !IsWhiteSpace(*Start))
+            {
+                FlagName[FlagNameLength++] = ToLowerChar(*Start++);
+            }
+
+            while(Start < End && IsWhiteSpace(*Start))
+            {
+                ++Start;
+            }
+
+            if(FlagNameLength > 0 && FlagName[0] == 'm')
+            {
+                u8  ArgBuffer[Kilobyte(1)];
+                u32 ArgLength = 0;
+
+                while ((Start < End) && !IsWhiteSpace(*Start) && (ArgLength < ArrayCount(ArgBuffer) - 1))
+                {
+                    ArgBuffer[ArgLength++] = *Start++;
+                }
+                ArgBuffer[ArgLength] = 0;
+
+                if(ArgLength > 0)
+                {
+                    byte_string    Message = ByteString(0, ArgLength);
+                    console_output Output  = FormatConsoleOutput(Message, ConsoleMessage_Info, Console->Arena);
+
+                    // NOTE:
+                    // We do not want to access the pipeline here.
+
+                    ui_node BufferNode = FindNodeById(ui_id("Console_Buffer"), Console->Pipeline->IdTable);
+                    if(BufferNode.CanUse)
+                    {
+                        ConsolePrintMessage(Output, BufferNode, Console);
+                    }
+                }
+            }
+        }
+        else
+        {
+            // NOTE: Idk.
+
+            ++Start;
+        }
+    }
+
+    ui_node PromptNode = FindNodeById(ui_id("Console_Prompt"), Console->Pipeline->IdTable);
+    if(PromptNode.CanUse)
+    {
+        UINodeClearText(PromptNode);
+    }
+}
+
+// ------------------------------------------------------------------------------------
+// Console Context Implementation
+
 internal b32
-InitializeConsoleUI(editor_console_ui *Console)
+InitializeConsoleUI(console_ui *Console)
 {
     Assert(!Console->IsInitialized);
 
@@ -109,14 +193,17 @@ InitializeConsoleUI(editor_console_ui *Console)
     {
         UIBlock(UIWindow(ConsoleStyle_Window))
         {
-            UIBlock(
-            UIScrollView(ConsoleStyle_MessageView)
-                ->SetId(ui_id("Console_Buffer"))
-                ->ReserveChildren(Console->MessageLimit))
+            ui_node ScrollBuffer = {0};
+            UIBlock(ScrollBuffer = UIScrollableContent(UIAxis_Y, ConsoleStyle_MessageView))
             {
+                UINodeSetId(ScrollBuffer, ui_id("Console_Buffer"));
+                UINodeReserveChildren(ScrollBuffer, Console->MessageLimit);
             }
 
-            UITextInput(Console->PromptBuffer, Console->PromptBufferSize, ConsoleStyle_Prompt);
+            ui_node Input = UITextInput(Console->PromptBuffer, Console->PromptBufferSize, ConsoleStyle_Prompt);
+            {
+                UINodeSetId(Input, ui_id("Console_Prompt"));
+            }
         }
     }
 
@@ -127,7 +214,7 @@ InitializeConsoleUI(editor_console_ui *Console)
 }
 
 internal void
-ConsoleUI(editor_console_ui *Console)
+ConsoleUI(console_ui *Console)
 {
     if(!Console->IsInitialized)
     {
@@ -136,6 +223,14 @@ ConsoleUI(editor_console_ui *Console)
 
     UIBeginAllSubtrees(Console->Pipeline);
     ClearArena(Console->Arena);
+
+    // Read Inputs
+    {
+        if(IsKeyClicked(OSInputKey_Enter))
+        {
+            ReadConsolePrompt(Console);
+        }
+    }
 
     // Drain The Queue
     {

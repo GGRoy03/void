@@ -1,21 +1,3 @@
-typedef enum ScrollAxis_Type
-{
-    ScrollAxis_X = 0,
-    ScrollAxis_Y = 1,
-} ScrollAxis_Type;
-
-typedef struct ui_scroll_context
-{
-    vec2_f32        ContentSize;       // Logical Size for all of the content inside
-    f32             ScrollOffset;      // Scroll Offset in pixel 0..ScrollAxis.Max
-    f32             PixelPerLine;      // How many pixels to scroll per line.
-    ScrollAxis_Type Axis;              // Which Axis the scroll is applied to
-} ui_scroll_context;
-
-// TODO: Cleanup this API, when I remove this I need to move the type into the internal file.
-
-internal void     BindScrollContext        (ui_node Node, ScrollAxis_Type Axis, ui_layout_tree *Tree, memory_arena *Arena);
-
 // ui_layout_node:
 // ui_layout_tree:
 //   Opaque types the user does not need to know about.
@@ -46,19 +28,19 @@ typedef enum UILayoutNode_Flag
     // State
     UILayoutNode_IsDraggable     = 1 << 4,
     UILayoutNode_IsResizable     = 1 << 5,
-    UILayoutNode_IsScrollable    = 1 << 6,
 
     // Layout Info (Should not exist most likely)
-    UILayoutNode_PlaceChildrenX  = 1 << 8,
-    UILayoutNode_PlaceChildrenY  = 1 << 9,
-    UILayoutNode_IsParent        = 1 << 10,
+    UILayoutNode_PlaceChildrenX  = 1 << 6,
+    UILayoutNode_PlaceChildrenY  = 1 << 7,
+    UILayoutNode_IsParent        = 1 << 8,
 
     // Frame State (Do not like this)
-    UILayoutNode_IsHovered       = 1 << 11,
+    UILayoutNode_IsHovered       = 1 << 9,
 
     // Resources
-    UILayoutNode_HasText      = 1 << 12,
-    UILayoutNode_HasTextInput = 1 << 13,
+    UILayoutNode_HasText         = 1 << 10,
+    UILayoutNode_HasTextInput    = 1 << 11,
+    UILayoutNode_HasScrollRegion = 1 << 12,
 } UILayoutNode_Flag;
 
 internal u64              GetLayoutTreeFootprint   (u64 NodeCount);

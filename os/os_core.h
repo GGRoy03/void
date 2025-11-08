@@ -99,7 +99,7 @@ typedef struct os_inputs
 
     // Keyboard
     os_button_action_buffer ButtonBuffer;
-    os_text_action_buffer   TextBuffer;
+    os_text_action_buffer   TextBuffer;   // NOTE: Stupid!
 
     // Mouse
     f32 ScrollDeltaInLines;
@@ -163,6 +163,70 @@ internal void  OSRelease        (void *Memory);
 internal void  OSAbort          (i32 ExitCode);
 internal b32   OSIsValidHandle  (os_handle Handle);
 internal void  OSSetCursor      (OSCursor_Type Type);
+
+// Inputs:
+//   You may query input state using OSInputKey_Type.
+
+typedef enum OSInputKey_Type
+{
+    OSInputKey_None,
+
+    OSInputKey_A,
+    OSInputKey_B,
+    OSInputKey_C,
+    OSInputKey_D,
+    OSInputKey_E,
+    OSInputKey_F,
+    OSInputKey_G,
+    OSInputKey_H,
+    OSInputKey_I,
+    OSInputKey_J,
+    OSInputKey_K,
+    OSInputKey_L,
+    OSInputKey_M,
+    OSInputKey_N,
+    OSInputKey_O,
+    OSInputKey_P,
+    OSInputKey_Q,
+    OSInputKey_R,
+    OSInputKey_S,
+    OSInputKey_T,
+    OSInputKey_U,
+    OSInputKey_V,
+    OSInputKey_W,
+    OSInputKey_X,
+    OSInputKey_Y,
+    OSInputKey_Z,
+
+    OSInputKey_0,
+    OSInputKey_1,
+    OSInputKey_2,
+    OSInputKey_3,
+    OSInputKey_4,
+    OSInputKey_5,
+    OSInputKey_6,
+    OSInputKey_7,
+    OSInputKey_8,
+    OSInputKey_9,
+
+    OSInputKey_Enter,
+    OSInputKey_Space,
+    OSInputKey_Minus,
+    OSInputKey_Equals,
+    OSInputKey_LeftBracket,
+    OSInputKey_RightBracket,
+    OSInputKey_Backslash,
+    OSInputKey_Semicolon,
+    OSInputKey_Apostrophe,
+    OSInputKey_Comma,
+    OSInputKey_Period,
+    OSInputKey_Slash,
+    OSInputKey_Grave,
+
+    OSInputKey_Count
+} OSInputKey_Type;
+
+internal b32 IsKeyClicked  (OSInputKey_Type Key);
 
 // OSAcquireFontContext:
 //   Acquires the font context for a given font.

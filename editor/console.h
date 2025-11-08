@@ -21,7 +21,7 @@ typedef struct game_state game_state;
 
 // [CORE TYPES]
 
-typedef struct editor_console_ui
+typedef struct console_ui
 {
     memory_arena *Arena;
     ui_pipeline  *Pipeline;
@@ -35,6 +35,6 @@ typedef struct editor_console_ui
     u32 MessageLimit;
     u32 MessageHead;
     u32 MessageTail;
-} editor_console_ui;
+} console_ui;
 
-internal void ConsoleUI  (editor_console_ui *Console);
+internal void ConsoleUI  (console_ui *Console);

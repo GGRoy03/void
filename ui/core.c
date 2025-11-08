@@ -1,3 +1,58 @@
+#define ui_id(Id)  byte_string_literal(Id)
+#define UIBlock(X) DeferLoop(X, UIEnd())
+
+// -----------------------------------------------------------------------------------
+// UI Context Private Implementation
+
+internal ui_pipeline *
+GetCurrentPipeline(void)
+{
+    ui_pipeline *Pipeline = UIState.CurrentPipeline;
+    return Pipeline;
+}
+
+internal ui_subtree *
+GetCurrentSubtree(void)
+{
+    ui_pipeline *Pipeline = GetCurrentPipeline();
+    Assert(Pipeline);
+
+    ui_subtree *Subtree = Pipeline->CurrentSubtree;
+    return Subtree;
+}
+
+internal ui_subtree *
+FindSubtree(ui_node Node)
+{
+    ui_pipeline *Pipeline = GetCurrentPipeline();
+    Assert(Pipeline);
+
+    ui_subtree *Result = 0;
+
+    IterateLinkedList((&Pipeline->Subtrees), ui_subtree_node *, SubtreeNode)
+    {
+        ui_subtree *Subtree = &SubtreeNode->Value;
+        if(Subtree->Id == Node.SubtreeId)
+        {
+            Result = Subtree;
+            break;
+        }
+    }
+
+    return Result;
+}
+
+// -----------------------------------------------------------------------------------
+// UI Scrolling Implementation
+
+typedef struct ui_scroll_region
+{
+    vec2_f32    ContentSize;
+    f32         ScrollOffset;
+    f32         PixelPerLine;
+    UIAxis_Type Axis;
+} ui_scroll_region;
+
 // ------------------------------------------------------------------------------
 // Node Id Map Implementation
 
@@ -314,111 +369,108 @@ IsNormalizedColor(ui_color Color)
 }
 
 // -------------------------------------------------------------
-// UI Node Private API Implementation
+// UI Node Private Implementation
 
-internal ui_node_chain *
-GetNodeChain(void)
+internal ui_subtree *
+GetSubtreeForNode(ui_node Node)
 {
-    ui_pipeline *Pipeline = GetCurrentPipeline();
-    Assert(Pipeline);
-
-    ui_node_chain *Result = Pipeline->Chain;
-    if(Result)
+    ui_subtree *Result = GetCurrentSubtree();
+    if(!Result)
     {
-        Assert(Result->Subtree);
-        Assert(Result->Node.CanUse);
+        Result = FindSubtree(Node);
     }
 
+    Assert(Result);
     return Result;
 }
 
-internal ui_node_chain *
-SetNodeDisplayInChain(UIDisplay_Type Type)
+// -------------------------------------------------------------
+// UI Node Public API Implementation
+
+internal void
+UINodeSetDisplay(ui_node Node, UIDisplay_Type Type)
 {
-    ui_node_chain *Result = GetNodeChain();
-    Assert(Result);
-    Assert(Result->Subtree);
-    Assert(Result->Node.CanUse);
+    Assert(Node.CanUse);
 
-    UISetDisplay(Result->Node.IndexInTree, Type, Result->Subtree);
+    ui_subtree *Subtree = GetSubtreeForNode(Node);
+    Assert(Subtree);
 
-    return Result;
+    UISetDisplay(Node.IndexInTree, Type, Subtree);
 }
 
-internal ui_node_chain *
-SetNodeTextColorInChain(ui_color Color)
+internal void
+UINodeSetTextColor(ui_node Node, ui_color Color)
 {
-    ui_node_chain *Result = GetNodeChain();
-    Assert(Result);
-    Assert(Result->Subtree);
-    Assert(Result->Node.CanUse);
+    Assert(Node.CanUse);
 
-    UISetTextColor(Result->Node.IndexInTree, Color, Result->Subtree);
+    ui_subtree *Subtree = GetSubtreeForNode(Node);
+    Assert(Subtree);
 
-    return Result;
+    UISetTextColor(Node.IndexInTree, Color, Subtree);
 }
 
-// WARN:
-// If user does   : SetStyle->SetTextColor, it works.
-// But it they do : SetTextColor->SetStyle, then it doesn't work.
-// I am really unsure which behavior I want, but it seems to be a problem.
-
-internal ui_node_chain *
-SetNodeStyleInChain(u32 StyleIndex)
+internal void
+UINodeSetStyle(ui_node Node, u32 StyleIndex)
 {
-    ui_node_chain *Result = GetNodeChain();
-    Assert(Result);
-    Assert(Result->Node.CanUse);
+    Assert(Node.CanUse);
 
-    ui_node_style *Style = GetNodeStyle(Result->Node.IndexInTree, Result->Subtree);
+    ui_subtree *Subtree = GetSubtreeForNode(Node);
+    Assert(Subtree);
+
+    ui_node_style *Style = GetNodeStyle(Node.IndexInTree, Subtree);
     Assert(Style);
 
     Style->CachedStyleIndex = StyleIndex;
     Style->IsLastVersion    = 0;
 
-    UpdateNodeIfNeeded(Result->Node.IndexInTree, Result->Subtree);
+    UpdateNodeIfNeeded(Node.IndexInTree, Subtree);
+}
 
+internal ui_node
+UINodeFindChild(ui_node Node, u32 Index)
+{
+    Assert(Node.CanUse);
+
+    ui_subtree *Subtree = GetSubtreeForNode(Node);
+    Assert(Subtree);
+
+    ui_node Result = FindLayoutChild(Node.IndexInTree, Index, Subtree);
     return Result;
 }
 
-internal ui_node_chain *
-FindNodeChildInChain(u32 Index)
+internal void
+UINodeReserveChildren(ui_node Node, u32 Amount)
 {
-    ui_node_chain *Result = GetNodeChain();
-    Assert(Result);
-    Assert(Result->Node.CanUse);
-    Assert(Result->Subtree);
+    Assert(Node.CanUse);
 
-    ui_node Child = FindLayoutChild(Result->Node.IndexInTree, Index, Result->Subtree);
-    Result->Node = Child;
+    ui_subtree *Subtree = GetSubtreeForNode(Node);
+    Assert(Subtree);
 
-    return Result;
+    ReserveLayoutChildren(Node, Amount, Subtree); // TODO: Pass index.
 }
 
-internal ui_node_chain *
-ReserveNodeChildrenInChain(u32 Amount)
+internal void
+UINodeClearText(ui_node Node)
 {
-    ui_node_chain *Result = GetNodeChain();
-    Assert(Result);
-    Assert(Result->Node.CanUse);
-    Assert(Result->Subtree);
+    Assert(Node.CanUse);
 
-    ReserveLayoutChildren(Result->Node, Amount, Result->Subtree);
+    ui_subtree *Subtree = GetSubtreeForNode(Node);
+    Assert(Subtree);
 
-    return Result;
+    ui_text *Text = QueryTextResource(Node.IndexInTree, Subtree, UIState.ResourceTable);
+    Assert(Text);
+    UITextClear_(Text);
 }
 
-internal ui_node_chain *
-SetNodeTextInChain(byte_string Text)
+internal void
+UINodeSetText(ui_node Node, byte_string Text)
 {
-    ui_node_chain *Result = GetNodeChain();
-    Assert(Result);
-    Assert(Result->Node.CanUse);
-    Assert(Result->Subtree);
+    Assert(Node.CanUse);
 
-    ui_node            Node    = Result->Node;
-    ui_subtree        *Subtree = Result->Subtree;
-    ui_resource_table *Table   = UIState.ResourceTable;
+    ui_subtree *Subtree = GetSubtreeForNode(Node);
+    Assert(Subtree);
+
+    ui_resource_table *Table = UIState.ResourceTable;
 
     // BUG:
     // One problem is that this key is not strong enough and might collide
@@ -428,10 +480,6 @@ SetNodeTextInChain(byte_string Text)
     // This code is still a bit of a mess, especially if we have mutliple
     // ways to create text. We should unify somehow. There's no way I am doing
     // manual allocations. Really bad!
-
-    // NOTE:
-    // And I guess we assume that we are adding text to a label here?
-    // Which is also probably a mistake.
 
     ui_resource_key   Key   = MakeResourceKey(UIResource_Text, Node.IndexInTree, Subtree);
     ui_resource_state State = FindResourceByKey(Key, Table);
@@ -460,69 +508,101 @@ SetNodeTextInChain(byte_string Text)
         Assert(!"Not Implemented");
     }
 
-    UpdateNodeIfNeeded(Result->Node.IndexInTree, Result->Subtree);
-
-    return Result;
+    UpdateNodeIfNeeded(Node.IndexInTree, Subtree);
 }
 
-internal ui_node_chain *
-SetNodeIdInChain(byte_string Id)
+internal void
+UINodeSetTextInput(ui_node Node, u8 *Buffer, u64 BufferSize)
 {
-    ui_node_chain *Result = GetNodeChain();
-    Assert(Result);
-    Assert(Result->Node.CanUse);
+    Assert(Node.CanUse);
 
-    SetNodeId(Id, Result->Node, GetCurrentPipeline()->IdTable);
+    ui_subtree *Subtree = GetSubtreeForNode(Node);
+    Assert(Subtree);
 
-    return Result;
+    ui_resource_key   Key   = MakeResourceKey(UIResource_TextInput, Node.IndexInTree, Subtree);
+    ui_resource_state State = FindResourceByKey(Key, UIState.ResourceTable);
+
+    // NOTE:
+    // Do we even care if the resource is set or not? Kind of confused.
+    // I mean, we could reuse the same memory, but we can't just stomp it
+    // and the resource cache will handle deallocation.
+
+    // WARN:
+    // Still don't know about these allocations. Haven't found a better way yet.
+
+    u64   Size     = sizeof(ui_text_input);
+    void *Memory   = OSReserveMemory(Size);
+    b32   Commited = OSCommitMemory(Memory, Size);
+    Assert(Memory && Commited);
+
+    ui_text_input *TextInput = (ui_text_input *)Memory;
+    TextInput->UserData = ByteString(Buffer, strlen((char *)Buffer));
+    TextInput->Size     = BufferSize;
+
+    UpdateResourceTable(State.Id, Key, TextInput, UIResource_TextInput, UIState.ResourceTable);
+
+    // WARN:
+    // Still don't know how to feel about this.
+    // It's not great, that's for sure.
+    SetLayoutNodeFlags(Node.IndexInTree, UILayoutNode_HasTextInput, Subtree);
+}
+
+internal void
+UINodeSetScroll(ui_node Node, UIAxis_Type Axis)
+{
+    Assert(Node.CanUse);
+
+    ui_subtree *Subtree = GetSubtreeForNode(Node);
+    Assert(Subtree);
+
+    ui_resource_key   Key   = MakeResourceKey(UIResource_ScrollRegion, Node.IndexInTree, Subtree);
+    ui_resource_state State = FindResourceByKey(Key, UIState.ResourceTable);
+
+    // WARN:
+    // Same annoying allocation!
+
+    u64   Size     = sizeof(ui_scroll_region);
+    void *Memory   = OSReserveMemory(Size);
+    b32   Commited = OSCommitMemory(Memory, Size);
+    Assert(Memory && Commited);
+
+    ui_scroll_region *ScrollRegion = (ui_scroll_region *)Memory;
+    ScrollRegion->PixelPerLine = 8.f;
+    ScrollRegion->Axis         = Axis;
+
+    UpdateResourceTable(State.Id, Key, ScrollRegion, UIResource_ScrollRegion, UIState.ResourceTable);
+
+    // WARN:
+    // Still don't know how to feel about this.
+    // It's not great, that's for sure.
+    SetLayoutNodeFlags(Node.IndexInTree, UILayoutNode_HasScrollRegion, Subtree);
+}
+
+internal void
+UINodeSetId(ui_node Node, byte_string Id)
+{
+    Assert(Node.CanUse);
+
+    ui_pipeline *Pipeline = GetCurrentPipeline();
+    Assert(Pipeline);
+
+    SetNodeId(Id, Node, Pipeline->IdTable);
+}
+
+internal ui_node
+UINode(bit_field Flags)
+{
+    ui_subtree *Subtree = GetCurrentSubtree();
+    Assert(Subtree);
+
+    ui_node Node = AllocateUINode(Flags, Subtree);
+    Assert(Node.CanUse);
+
+    return Node;
 }
 
 // -------------------------------------------------------------
 // UI Node Public API Implementation
-
-// NOTE: This could be smarter, we do not have to push a chain in every case.
-// If they are from the same subtree then we can just replace the node,
-// but we do not have enough information on the node yet.
-
-internal ui_node_chain *
-UIChain(ui_node Node)
-{
-    ui_node_chain *Result  = 0;
-    ui_node_chain *Current = GetNodeChain();
-    ui_subtree    *Subtree = 0;
-
-    if(!Current)
-    {
-        ui_pipeline *Pipeline = GetCurrentPipeline();
-        Assert(Pipeline);
-
-        Subtree = FindSubtree(Node, Pipeline);
-    }
-    else
-    {
-        Subtree = Current->Subtree;
-    }
-
-    Assert(Subtree);
-
-    Result = PushStruct(Subtree->Transient, ui_node_chain);
-    Assert(Result);
-
-    Result->Node            = Node;
-    Result->Subtree         = Subtree;
-    Result->Prev            = Current;
-    Result->SetDisplay      = SetNodeDisplayInChain;
-    Result->SetTextColor    = SetNodeTextColorInChain;
-    Result->SetStyle        = SetNodeStyleInChain;
-    Result->FindChild       = FindNodeChildInChain;
-    Result->ReserveChildren = ReserveNodeChildrenInChain;
-    Result->SetText         = SetNodeTextInChain;
-    Result->SetId           = SetNodeIdInChain;
-
-    GetCurrentPipeline()->Chain = Result;
-
-    return Result;
-}
 
 // ----------------------------------------------------------------------------------
 // UI Resource Cache Private Implementation
@@ -795,14 +875,16 @@ QueryTextInputResource(u32 NodeIndex, ui_subtree *Subtree, ui_resource_table *Ta
     return Result;
 }
 
-// -----------------------------------------------------------------------------------
-// UI Context Public Implementation
-
-internal ui_pipeline *
-GetCurrentPipeline()
+internal ui_scroll_region *
+QueryScrollRegion(u32 NodeIndex, ui_subtree *Subtree, ui_resource_table *Table)
 {
-    ui_pipeline *Pipeline = UIState.CurrentPipeline;
-    return Pipeline;
+    ui_resource_key   Key   = MakeResourceKey(UIResource_ScrollRegion, NodeIndex, Subtree);
+    ui_resource_state State = FindResourceByKey(Key, Table);
+
+    Assert(State.Resource && State.ResourceType == UIResource_ScrollRegion);
+
+    ui_scroll_region *Result = (ui_scroll_region *)State.Resource;
+    return Result;
 }
 
 // ----------------------------------------------------------------------------------
@@ -905,8 +987,6 @@ UIEndSubtree(ui_subtree_params Params)
 
     ui_pipeline *Pipeline = GetCurrentPipeline();
     Assert(Pipeline);
-
-    Pipeline->Chain = 0;
 }
 
 internal ui_pipeline *
@@ -994,22 +1074,4 @@ UIExecuteAllSubtrees(ui_pipeline *Pipeline)
         UpdateSubtreeState(Subtree);
         PaintSubtree(Subtree);
     }
-}
-
-internal ui_subtree *
-FindSubtree(ui_node Node, ui_pipeline *Pipeline)
-{
-    ui_subtree *Result = 0;
-
-    IterateLinkedList((&Pipeline->Subtrees), ui_subtree_node *, SubtreeNode)
-    {
-        ui_subtree *Subtree = &SubtreeNode->Value;
-        if(Subtree->Id == Node.SubtreeId)
-        {
-            Result = Subtree;
-            break;
-        }
-    }
-
-    return Result;
 }

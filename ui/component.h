@@ -1,9 +1,3 @@
-// [Macros]
-
-#define ui_id(Id)  byte_string_literal(Id)
-#define UIBlock(X) DeferLoop(X, UIEnd())
-
-
-internal ui_node_chain * UIWindow_      (u32 Style);
-internal ui_node_chain * UIScrollView_  (u32 Style);
-internal ui_node_chain * UITextInput    (u8 *TextBuffer, u64 TextBufferSize, u32 Style);
+internal ui_node UIWindow             (u32 StyleIndex);
+internal ui_node UIScrollableContent  (UIAxis_Type Axis, u32 StyleIndex);
+internal ui_node UITextInput          (u8 *Buffer, u64 BufferSize, u32 StyleIndex);

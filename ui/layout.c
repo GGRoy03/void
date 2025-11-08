@@ -88,9 +88,6 @@ typedef struct ui_layout_box
 
     // Draw Info
     vec2_f32 VisualOffset;
-
-    // Resources ( TODO: Make this a resource?)
-    ui_scroll_context *ScrollContext;
 } ui_layout_box;
 
 struct ui_layout_node
@@ -557,55 +554,49 @@ UIEnd()
 // UI Scrolling Internal Implementation
 
 internal vec2_f32
-GetScrollNodeTranslation(ui_layout_node *Node)
+GetScrollNodeTranslation(ui_scroll_region *Region)
 {
-    ui_scroll_context *Context = Node->Value.ScrollContext;
-    Assert(Context);
-
     vec2_f32 Result = Vec2F32(0.f, 0.f);
 
-    if (Context->Axis == ScrollAxis_X)
+    if (Region->Axis == UIAxis_X)
     {
-        Result = Vec2F32(Context->ScrollOffset, 0.f);
+        Result = Vec2F32(Region->ScrollOffset, 0.f);
     } else
-    if (Context->Axis == ScrollAxis_Y)
+    if (Region->Axis == UIAxis_Y)
     {
-        Result = Vec2F32(0.f, Context->ScrollOffset);
+        Result = Vec2F32(0.f, Region->ScrollOffset);
     }
 
     return Result;
 }
 
 internal void
-UpdateScrollNode(f32 ScrolledLines, ui_layout_node *Node)
+UpdateScrollNode(f32 ScrolledLines, ui_layout_node *Node, ui_scroll_region *Region)
 {
-    ui_scroll_context *Context = Node->Value.ScrollContext;
-    Assert(Context);
-
-    f32      ScrolledPixels = ScrolledLines * Context->PixelPerLine;
+    f32      ScrolledPixels = ScrolledLines * Region->PixelPerLine;
     vec2_f32 WindowSize     = GetContentBoxSize(&Node->Value);
 
     f32 ScrollLimit = 0.f;
-    if (Context->Axis == ScrollAxis_X)
+    if (Region->Axis == UIAxis_X)
     {
-        ScrollLimit = -(Context->ContentSize.X - WindowSize.X);
+        ScrollLimit = -(Region->ContentSize.X - WindowSize.X);
     } else
-    if (Context->Axis == ScrollAxis_Y)
+    if (Region->Axis == UIAxis_Y)
     {
-        ScrollLimit = -(Context->ContentSize.Y - WindowSize.Y);
+        ScrollLimit = -(Region->ContentSize.Y - WindowSize.Y);
     }
 
-    Context->ScrollOffset += ScrolledPixels;
-    Context->ScrollOffset  = ClampTop(ClampBot(ScrollLimit, Context->ScrollOffset), 0);
+    Region->ScrollOffset += ScrolledPixels;
+    Region->ScrollOffset  = ClampTop(ClampBot(ScrollLimit, Region->ScrollOffset), 0);
 
     vec2_f32 ScrollDelta = Vec2F32(0.f, 0.f);
-    if(Context->Axis == ScrollAxis_X)
+    if(Region->Axis == UIAxis_X)
     {
-        ScrollDelta.X = -1.f * Context->ScrollOffset;
+        ScrollDelta.X = -1.f * Region->ScrollOffset;
     } else
-    if(Context->Axis == ScrollAxis_Y)
+    if(Region->Axis == UIAxis_Y)
     {
-        ScrollDelta.Y = -1.f * Context->ScrollOffset;
+        ScrollDelta.Y = -1.f * Region->ScrollOffset;
     }
 
     rect_f32 WindowContent = Node->Value.ContentBox;
@@ -911,7 +902,7 @@ AttemptNodeFocus(vec2_f32 MousePosition, ui_layout_node *Root, memory_arena *Are
     // Should this take focus?
 
     f32 ScrollDelta = OSGetScrollDelta();
-    if(HasFlag(Root->Flags, UILayoutNode_IsScrollable) && ScrollDelta != 0.f)
+    if(HasFlag(Root->Flags, UILayoutNode_HasScrollRegion) && ScrollDelta != 0.f)
     {
         RecordUIScrollEvent(Root, ScrollDelta, Result, Arena);
     }
@@ -1047,7 +1038,10 @@ ProcessUIEvents(ui_event_list *Events, ui_subtree *Subtree)
             Assert(Scroll.Node);
             Assert(Scroll.Delta);
 
-            UpdateScrollNode(Scroll.Delta, Scroll.Node);
+            ui_scroll_region *Region = QueryScrollRegion(Scroll.Node->Index, Subtree, UIState.ResourceTable);
+            Assert(Region);
+
+            UpdateScrollNode(Scroll.Delta, Scroll.Node, Region);
         } break;
 
         case UIEvent_TextInput:
@@ -1084,16 +1078,19 @@ ProcessUIEvents(ui_event_list *Events, ui_subtree *Subtree)
                     Text = PlaceUITextInMemory(ByteString(0, 0), Input->Size, Font, Memory);
                     Assert(Text);
 
+                    // NOTE:
+                    // Unsure if we want to do this here?
+
                     if(IsValidByteString(Input->UserData))
                     {
-                        AppendToUIText(Input->UserData, Font, Text);
+                        UITextAppend_(Input->UserData, Font, Text);
                     }
 
                     UpdateResourceTable(TextState.Id, TextKey, Text, UIResource_Text, Table);
                 }
 
                 Assert(IsValidByteString(TextInput.UTF8Text));
-                AppendToUIText(TextInput.UTF8Text, Font, Text);
+                UITextAppend_(TextInput.UTF8Text, Font, Text);
 
                 if(Text->ShapedCount > 0)
                 {
@@ -1225,10 +1222,12 @@ PreOrderPlaceSubtree(ui_layout_node *Root, ui_subtree *Subtree)
             vec2_f32 Cursor    = ContentPos;
             vec2_f32 MaxCursor = Vec2F32Add(Cursor, ContentSize);
 
-            if(HasFlag(Node->Flags, UILayoutNode_IsScrollable))
+            if(HasFlag(Node->Flags, UILayoutNode_HasScrollRegion))
             {
-                ui_scroll_context *Scroll = Box->ScrollContext;
-                if(Scroll->Axis == ScrollAxis_X)
+                ui_scroll_region *Region = QueryScrollRegion(Node->Index, Subtree, Table);
+                Assert(Region);
+
+                if(Region->Axis == UIAxis_X)
                 {
                     MaxCursor.X = FLT_MAX;
                 }
@@ -1571,10 +1570,10 @@ PostOrderMeasureSubtree(ui_layout_node *Root, ui_subtree *Subtree)
 
     // WARN: Still a work in progress.
 
-    if(HasFlag(Root->Flags, UILayoutNode_IsScrollable))
+    if(HasFlag(Root->Flags, UILayoutNode_HasScrollRegion))
     {
-        ui_scroll_context *Scroll = Root->Value.ScrollContext;
-        Assert(Scroll);
+        ui_scroll_region *Region = QueryScrollRegion(Root->Index, Subtree, UIState.ResourceTable);
+        Assert(Region);
 
         f32 TotalWidth  = 0.f;
         f32 TotalHeight = 0.f;
@@ -1608,23 +1607,23 @@ PostOrderMeasureSubtree(ui_layout_node *Root, ui_subtree *Subtree)
         ui_node_style *Style   = GetNodeStyle(Root->Index, Subtree);
         ui_spacing     Spacing = UIGetSpacing(Style->Properties[StyleState_Basic]);
 
-        if (Scroll->Axis == ScrollAxis_X)
+        if (Region->Axis == UIAxis_X)
         {
             if(VisibleCount)
             {
                 TotalWidth += (VisibleCount - 1) * Spacing.Horizontal;
             }
 
-            Scroll->ContentSize = Vec2F32(TotalWidth, MaxHeight);
+            Region->ContentSize = Vec2F32(TotalWidth, MaxHeight);
         } else
-        if (Scroll->Axis == ScrollAxis_Y)
+        if (Region->Axis == UIAxis_Y)
         {
             if(VisibleCount)
             {
                 TotalHeight += (VisibleCount - 1) * Spacing.Vertical;
             }
 
-            Scroll->ContentSize = Vec2F32(MaxWidth, TotalHeight);
+            Region->ContentSize = Vec2F32(MaxWidth, TotalHeight);
         }
     }
 }
@@ -1867,9 +1866,12 @@ PaintTreeFromRoot(ui_layout_node *Root, ui_subtree *Subtree)
 
             // Stack Frame
             {
-                if (HasFlag(Frame.Node->Flags, UILayoutNode_IsScrollable))
+                if (HasFlag(Frame.Node->Flags, UILayoutNode_HasScrollRegion))
                 {
-                    vec2_f32 NodeScroll = GetScrollNodeTranslation(Frame.Node);
+                    ui_scroll_region *Region = QueryScrollRegion(Frame.Node->Index, Subtree, UIState.ResourceTable);
+                    Assert(Region);
+
+                    vec2_f32 NodeScroll = GetScrollNodeTranslation(Region);
 
                     AccScroll.X += NodeScroll.X;
                     AccScroll.Y += NodeScroll.Y;
@@ -1953,30 +1955,5 @@ PaintSubtree(ui_subtree *Subtree)
     if(Root)
     {
         PaintTreeFromRoot(Root, Subtree);
-    }
-}
-
-// [Binds]
-
-// TODO:
-// Make this a resource.
-
-internal void
-BindScrollContext(ui_node Node, ScrollAxis_Type Axis, ui_layout_tree *Tree, memory_arena *Arena)
-{
-    Assert(Node.CanUse);
-    Assert(Arena);
-
-    ui_scroll_context *Context = PushArena(Arena, sizeof(ui_scroll_context), AlignOf(ui_scroll_context));
-    if(Context)
-    {
-        ui_layout_node *LayoutNode = NodeToLayoutNode(Node, Tree);
-        if (IsValidLayoutNode(LayoutNode))
-        {
-            LayoutNode->Value.ScrollContext = Context;
-        }
-
-        Context->Axis         = Axis;
-        Context->PixelPerLine = 16.f;
     }
 }

@@ -113,7 +113,9 @@ internal u64       GetUITextFootprint   (u64 TextSize);
 internal ui_text * PlaceUITextInMemory  (byte_string Text, u64 BufferSize, ui_font *Font, void *Memory);
 
 internal void      AlignShapedGlyph     (vec2_f32 Position, ui_shaped_glyph *Glyph);
-internal void      AppendToUIText       (byte_string UTF8, ui_font *Font, ui_text *Text);
+
+internal void UITextAppend_  (byte_string UTF8, ui_font *Font, ui_text *Text);
+internal void UITextClear_   (ui_text *Text);
 
 // [Fonts]
 

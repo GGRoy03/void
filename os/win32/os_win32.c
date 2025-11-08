@@ -49,19 +49,21 @@ OSWin32WindowProc(HWND Handle, UINT Message, WPARAM WParam, LPARAM LParam)
     case WM_SYSKEYDOWN:
     case WM_SYSKEYUP:
     {
-        u32 VKCode  = (u32)WParam;
+        u32 VKCode   = (u32)WParam;
+        u32 KeyIndex = Win32InputTable[VKCode];
+
         b32 WasDown = ((LParam & ((size_t)1 << 30)) != 0);
         b32 IsDown  = ((LParam & ((size_t)1 << 31)) == 0);
 
         if (WasDown != IsDown && VKCode < OS_KeyboardButtonCount)
         {
-            ProcessInputMessage(&Inputs->KeyboardButtons[VKCode], IsDown);
+            ProcessInputMessage(&Inputs->KeyboardButtons[KeyIndex], IsDown);
         }
 
         os_button_action Action =
         {
             .IsPressed = ((!WasDown) && IsDown),
-            .Keycode   = VKCode,
+            .Keycode   = KeyIndex,
         };
 
         if(Inputs->ButtonBuffer.Count < Inputs->ButtonBuffer.Size)

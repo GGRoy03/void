@@ -1,3 +1,25 @@
+// -----------------------------------------------------------------------------------
+// Inputs Private Implementation
+
+internal b32
+IsButtonStateClicked(os_button_state *State)
+{
+    b32 Result = (State->EndedDown && State->HalfTransitionCount > 0);
+    return Result;
+}
+
+internal b32
+IsKeyClicked(OSInputKey_Type Key)
+{
+    Assert(Key > OSInputKey_None && Key < OSInputKey_Count);
+
+    os_inputs *Inputs = OSGetInputs();
+    Assert(Inputs);
+
+    b32 Result = IsButtonStateClicked(&Inputs->KeyboardButtons[Key]);
+    return Result;
+}
+
 // [Inputs]
 
 internal void 

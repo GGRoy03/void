@@ -211,12 +211,19 @@ GetUITextFootprint(u64 TextSize)
 }
 
 internal void
-AppendToUIText(byte_string UTF8, ui_font *Font, ui_text *Text)
+UITextAppend_(byte_string UTF8, ui_font *Font, ui_text *Text)
 {
     if(Text->ShapedCount < Text->ShapedLimit)
     {
         Text->Shaped[Text->ShapedCount++] = PrepareGlyph(UTF8, Font);
     }
+}
+
+internal void
+UITextClear_(ui_text *Text)
+{
+    Assert(Text);
+    Text->ShapedCount = 0;
 }
 
 internal ui_text *

@@ -1,4 +1,3 @@
-
 typedef enum UIUnit_Type
 {
     UIUnit_None    = 0,
@@ -159,30 +158,32 @@ typedef struct ui_node
     u32 SubtreeId;
 } ui_node;
 
-typedef struct ui_node_chain ui_node_chain;
-struct ui_node_chain
-{
-    ui_node        Node;
-    ui_subtree    *Subtree;
-    ui_node_chain *Prev;
+// Style:
+//   Modify a node's style at runtime.
 
-    // Style
-    ui_node_chain * (*SetDisplay)       (UIDisplay_Type Display);
-    ui_node_chain * (*SetTextColor)     (ui_color Color);
-    ui_node_chain * (*SetStyle)         (u32 StyleIndex);
+internal void UINodeSetDisplay    (ui_node Node, UIDisplay_Type Type);
+internal void UINodeSetTextColor  (ui_node Node, ui_color Color);
+internal void UINodeSetStyle      (ui_node Node, u32 StyleIndex);
 
-    // Layout
-    ui_node_chain * (*FindChild)        (u32 Index);
-    ui_node_chain * (*ReserveChildren)  (u32 Count);
+// Layout:
+//   Hierarchy queries. Make sure to check if Node.CanUse is set before trying to
+//   use a returned node.
 
-    // Resource
-    ui_node_chain * (*SetText)          (byte_string Text);
+internal ui_node UINodeFindChild        (ui_node Node, u32 Index);
+internal void    UINodeReserveChildren  (ui_node Node, u32 Amount);
 
-    // Misc
-    ui_node_chain * (*SetId)            (byte_string Id);
-};
+// Resource:
+//   ...
 
-internal ui_node_chain * UIChain  (ui_node Node);
+internal void UINodeClearText     (ui_node Node);
+internal void UINodeSetText       (ui_node Node, byte_string Text);
+internal void UINodeSetTextInput  (ui_node Node, u8 *Buffer, u64 BufferSize);
+
+// Misc:
+//   ...
+
+internal ui_node UINode       (bit_field Flags);
+internal void    UINodeSetId  (ui_node Node, byte_string Id);
 
 // ------------------------------------------------------------------------------------
 
@@ -193,9 +194,10 @@ typedef struct ui_text ui_text;
 
 typedef enum UIResource_Type
 {
-    UIResource_None      = 0,
-    UIResource_Text      = 1,
-    UIResource_TextInput = 2,
+    UIResource_None         = 0,
+    UIResource_Text         = 1,
+    UIResource_TextInput    = 2,
+    UIResource_ScrollRegion = 3,
 } UIResource_Type;
 
 typedef struct ui_resource_key
@@ -243,7 +245,12 @@ internal void              UpdateResourceTable   (u32 Id, ui_resource_key Key, v
 //   When querying a resource it is excpected that the resource already exists.
 //   If it does not, an assertion is triggered. It also must be of the correct type.
 
-internal ui_text * QueryTextResource  (u32 NodeIndex, ui_subtree *Subtree, ui_resource_table *Table);
+typedef struct ui_text_input ui_text_input;
+typedef struct ui_scroll_region ui_scroll_region;
+
+internal ui_text          * QueryTextResource       (u32 NodeIndex, ui_subtree *Subtree, ui_resource_table *Table);
+internal ui_text_input    * QueryTextInputResource  (u32 NodeIndex, ui_subtree *Subtree, ui_resource_table *Table);
+internal ui_scroll_region * QueryScrollRegion       (u32 NodeIndex, ui_subtree *Subtree, ui_resource_table *Table);
 
 // ------------------------------------------------------------------------------------
 
@@ -284,8 +291,6 @@ typedef struct ui_state
 } ui_state;
 
 global ui_state UIState;
-
-internal ui_pipeline * GetCurrentPipeline  ();
 
 // [Helpers]
 
@@ -376,7 +381,6 @@ typedef struct ui_pipeline
     // Internal State (DO NOT TOUCH)
     ui_style_registry *Registry;
     ui_node_id_table  *IdTable;
-    ui_node_chain     *Chain;
     u64                NextSubtreeId;
     ui_subtree        *CurrentSubtree;
     ui_subtree_list    Subtrees;
@@ -393,7 +397,4 @@ internal void          UIEndSubtree         (ui_subtree_params Params);
 internal ui_pipeline * UICreatePipeline      (ui_pipeline_params Params);
 internal void          UIBeginAllSubtrees    (ui_pipeline *Pipeline);
 internal void          UIExecuteAllSubtrees  (ui_pipeline *Pipeline);
-
-internal ui_subtree  * FindSubtree           (ui_node Node, ui_pipeline *Pipeline);
-
 // ----------------------------------------
