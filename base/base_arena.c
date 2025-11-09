@@ -69,7 +69,9 @@ PushArena(memory_arena *Arena, u64 Size, u64 Alignment)
         New->BasePosition = Active->BasePosition + Active->ReserveSize;
         New->Prev         = Active;
 
-        Active       = New;
+        Active         = New;
+        Arena->Current = New;
+
         PrePosition  = AlignPow2(Active->Position, Alignment);
         PostPosition = PrePosition + Size;
     }

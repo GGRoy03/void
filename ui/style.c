@@ -39,7 +39,7 @@ UISetSize(u32 NodeIndex, vec2_unit Size, ui_subtree *Subtree)
     Assert(Subtree);
 
     style_property Property = {.Type = StyleProperty_Size, .Vec2 = Size};
-    SetStyleProperty(NodeIndex, Property, StyleState_Basic, Subtree);
+    SetStyleProperty(NodeIndex, Property, StyleState_Default, Subtree);
 }
 
 internal void
@@ -48,7 +48,7 @@ UISetDisplay(u32 NodeIndex, UIDisplay_Type Display, ui_subtree *Subtree)
     Assert(Subtree);
 
     style_property Property = {.Type = StyleProperty_Display, .Enum = Display};
-    SetStyleProperty(NodeIndex, Property, StyleState_Basic, Subtree);
+    SetStyleProperty(NodeIndex, Property, StyleState_Default, Subtree);
 }
 
 internal void
@@ -57,7 +57,7 @@ UISetTextColor(u32 NodeIndex, ui_color Color, ui_subtree *Subtree)
     Assert(Subtree);
 
     style_property Property = {.Type = StyleProperty_TextColor, .Color = Color};
-    SetStyleProperty(NodeIndex, Property, StyleState_Basic, Subtree);
+    SetStyleProperty(NodeIndex, Property, StyleState_Default, Subtree);
 }
 
 internal u32
@@ -70,6 +70,46 @@ ResolveCachedIndex(u32 Index)
 }
 
 //
+
+internal void
+SetNodeStyleState(StyleState_Type State, u32 NodeIndex, ui_subtree *Subtree)
+{
+    Assert(Subtree);
+
+    ui_node_style *Style = GetNodeStyle(NodeIndex, Subtree);
+    Assert(Style);
+
+    Style->State = State;
+}
+
+internal style_property *
+GetPaintProperties(u32 NodeIndex, ui_subtree *Subtree)
+{
+    Assert(Subtree);
+
+    ui_node_style *Style = GetNodeStyle(NodeIndex, Subtree);
+    Assert(Style);
+
+    style_property *Result = PushArray(Subtree->Transient, style_property, StyleProperty_Count);
+    Assert(Result);
+
+    ForEachEnum(StyleProperty_Type, StyleProperty_Count, Prop)
+    {
+        if(Style->Properties[Style->State][Prop].IsSet)
+        {
+            Result[Prop] = Style->Properties[Style->State][Prop];
+        }
+        else
+        {
+            Result[Prop] = Style->Properties[StyleState_Default][Prop];
+        }
+    }
+
+    // WARN: Unsure.
+    Style->State = StyleState_Default;
+
+    return Result;
+}
 
 internal ui_node_style *
 GetNodeStyle(u32 Index, ui_subtree *Subtree)

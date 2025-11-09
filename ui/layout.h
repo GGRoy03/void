@@ -30,17 +30,12 @@ typedef enum UILayoutNode_Flag
     UILayoutNode_IsResizable     = 1 << 5,
 
     // Layout Info (Should not exist most likely)
-    UILayoutNode_PlaceChildrenX  = 1 << 6,
-    UILayoutNode_PlaceChildrenY  = 1 << 7,
-    UILayoutNode_IsParent        = 1 << 8,
-
-    // Frame State (Do not like this)
-    UILayoutNode_IsHovered       = 1 << 9,
+    UILayoutNode_IsParent        = 1 << 6,
 
     // Resources
-    UILayoutNode_HasText         = 1 << 10,
-    UILayoutNode_HasTextInput    = 1 << 11,
-    UILayoutNode_HasScrollRegion = 1 << 12,
+    UILayoutNode_HasText         = 1 << 7,
+    UILayoutNode_HasTextInput    = 1 << 8,
+    UILayoutNode_HasScrollRegion = 1 << 9,
 } UILayoutNode_Flag;
 
 internal u64              GetLayoutTreeFootprint   (u64 NodeCount);

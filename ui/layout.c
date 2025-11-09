@@ -429,8 +429,9 @@ UpdateNodeIfNeeded(u32 NodeIndex, ui_subtree *Subtree)
         Assert(Pipeline);
 
         style_property *Cached[StyleState_Count] = {0};
-        Cached[StyleState_Basic] = GetCachedProperties(Style->CachedStyleIndex, StyleState_Basic, Pipeline->Registry);
-        Cached[StyleState_Hover] = GetCachedProperties(Style->CachedStyleIndex, StyleState_Hover, Pipeline->Registry);
+        Cached[StyleState_Default] = GetCachedProperties(Style->CachedStyleIndex, StyleState_Default, Pipeline->Registry);
+        Cached[StyleState_Hovered] = GetCachedProperties(Style->CachedStyleIndex, StyleState_Hovered, Pipeline->Registry);
+        Cached[StyleState_Focused] = GetCachedProperties(Style->CachedStyleIndex, StyleState_Focused, Pipeline->Registry);
 
         ForEachEnum(StyleState_Type, StyleState_Count, State)
         {
@@ -449,8 +450,8 @@ UpdateNodeIfNeeded(u32 NodeIndex, ui_subtree *Subtree)
         Assert(LayoutNode);
         {
             ui_layout_box  *Box   = &LayoutNode->Value;
-            style_property *Basic = Style->Properties[StyleState_Basic];
-            Assert(Basic);
+            style_property *Default = Style->Properties[StyleState_Default];
+            Assert(Default);
 
             // NOTE:
             // I still don't know about this part. We could very well query the needed style
@@ -458,18 +459,18 @@ UpdateNodeIfNeeded(u32 NodeIndex, ui_subtree *Subtree)
             // with some attribute (TextAlign-X, TextAlign-Y)
 
             // Defaults
-            Box->BorderWidth = UIGetBorderWidth(Basic);
-            Box->Width       = UIGetSize(Basic).X;
-            Box->Height      = UIGetSize(Basic).Y;
-            Box->Padding     = UIGetPadding(Basic);
-            Box->Spacing     = UIGetSpacing(Basic);
-            Box->Display     = UIGetDisplay(Basic);
+            Box->BorderWidth = UIGetBorderWidth(Default);
+            Box->Width       = UIGetSize(Default).X;
+            Box->Height      = UIGetSize(Default).Y;
+            Box->Padding     = UIGetPadding(Default);
+            Box->Spacing     = UIGetSpacing(Default);
+            Box->Display     = UIGetDisplay(Default);
 
             // Flex
-            Box->FlexBox.Direction  = UIGetFlexDirection(Basic);
-            Box->FlexBox.Justify    = UIGetJustifyContent(Basic);
-            Box->FlexBox.Align      = UIGetAlignItems(Basic);
-            Box->FlexItem.SelfAlign = UIGetSelfAlign(Basic);
+            Box->FlexBox.Direction  = UIGetFlexDirection(Default);
+            Box->FlexBox.Justify    = UIGetJustifyContent(Default);
+            Box->FlexBox.Align      = UIGetAlignItems(Default);
+            Box->FlexItem.SelfAlign = UIGetSelfAlign(Default);
         }
 
         Style->IsLastVersion = 1;
@@ -920,10 +921,7 @@ AttemptNodeFocus(vec2_f32 MousePosition, ui_layout_node *Root, memory_arena *Are
 internal void
 GenerateFocusedNodeEvents(ui_event_list *Events, memory_arena *Arena)
 {
-    if(!Events->Focused)
-    {
-        return;
-    }
+    Assert(Events->Focused);
 
     vec2_f32 MouseDelta = OSGetMouseDelta();
     b32      MouseMoved = (MouseDelta.X != 0 || MouseDelta.Y != 0);
@@ -965,14 +963,23 @@ GenerateFocusedNodeEvents(ui_event_list *Events, memory_arena *Arena)
 }
 
 internal void
-GenerateUIEvents(vec2_f32 MousePosition, ui_layout_node *Root, memory_arena *Arena, ui_event_list *Result)
+GenerateUIEvents(vec2_f32 MousePosition, ui_layout_node *Root, ui_subtree *Subtree)
 {
-    if(!Result->Focused)
+    ui_event_list *Events = &Subtree->Events;
+    memory_arena  *Arena  = Subtree->Transient;
+    Assert(Arena);
+
+    if(!Events->Focused)
     {
-        AttemptNodeFocus(MousePosition, Root, Arena, Result);
+        AttemptNodeFocus(MousePosition, Root, Arena, Events);
     }
 
-    GenerateFocusedNodeEvents(Result, Arena);
+    if(Events->Focused)
+    {
+        SetNodeStyleState(StyleState_Focused, Events->Focused->Index, Subtree);
+
+        GenerateFocusedNodeEvents(Events, Arena);
+    }
 }
 
 internal void
@@ -990,7 +997,9 @@ ProcessUIEvents(ui_event_list *Events, ui_subtree *Subtree)
         case UIEvent_Hover:
         {
             ui_hover_event Hover = Event->Hover;
-            SetFlag(Hover.Node->Flags, UILayoutNode_IsHovered);
+            Assert(Hover.Node);
+
+            SetNodeStyleState(StyleState_Hovered, Hover.Node->Index, Subtree);
         } break;
 
         case UIEvent_Click:
@@ -1005,7 +1014,7 @@ ProcessUIEvents(ui_event_list *Events, ui_subtree *Subtree)
             ui_resize_event Resize = Event->Resize;
 
             ui_node_style *Style        = GetNodeStyle(Resize.Node->Index, Subtree);
-            vec2_unit      CurrentSize  = UIGetSize(Style->Properties[StyleState_Basic]);
+            vec2_unit      CurrentSize  = UIGetSize(Style->Properties[StyleState_Default]);
 
             Assert(CurrentSize.X.Type == UIUnit_Float32);
             Assert(CurrentSize.X.Type == UIUnit_Float32);
@@ -1045,7 +1054,7 @@ ProcessUIEvents(ui_event_list *Events, ui_subtree *Subtree)
             Assert(Node);
 
             ui_node_style *Style = GetNodeStyle(Node->Index, Subtree);
-            ui_font       *Font  = UIGetFont(Style->Properties[StyleState_Basic]);
+            ui_font       *Font  = UIGetFont(Style->Properties[StyleState_Default]);
 
             ui_resource_key   TextKey   = MakeResourceKey(UIResource_Text, Node->Index, Subtree);
             ui_resource_state TextState = FindResourceByKey(TextKey, Table);
@@ -1149,9 +1158,6 @@ AlignUITextLine(f32 ContentWidth, f32 LineWidth, UIAlign_Type XAlign, ui_shaped_
         }
     }
 }
-
-float pixel = 1.0f; // or 1.0f / DPI scale
-float snap(float x) { return floorf(x + 0.5f * pixel) / pixel; }
 
 // -----------------------------------------------------------
 // FlexBox Internal Implementation
@@ -1309,8 +1315,8 @@ PreOrderPlaceSubtree(ui_layout_node *Root, ui_subtree *Subtree)
             {
                 ui_text *Text = QueryTextResource(Node->Index, Subtree, Table);
 
-                UIAlign_Type XAlign = UIGetXTextAlign(Style->Properties[StyleState_Basic]);
-                UIAlign_Type YAlign = UIGetYTextAlign(Style->Properties[StyleState_Basic]);
+                UIAlign_Type XAlign = UIGetXTextAlign(Style->Properties[StyleState_Default]);
+                UIAlign_Type YAlign = UIGetYTextAlign(Style->Properties[StyleState_Default]);
 
                 f32 WrapWidth   = GetUITextSpace(Node);
                 f32 LineWidth   = 0.f;
@@ -1335,10 +1341,10 @@ PreOrderPlaceSubtree(ui_layout_node *Root, ui_subtree *Subtree)
                     }
 
                     vec2_f32 Position = Vec2F32(LineStartX + LineWidth, LineStartY);
-                    Shaped->Position.Min.X = snap(Position.X + Shaped->Offset.X);
-                    Shaped->Position.Min.Y = snap(Position.Y + Shaped->Offset.Y);
-                    Shaped->Position.Max.X = snap(Shaped->Position.Min.X + Shaped->Size.X);
-                    Shaped->Position.Max.Y = snap(Shaped->Position.Min.Y + Shaped->Size.Y);
+                    Shaped->Position.Min.X = Position.X + Shaped->Offset.X;
+                    Shaped->Position.Min.Y = Position.Y + Shaped->Offset.Y;
+                    Shaped->Position.Max.X = Shaped->Position.Min.X + Shaped->Size.X;
+                    Shaped->Position.Max.Y = Shaped->Position.Min.Y + Shaped->Size.Y;
 
                     LineWidth += Shaped->AdvanceX;
                 }
@@ -1605,7 +1611,7 @@ PostOrderMeasureSubtree(ui_layout_node *Root, ui_subtree *Subtree)
         }
 
         ui_node_style *Style   = GetNodeStyle(Root->Index, Subtree);
-        ui_spacing     Spacing = UIGetSpacing(Style->Properties[StyleState_Basic]);
+        ui_spacing     Spacing = UIGetSpacing(Style->Properties[StyleState_Default]);
 
         if (Region->Axis == UIAxis_X)
         {
@@ -1767,48 +1773,6 @@ PaintUIGlyph(rect_f32 Rect, ui_color Color, rect_f32 Sample, render_batch_list *
     PaintUIRect_(Rect, Color, (ui_corner_radius){0}, 0, 0, Sample, 1, BatchList, Arena);
 }
 
-internal style_property *
-GetPaintProperties(ui_layout_node *Node, ui_subtree *Subtree)
-{
-    style_property *Result = 0;
-
-    ui_node_style  *NodeStyle = GetNodeStyle(Node->Index, Subtree);
-    StyleState_Type State     = StyleState_Basic;
-
-    if(HasFlag(Node->Flags, UILayoutNode_IsHovered))
-    {
-        State = StyleState_Hover;
-
-        // NOTE: This could be bad if other parts of the code depend on this flag.
-        ClearFlag(Node->Flags, UILayoutNode_IsHovered);
-    }
-
-    if(State == StyleState_Basic)
-    {
-        Result = NodeStyle->Properties[State];
-    }
-    else
-    {
-        Result = PushArray(Subtree->Transient, style_property, StyleProperty_Count);
-
-        if(Result)
-        {
-            MemoryCopy(Result, NodeStyle->Properties[StyleState_Basic], sizeof(NodeStyle->Properties[StyleState_Basic]));
-
-            ForEachEnum(StyleProperty_Type, StyleProperty_Count, Prop)
-            {
-                if(NodeStyle->Properties[State][Prop].IsSet)
-                {
-                    Result[Prop] = NodeStyle->Properties[State][Prop];
-                }
-            }
-        }
-    }
-
-    Assert(Result);
-    return Result;
-}
-
 internal void
 PaintTreeFromRoot(ui_layout_node *Root, ui_subtree *Subtree)
 {
@@ -1833,7 +1797,7 @@ PaintTreeFromRoot(ui_layout_node *Root, ui_subtree *Subtree)
             // Painting
             {
                 render_batch_list *BatchList = GetPaintBatchList(Node, Subtree, ClipRect);
-                style_property    *Style     = GetPaintProperties(Node, Subtree);
+                style_property    *Style     = GetPaintProperties(Node->Index, Subtree);
 
                 ui_corner_radius CornerRadii = UIGetCornerRadius(Style);
                 f32              Softness    = UIGetSoftness(Style);
@@ -1927,7 +1891,7 @@ UpdateSubtreeState(ui_subtree *Subtree)
     vec2_f32 MousePosition = OSGetMousePosition();
 
     ClearUIEvents(&Subtree->Events);
-    GenerateUIEvents(MousePosition, Root, Subtree->Transient, &Subtree->Events);
+    GenerateUIEvents(MousePosition, Root, Subtree);
     ProcessUIEvents(&Subtree->Events, Subtree);
 }
 

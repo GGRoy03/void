@@ -23,7 +23,6 @@ UIScrollableContent(UIAxis_Type Axis, u32 StyleIndex)
     bit_field Flags = 0;
     {
         SetFlag(Flags, UILayoutNode_IsParent);
-        SetFlag(Flags, UILayoutNode_PlaceChildrenY);
         SetFlag(Flags, UILayoutNode_HasClip);
     }
 
@@ -32,6 +31,19 @@ UIScrollableContent(UIAxis_Type Axis, u32 StyleIndex)
     {
         UINodeSetStyle(Node, StyleIndex);
         UINodeSetScroll(Node, Axis);
+    }
+
+    return Node;
+}
+
+internal ui_node
+UILabel(byte_string Text, u32 Style)
+{
+    ui_node Node = UINode(NoFlag);
+    if(Node.CanUse)
+    {
+        UINodeSetStyle(Node, Style);
+        UINodeSetText(Node, Text);
     }
 
     return Node;

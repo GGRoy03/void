@@ -31,11 +31,12 @@ typedef enum StyleProperty_Type
 
 typedef enum StyleState_Type
 {
-    StyleState_Basic = 0,
-    StyleState_Hover = 1,
+    StyleState_Default = 0,
+    StyleState_Hovered = 1,
+    StyleState_Focused = 2,
 
-    StyleState_None  = 2,
-    StyleState_Count = 2,
+    StyleState_None  = 3,
+    StyleState_Count = 3,
 } StyleState_Type;
 
 // [CORE TYPES]
@@ -77,9 +78,10 @@ typedef struct ui_style_registry
 
 typedef struct ui_node_style
 {
-    b32            IsLastVersion;
-    u32            CachedStyleIndex;
-    style_property Properties[StyleState_Count][StyleProperty_Count];
+    b32             IsLastVersion;
+    u32             CachedStyleIndex;
+    StyleState_Type State;
+    style_property  Properties[StyleState_Count][StyleProperty_Count];
 } ui_node_style;
 
 #define UI_PROPERTY_TABLE \
@@ -113,6 +115,8 @@ UI_PROPERTY_TABLE
 // GetHoverStyle:
 //
 
+internal void             SetNodeStyleState    (StyleState_Type State, u32 NodeIndex, ui_subtree *Subtree);
+internal style_property * GetPaintProperties   (u32 NodeIndex, ui_subtree *Subtree);
 internal ui_node_style  * GetNodeStyle         (u32 NodeIndex, ui_subtree *Subtree);
 internal style_property * GetCachedProperties  (u32 StyleIndex, StyleState_Type State, ui_style_registry *Registry);
 

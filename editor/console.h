@@ -1,13 +1,5 @@
 // [CONSTANTS]
 
-typedef enum ConsoleStyle_Type
-{
-    ConsoleStyle_Window      = 1,
-    ConsoleStyle_MessageView = 2,
-    ConsoleStyle_Message     = 3,
-    ConsoleStyle_Prompt      = 4,
-} ConsoleStyle_Type;
-
 typedef enum ConsoleConstant_Type
 {
     ConsoleConstant_MessageCountLimit = 60,
@@ -30,6 +22,10 @@ typedef struct console_ui
     // Prompt
     u8 *PromptBuffer;
     u64 PromptBufferSize;
+
+    // Text
+    byte_string StatusText;
+    byte_string FooterText;
 
     // Scroll Buffer State
     u32 MessageLimit;

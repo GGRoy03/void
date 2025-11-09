@@ -492,7 +492,7 @@ UINodeSetText(ui_node Node, byte_string Text)
         Assert(Memory && Commited);
 
         ui_node_style *Style = GetNodeStyle(Node.IndexInTree, Subtree);
-        ui_font       *Font  = UIGetFont(Style->Properties[StyleState_Basic]);
+        ui_font       *Font  = UIGetFont(Style->Properties[StyleState_Default]);
 
         ui_text *UIText = PlaceUITextInMemory(Text, Text.Size, Font, Memory);
         Assert(UIText);
@@ -600,9 +600,6 @@ UINode(bit_field Flags)
 
     return Node;
 }
-
-// -------------------------------------------------------------
-// UI Node Public API Implementation
 
 // ----------------------------------------------------------------------------------
 // UI Resource Cache Private Implementation
@@ -938,8 +935,8 @@ UIBeginSubtree(ui_subtree_params Params)
             memory_arena_params Params = {0};
             Params.AllocatedFromFile = __FILE__;
             Params.AllocatedFromLine = __LINE__;
-            Params.ReserveSize       = Kilobyte(64);
-            Params.CommitSize        = Kilobyte(8);
+            Params.ReserveSize       = Kilobyte(32);
+            Params.CommitSize        = Kilobyte(16);
 
             Transient = AllocateArena(Params);
         }

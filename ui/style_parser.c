@@ -43,8 +43,9 @@ read_only global style_parser_table_entry StyleKeywordTable[] =
 
 read_only global style_parser_table_entry StyleStateTable[] =
 {
-    {byte_string_compile("base") , StyleState_Basic},
-    {byte_string_compile("hover"), StyleState_Hover},
+    {byte_string_compile("default"), StyleState_Default},
+    {byte_string_compile("hovered"), StyleState_Hovered},
+    {byte_string_compile("focused"), StyleState_Focused},
 };
 
 read_only global style_parser_table_entry StylePropertyTable[] =
@@ -853,7 +854,12 @@ ParseStyleState(style_token_buffer *Buffer, style_file_debug_info *Debug)
 {
     StyleState_Type Result = StyleState_None;
 
-    style_token *Name = ConsumeStyleToken(Buffer, StyleToken_Identifier, byte_string_literal("Expected Base or Hover after using @"), Debug);
+    if(!ExpectStyleToken(Buffer, StyleToken_AtSymbol))
+    {
+        return Result;
+    }
+
+    style_token *Name = ConsumeStyleToken(Buffer, StyleToken_Identifier, byte_string_literal("Expected Default OR Hover OR Focus after using @"), Debug);
     if(Name)
     {
         u32 Enum = FindEnumFromStyleTable(Name->Identifier, StyleStateTable, ArrayCount(StyleStateTable));
@@ -1205,7 +1211,7 @@ ParseStyleBlock(style_token_buffer *Buffer, style_var_table *VarTable, style_fil
     }
 
     ParseBlock_State State        = ParseBlock_ExpectEffect;
-    StyleState_Type  CurrentState = StyleState_None;
+    StyleState_Type  CurrentState = StyleState_Default;
 
     while(State != ParseBlock_Done && State != ParseBlock_Error)
     {
@@ -1227,20 +1233,13 @@ ParseStyleBlock(style_token_buffer *Buffer, style_var_table *VarTable, style_fil
 
         case ParseBlock_ExpectEffect:
         {
-            Assert(MatchStyleToken(Buffer, StyleToken_AtSymbol));
-            EatStyleToken(Buffer, 1);
-
             StyleState_Type StyleState = ParseStyleState(Buffer, Debug);
             if(StyleState != StyleState_None)
             {
                 CurrentState = StyleState;
-                State        = ParseBlock_InEffect;
             }
-            else
-            {
-                ReportStyleFileError(Debug, error_message("Expected @Base or @Hover before attributes"));
-                SynchronizeToNextEffect(Buffer);
-            }
+
+            State = ParseBlock_InEffect;
         } break;
 
         case ParseBlock_InEffect:
@@ -1356,7 +1355,7 @@ CacheStyle(style *ParsedStyle, ui_style_registry *Registry, style_file_debug_inf
 
             if(IsPropertySet(CachedStyle, State, StyleProperty_FontSize))
             {
-                style_property *Props = GetCachedProperties(CachedStyle->CachedIndex, StyleState_Basic, Registry);
+                style_property *Props = GetCachedProperties(CachedStyle->CachedIndex, StyleState_Default, Registry);
                 f32 Size = UIGetFontSize(Props);
 
                 ui_font *Font = UIQueryFont(Name, Size);

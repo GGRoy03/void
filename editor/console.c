@@ -1,13 +1,28 @@
+typedef enum ConsoleStyle_Type
+{
+    ConsoleStyle_Window         = 1,
+    ConsoleStyle_Header         = 2,
+    ConsoleStyle_HeaderTitle    = 3,
+    ConsoleStyle_HeaderStatus   = 4,
+    ConsoleStyle_ScrollBuffer   = 5,
+    ConsoleStyle_MessageInfo    = 6,
+    ConsoleStyle_MessageWarning = 7,
+    ConsoleStyle_MessageError   = 8,
+    ConsoleStyle_Prompt         = 9,
+    ConsoleStyle_Footer         = 10,
+    ConsoleStyle_FooterText     = 11,
+} ConsoleStyle_Type;
+
 typedef struct console_output
 {
-    byte_string Message;
-    ui_color    TextColor;
+    byte_string       Message;
+    ConsoleStyle_Type Style;
 } console_output;
 
 internal b32
 IsValidConsoleOutput(console_output Output)
 {
-    b32 Result = IsValidByteString(Output.Message) && IsVisibleColor(Output.TextColor);
+    b32 Result = IsValidByteString(Output.Message) && (Output.Style >= ConsoleStyle_MessageInfo && Output.Style <= ConsoleStyle_MessageError);
     return Result;
 }
 
@@ -18,44 +33,43 @@ FormatConsoleOutput(byte_string Message, ConsoleMessage_Severity Severity, memor
 
     if(IsValidByteString(Message))
     {
-        ui_color    TextColor = UIColor(1.f, 1.f, 1.f, 0.f);
-        byte_string Prefix    = ByteString(0, 0);
+        ConsoleStyle_Type Style  = ConsoleStyle_MessageInfo;
+        byte_string       Prefix = ByteString(0, 0);
 
         switch(Severity)
         {
 
         case ConsoleMessage_Info:
         {
-            TextColor = UIColor(0.01f, 0.71f, 0.99f, 1.f);
-            Prefix    = byte_string_literal("[Info] => ");
+            Style  = ConsoleStyle_MessageInfo;
+            Prefix = byte_string_literal("[Info] => ");
         } break;
 
         case ConsoleMessage_Warn:
         {
-            TextColor = UIColor(0.99f, 0.62f, 0.01f, 1.f);
-            Prefix    = byte_string_literal("[Warn] => ");
+            Style  = ConsoleStyle_MessageWarning;
+            Prefix = byte_string_literal("[Warn] => ");
         } break;
 
         case ConsoleMessage_Error:
         {
-            TextColor = UIColor(0.99f, 0.01f, 0.11f, 1.f);
-            Prefix    = byte_string_literal("[Error] => ");
+            Style  = ConsoleStyle_MessageError;
+            Prefix = byte_string_literal("[Error] => ");
         } break;
 
         case ConsoleMessage_Fatal:
         {
-            TextColor = UIColor(0.99f, 0.01f, 0.11f, 1.f);
-            Prefix    = byte_string_literal("[Fatal] => ");
+            Style  = ConsoleStyle_MessageError;
+            Prefix = byte_string_literal("[Fatal] => ");
         } break;
 
         default: break;
 
         }
 
-        Result.Message   = ByteStringAppend(Message, Prefix, 0, Arena);
-        Result.TextColor = TextColor;
+        Result.Message = ByteStringAppend(Message, Prefix, 0, Arena);
+        Result.Style   = Style;
     }
-
 
     return Result;
 }
@@ -70,8 +84,7 @@ ConsolePrintMessage(console_output Output, ui_node BufferNode, console_ui *Conso
 
     ui_node Child = UINodeFindChild(BufferNode, ChildIndex);
     {
-        UINodeSetStyle(Child, ConsoleStyle_Message);
-        UINodeSetTextColor(Child, Output.TextColor);
+        UINodeSetStyle(Child, Output.Style);
         UINodeSetText(Child, Output.Message);
     }
 }
@@ -164,6 +177,8 @@ InitializeConsoleUI(console_ui *Console)
 {
     Assert(!Console->IsInitialized);
 
+    Console->StatusText       = str8_lit("Hello?");
+    Console->FooterText       = str8_lit("Hello!?");
     Console->MessageLimit     = ConsoleConstant_MessageCountLimit;
     Console->PromptBufferSize = ConsoleConstant_PromptBufferSize;
 
@@ -186,23 +201,40 @@ InitializeConsoleUI(console_ui *Console)
     ui_subtree_params SubtreeParams =
     {
         .CreateNew = 1,
-        .NodeCount = 1024,
+        .NodeCount = 128,
     };
 
     UISubtree(SubtreeParams)
     {
         UIBlock(UIWindow(ConsoleStyle_Window))
         {
+            ui_node Header = {0};
+            UIBlock(Header = UINode(UILayoutNode_IsParent))
+            {
+                UINodeSetStyle(Header, ConsoleStyle_Header);
+
+                UILabel(Console->StatusText, ConsoleStyle_HeaderStatus);
+            }
+
             ui_node ScrollBuffer = {0};
-            UIBlock(ScrollBuffer = UIScrollableContent(UIAxis_Y, ConsoleStyle_MessageView))
+            UIBlock(ScrollBuffer = UIScrollableContent(UIAxis_Y, ConsoleStyle_ScrollBuffer))
             {
                 UINodeSetId(ScrollBuffer, ui_id("Console_Buffer"));
                 UINodeReserveChildren(ScrollBuffer, Console->MessageLimit);
+
             }
 
             ui_node Input = UITextInput(Console->PromptBuffer, Console->PromptBufferSize, ConsoleStyle_Prompt);
             {
                 UINodeSetId(Input, ui_id("Console_Prompt"));
+            }
+
+            ui_node Footer = {0};
+            UIBlock(Footer = UINode(UILayoutNode_IsParent))
+            {
+                UINodeSetStyle(Footer, ConsoleStyle_Footer);
+
+                UILabel(Console->FooterText, ConsoleStyle_FooterText);
             }
         }
     }
