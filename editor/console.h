@@ -25,7 +25,6 @@ typedef struct console_ui
 
     // Text
     byte_string StatusText;
-    byte_string FooterText;
 
     // Scroll Buffer State
     u32 MessageLimit;

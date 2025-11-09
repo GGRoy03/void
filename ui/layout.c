@@ -1236,22 +1236,26 @@ PreOrderPlaceSubtree(ui_layout_node *Root, ui_subtree *Subtree)
                 }
             }
 
+            // NOTE:
+            // Instead of branching we could use vector masks?
+            // I don't know what the compiler does.
+
             if(Box->Display == UIDisplay_Flex)
             {
-                if(Box->FlexBox.Direction == UIFlexDirection_Row)
+                UIFlexDirection_Type Direction = Box->FlexBox.Direction;
+
+                f32 MainSize  = Direction == UIFlexDirection_Row ? ContentSize.X : ContentSize.Y;
+                f32 CrossSize = Direction == UIFlexDirection_Row ? ContentSize.Y : ContentSize.X;
+                f32 FreeSpace = MainSize - Box->FlexBox.ChildrenSize;
+
+                f32 MainAxisSpacing  = Direction == UIFlexDirection_Row ? Box->Spacing.Horizontal : Box->Spacing.Vertical;
+                f32 CrossAxisSpacing = Direction == UIFlexDirection_Row ? Box->Spacing.Vertical   : Box->Spacing.Horizontal;
+
+                f32 MainAxisCursor      = Direction == UIFlexDirection_Row ? Cursor.X : Cursor.Y;
+                f32 CrossAxisCursorBase = Direction == UIFlexDirection_Row ? Cursor.Y : Cursor.X;
+
+                switch(Box->FlexBox.Justify)
                 {
-                    Assert(!"Not implemented");
-                } else
-                if(Box->FlexBox.Direction == UIFlexDirection_Column)
-                {
-                    f32 FreeSpace = ContentSize.Y - Box->FlexBox.ChildrenSize;
-                    Assert(FreeSpace >= 0.f);
-
-                    f32 FlexCursorY = Cursor.Y;
-
-                    switch(Box->FlexBox.Justify)
-                    {
-
                     case UIJustifyContent_Start: break;
 
                     case UIJustifyContent_End:
@@ -1264,51 +1268,59 @@ PreOrderPlaceSubtree(ui_layout_node *Root, ui_subtree *Subtree)
 
                     case UIJustifyContent_Center:
                     {
-                        FlexCursorY += (FreeSpace * 0.5f);
+                        MainAxisCursor += (FreeSpace * 0.5f);
+                    } break;
+                }
+
+                IterateLinkedList(Node, ui_layout_node *, Child)
+                {
+                    ui_layout_box *CBox = &Child->Value;
+
+                    vec2_f32 ChildSize          = GetOuterBoxSize(CBox);
+                    f32      MainAxisChildSize  = Direction == UIFlexDirection_Row ? ChildSize.X : ChildSize.Y;
+                    f32      CrossAxisChildSize = Direction == UIFlexDirection_Row ? ChildSize.Y : ChildSize.X;
+
+                    f32 CrossAxisCursor = CrossAxisCursorBase;
+
+                    UIAlignItems_Type Align = GetChildFlexAlignment(Box, CBox);
+                    switch(Align)
+                    {
+
+                    case UIAlignItems_Start:    break;
+                    case UIAlignItems_Stretch : break;
+
+                    case UIAlignItems_End:
+                    {
+                        Assert(!"Not Implemented");
+                    } break;
+
+                    case UIAlignItems_Center:
+                    {
+                        CrossAxisCursor += (CrossSize - CrossAxisChildSize) * 0.5f;
+                    } break;
+
+                    case UIAlignItems_None:
+                    {
+                        Assert(!"Impossible.");
                     } break;
 
                     }
 
-                    IterateLinkedList(Node, ui_layout_node *, Child)
+                    if(Direction == UIFlexDirection_Row)
                     {
-                        ui_layout_box *CBox      = &Child->Value;
-                        vec2_f32       ChildSize = GetOuterBoxSize(CBox);
-
-                        f32 FlexCursorX = Cursor.X;
-
-                        UIAlignItems_Type Align = GetChildFlexAlignment(Box, CBox);
-                        switch(Align)
-                        {
-
-                        case UIAlignItems_Start:
-                        {
-
-                        } break;
-
-                        case UIAlignItems_End:
-                        case UIAlignItems_None:
-                        {
-                            Assert(!"Not Implemented");
-                        } break;
-
-                        case UIAlignItems_Center:
-                        {
-                            FlexCursorX += (ContentSize.X - ChildSize.X) * 0.5f;
-                        } break;
-
-                        case UIAlignItems_Stretch:
-                        {
-                        } break;
-
-                        }
-
-                        CBox->VisualOffset = Vec2F32(FlexCursorX, FlexCursorY);
-
-                        FlexCursorY += ChildSize.Y;
-
-                        PushNodeQueue(&Queue, Child);
+                        CBox->VisualOffset = Vec2F32(MainAxisCursor, CrossAxisCursor);
+                    } else
+                    if(Direction == UIFlexDirection_Column)
+                    {
+                        CBox->VisualOffset = Vec2F32(CrossAxisCursor, MainAxisCursor);
                     }
+
+                    MainAxisCursor += MainAxisChildSize + MainAxisSpacing;
+
+                    PushNodeQueue(&Queue, Child);
                 }
+
+                Useless(CrossAxisSpacing);
             }
 
             if(HasFlag(Node->Flags, UILayoutNode_HasText))

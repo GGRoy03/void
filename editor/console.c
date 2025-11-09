@@ -9,8 +9,6 @@ typedef enum ConsoleStyle_Type
     ConsoleStyle_MessageWarning = 7,
     ConsoleStyle_MessageError   = 8,
     ConsoleStyle_Prompt         = 9,
-    ConsoleStyle_Footer         = 10,
-    ConsoleStyle_FooterText     = 11,
 } ConsoleStyle_Type;
 
 typedef struct console_output
@@ -177,8 +175,7 @@ InitializeConsoleUI(console_ui *Console)
 {
     Assert(!Console->IsInitialized);
 
-    Console->StatusText       = str8_lit("Hello?");
-    Console->FooterText       = str8_lit("Hello!?");
+    Console->StatusText       = str8_lit("We shoud display useful information here.");
     Console->MessageLimit     = ConsoleConstant_MessageCountLimit;
     Console->PromptBufferSize = ConsoleConstant_PromptBufferSize;
 
@@ -201,7 +198,7 @@ InitializeConsoleUI(console_ui *Console)
     ui_subtree_params SubtreeParams =
     {
         .CreateNew = 1,
-        .NodeCount = 128,
+        .NodeCount = 256,
     };
 
     UISubtree(SubtreeParams)
@@ -227,14 +224,6 @@ InitializeConsoleUI(console_ui *Console)
             ui_node Input = UITextInput(Console->PromptBuffer, Console->PromptBufferSize, ConsoleStyle_Prompt);
             {
                 UINodeSetId(Input, ui_id("Console_Prompt"));
-            }
-
-            ui_node Footer = {0};
-            UIBlock(Footer = UINode(UILayoutNode_IsParent))
-            {
-                UINodeSetStyle(Footer, ConsoleStyle_Footer);
-
-                UILabel(Console->FooterText, ConsoleStyle_FooterText);
             }
         }
     }

@@ -962,7 +962,7 @@ UIBeginSubtree(ui_subtree_params Params)
             Subtree->LayoutTree = Tree;
 
             // NOTE:
-            // What the fuck is this?
+            // What the fuck is this? Not great.
 
             ui_pipeline *Pipeline = GetCurrentPipeline();
             Assert(Pipeline);
