@@ -166,10 +166,10 @@ internal void UINodeSetTextColor  (ui_node Node, ui_color Color);
 internal void UINodeSetStyle      (ui_node Node, u32 StyleIndex);
 
 // Layout:
-//   Hierarchy queries. Make sure to check if Node.CanUse is set before trying to
-//   use a returned node.
+//   Make sure to check if Node.CanUse is set before trying to use a returned node.
 
 internal ui_node UINodeFindChild        (ui_node Node, u32 Index);
+internal void    UINodeAppendChild      (ui_node Node, u32 Child);
 internal void    UINodeReserveChildren  (ui_node Node, u32 Amount);
 
 // Resource:
@@ -178,6 +178,12 @@ internal void    UINodeReserveChildren  (ui_node Node, u32 Amount);
 internal void UINodeClearText     (ui_node Node);
 internal void UINodeSetText       (ui_node Node, byte_string Text);
 internal void UINodeSetTextInput  (ui_node Node, u8 *Buffer, u64 BufferSize);
+internal void UINodeSetScroll     (ui_node Node, UIAxis_Type Axis);
+
+// Debug:
+//   ---
+
+internal void UIDebugBox  (ui_node Node, bit_field Flag, b32 Draw);
 
 // Misc:
 //   ...

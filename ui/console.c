@@ -1,21 +1,57 @@
 typedef enum ConsoleStyle_Type
 {
-    ConsoleStyle_Window         = 1,
-    ConsoleStyle_Header         = 2,
-    ConsoleStyle_HeaderTitle    = 3,
-    ConsoleStyle_HeaderStatus   = 4,
-    ConsoleStyle_ScrollBuffer   = 5,
-    ConsoleStyle_MessageInfo    = 6,
-    ConsoleStyle_MessageWarning = 7,
-    ConsoleStyle_MessageError   = 8,
-    ConsoleStyle_Prompt         = 9,
+    ConsoleStyle_Window          = 1,
+    ConsoleStyle_Header          = 2,
+    ConsoleStyle_HeaderTitle     = 3,
+    ConsoleStyle_HeaderStatus    = 4,
+    ConsoleStyle_WindowContainer = 5,
+    ConsoleStyle_ScrollWindow    = 6,
+    ConsoleStyle_InspectWindow   = 7,
+    ConsoleStyle_MessageInfo     = 8,
+    ConsoleStyle_MessageWarning  = 9,
+    ConsoleStyle_MessageError    = 10,
+    ConsoleStyle_Prompt          = 11,
 } ConsoleStyle_Type;
+
+typedef enum ConsoleMode_Type
+{
+    ConsoleMode_Default = 0, // Console
+    ConsoleMode_Inspect = 1, // Console + Inspect (Dumps Info On Hover)
+} ConsoleMode_Type;
+
+typedef enum ConsoleConstant_Type
+{
+    ConsoleConstant_MessageCountLimit = 60,
+    ConsoleConstant_MessageSizeLimit  = Kilobyte(2),
+    ConsoleConstant_PromptBufferSize  = 128,
+    ConsoleConstant_FlagSizeLimit     = 16,
+} ConsoleConstant_Type;
 
 typedef struct console_output
 {
     byte_string       Message;
     ConsoleStyle_Type Style;
 } console_output;
+
+typedef struct console_ui
+{
+    ui_pipeline  *Pipeline;
+    b32           IsInitialized;
+
+    // State
+    ConsoleMode_Type Mode;
+    byte_string      StatusText;
+    u8               PromptBuffer[ConsoleConstant_PromptBufferSize];
+    u64              PromptBufferSize;
+
+    // Transient
+    memory_arena *FrameArena;
+
+    // Scroll Buffer State
+    u32 MessageLimit;
+    u32 MessageHead;
+    u32 MessageTail;
+} console_ui;
 
 internal b32
 IsValidConsoleOutput(console_output Output)
@@ -87,6 +123,42 @@ ConsolePrintMessage(console_output Output, ui_node BufferNode, console_ui *Conso
     }
 }
 
+// -----------------------------------------------------------------------------------
+// Console Prompt Internal Implementation
+
+internal void
+HandleConsoleFlag(byte_string Flag, console_ui *Console)
+{
+    byte_string InspectFlag = byte_string_compile("inspect");
+    if(ByteStringMatches(InspectFlag, Flag, NoFlag))
+    {
+        Console->Mode = ConsoleMode_Inspect;
+
+        // NOTE:
+        // API Needs a bit of clean ups.
+
+        ui_node ContentWindows = FindNodeById(ui_id("Console_ContentWindows"), Console->Pipeline->IdTable);
+        if(ContentWindows.CanUse)
+        {
+            ui_node InspectWindow = {0};
+            UIBlock(InspectWindow = UINode(UILayoutNode_IsParent))
+            {
+                Assert(InspectWindow.CanUse);
+
+                UILabel(str8_lit("Testing child append and creating windows"), ConsoleStyle_HeaderStatus);
+            }
+
+            UINodeAppendChild(ContentWindows, InspectWindow);
+        }
+    }
+
+    byte_string QuitFlag = byte_string_compile("quit");
+    if(ByteStringMatches(QuitFlag, Flag, NoFlag))
+    {
+        Console->Mode = ConsoleMode_Default;
+    }
+}
+
 internal void
 ReadConsolePrompt(console_ui *Console)
 {
@@ -112,12 +184,12 @@ ReadConsolePrompt(console_ui *Console)
         {
             ++Start;
 
-            u8  FlagName[8]    = {0};
-            u32 FlagNameLength = 0;
+            byte_string Flag = ByteString(0, 0);
+            Flag.String = PushArray(Console->FrameArena, u8, ConsoleConstant_FlagSizeLimit);
 
-            while((Start < End) && (FlagNameLength < ArrayCount(FlagName) - 1) && !IsWhiteSpace(*Start))
+            while((Start < End) && (Flag.Size < ConsoleConstant_FlagSizeLimit) && !IsWhiteSpace(*Start))
             {
-                FlagName[FlagNameLength++] = ToLowerChar(*Start++);
+                Flag.String[Flag.Size++] = ToLowerChar(*Start++);
             }
 
             while(Start < End && IsWhiteSpace(*Start))
@@ -125,38 +197,11 @@ ReadConsolePrompt(console_ui *Console)
                 ++Start;
             }
 
-            if(FlagNameLength > 0 && FlagName[0] == 'm')
-            {
-                u8  ArgBuffer[Kilobyte(1)];
-                u32 ArgLength = 0;
-
-                while ((Start < End) && !IsWhiteSpace(*Start) && (ArgLength < ArrayCount(ArgBuffer) - 1))
-                {
-                    ArgBuffer[ArgLength++] = *Start++;
-                }
-                ArgBuffer[ArgLength] = 0;
-
-                if(ArgLength > 0)
-                {
-                    byte_string    Message = ByteString(0, ArgLength);
-                    console_output Output  = FormatConsoleOutput(Message, ConsoleMessage_Info, Console->Arena);
-
-                    // NOTE:
-                    // We do not want to access the pipeline here.
-
-                    ui_node BufferNode = FindNodeById(ui_id("Console_Buffer"), Console->Pipeline->IdTable);
-                    if(BufferNode.CanUse)
-                    {
-                        ConsolePrintMessage(Output, BufferNode, Console);
-                    }
-                }
-            }
+            HandleConsoleFlag(Flag, Console);
         }
         else
         {
-            // NOTE: Idk.
-
-            ++Start;
+            Assert(!"Unsure");
         }
     }
 
@@ -186,8 +231,7 @@ InitializeConsoleUI(console_ui *Console)
         ArenaParams.ReserveSize       = Kilobyte(64);
         ArenaParams.CommitSize        = Kilobyte(4);
     }
-    Console->Arena        = AllocateArena(ArenaParams);
-    Console->PromptBuffer = PushArray(Console->Arena, u8, Console->PromptBufferSize);
+    Console->FrameArena   = AllocateArena(ArenaParams);
 
     ui_pipeline_params PipelineParams =
     {
@@ -213,12 +257,18 @@ InitializeConsoleUI(console_ui *Console)
                 UILabel(Console->StatusText, ConsoleStyle_HeaderStatus);
             }
 
-            ui_node ScrollBuffer = {0};
-            UIBlock(ScrollBuffer = UIScrollableContent(UIAxis_Y, ConsoleStyle_ScrollBuffer))
+            ui_node ContentWindows = {0};
+            UIBlock(ContentWindow = UINode(UILayoutNode_IsParent))
             {
-                UINodeSetId(ScrollBuffer, ui_id("Console_Buffer"));
-                UINodeReserveChildren(ScrollBuffer, Console->MessageLimit);
+                UINodeSetId(ContentWindows, ui_id("Console_ContentWindows"));
+                UINodeSetStyle(ContentWindows, ConsoleStyle_WindowContainer);
 
+                ui_node ScrollBuffer = {0};
+                UIBlock(ScrollBuffer = UIScrollableContent(UIAxis_Y, ConsoleStyle_ScrollWindow))
+                {
+                    UINodeSetId(ScrollBuffer, ui_id("Console_Buffer"));
+                    UINodeReserveChildren(ScrollBuffer, Console->MessageLimit);
+                }
             }
 
             ui_node Input = UITextInput(Console->PromptBuffer, Console->PromptBufferSize, ConsoleStyle_Prompt);
@@ -235,40 +285,42 @@ InitializeConsoleUI(console_ui *Console)
 }
 
 internal void
-ConsoleUI(console_ui *Console)
+ShowConsoleUI(void)
 {
-    if(!Console->IsInitialized)
+    static console_ui Console;
+
+    if(!Console.IsInitialized)
     {
-        Console->IsInitialized = InitializeConsoleUI(Console);
+        Console.IsInitialized = InitializeConsoleUI(&Console);
     }
 
-    UIBeginAllSubtrees(Console->Pipeline);
-    ClearArena(Console->Arena);
+    UIBeginAllSubtrees(Console.Pipeline);
+    ClearArena(Console.FrameArena);
 
     // Read Inputs
     {
         if(IsKeyClicked(OSInputKey_Enter))
         {
-            ReadConsolePrompt(Console);
+            ReadConsolePrompt(&Console);
         }
     }
 
     // Drain The Queue
     {
-        ui_node BufferNode = FindNodeById(ui_id("Console_Buffer"), Console->Pipeline->IdTable);
+        ui_node BufferNode = FindNodeById(ui_id("Console_Buffer"), Console.Pipeline->IdTable);
         if (BufferNode.CanUse)
         {
             console_queue_node *Node = 0;
             while ((Node = PopConsoleMessageQueue(&UIState.Console)))
             {
                 byte_string    RawMessage = ByteString(Node->Value.Text, Node->Value.TextSize);
-                console_output Output     = FormatConsoleOutput(RawMessage, Node->Value.Severity, Console->Arena);
-                ConsolePrintMessage(Output, BufferNode, Console);
+                console_output Output     = FormatConsoleOutput(RawMessage, Node->Value.Severity, Console.FrameArena);
+                ConsolePrintMessage(Output, BufferNode, &Console);
 
                 FreeConsoleNode(Node);
             }
         }
     }
 
-    UIExecuteAllSubtrees(Console->Pipeline);
+    UIExecuteAllSubtrees(Console.Pipeline);
 }

@@ -36,6 +36,11 @@ typedef enum UILayoutNode_Flag
     UILayoutNode_HasText         = 1 << 7,
     UILayoutNode_HasTextInput    = 1 << 8,
     UILayoutNode_HasScrollRegion = 1 << 9,
+
+    // Debug
+    UILayoutNode_DebugOuterBox   = 1 << 10,
+    UILayoutNode_DebugInnerBox   = 1 << 11,
+    UILayoutNode_DebugContentBox = 1 << 12,
 } UILayoutNode_Flag;
 
 internal u64              GetLayoutTreeFootprint   (u64 NodeCount);
@@ -50,12 +55,7 @@ internal void UpdateNodeIfNeeded    (u32 NodeIndex, ui_subtree *Subtree);
 internal void SetLayoutNodeFlags    (u32 NodeIndex, bit_field Flags, ui_subtree *Subtree);
 internal void ClearLayoutNodeFlags  (u32 NodeIndex, bit_field Flags, ui_subtree *Subtree);
 
-// -------------------------------------------------------------------------------------------------------------------
-// ui_hit_test:
-//
-// HitTestLayout:
-//
-// ComputeLayout:
+// ------------------------------------------------------------------------------------
 
 internal void ComputeSubtreeLayout  (ui_subtree *Subtree);
 internal void UpdateSubtreeState    (ui_subtree *Subtree);

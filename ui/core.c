@@ -439,6 +439,17 @@ UINodeFindChild(ui_node Node, u32 Index)
 }
 
 internal void
+UINodeAppendChild(ui_node Node, u32 Child)
+{
+    Assert(Node.CanUse);
+
+    ui_subtree *Subtree = GetSubtreeForNode(Node);
+    Assert(Subtree);
+
+    AppendLayoutChild(Node.IndexInTree, Child.IndexInTree, Subtree);
+}
+
+internal void
 UINodeReserveChildren(ui_node Node, u32 Amount)
 {
     Assert(Node.CanUse);
@@ -536,8 +547,8 @@ UINodeSetTextInput(ui_node Node, u8 *Buffer, u64 BufferSize)
     Assert(Memory && Commited);
 
     ui_text_input *TextInput = (ui_text_input *)Memory;
-    TextInput->UserData = ByteString(Buffer, strlen((char *)Buffer));
-    TextInput->Size     = BufferSize;
+    TextInput->UserBuffer     = ByteString(Buffer, BufferSize);
+    TextInput->InternalCount  = strlen((char *)Buffer);
 
     UpdateResourceTable(State.Id, Key, TextInput, UIResource_TextInput, UIState.ResourceTable);
 
@@ -576,6 +587,25 @@ UINodeSetScroll(ui_node Node, UIAxis_Type Axis)
     // Still don't know how to feel about this.
     // It's not great, that's for sure.
     SetLayoutNodeFlags(Node.IndexInTree, UILayoutNode_HasScrollRegion, Subtree);
+}
+
+internal void
+UIDebugBox(ui_node Node, bit_field Flag, b32 Draw)
+{
+    Assert(Node.CanUse);
+    Assert(Flag == UILayoutNode_DebugOuterBox || Flag == UILayoutNode_DebugInnerBox|| Flag == UILayoutNode_DebugContentBox);
+
+    ui_subtree *Subtree = GetCurrentSubtree();
+    Assert(Subtree);
+
+    if(Draw)
+    {
+        SetLayoutNodeFlags(Node.IndexInTree, Flag, Subtree);
+    }
+    else
+    {
+        ClearLayoutNodeFlags(Node.IndexInTree, Flag, Subtree);
+    }
 }
 
 internal void

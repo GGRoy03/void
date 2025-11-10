@@ -291,16 +291,17 @@ wWinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPWSTR CmdLine, i32 ShowCmd
             UIState.WindowSize = ClientSize;
         }
 
-        ShowEditorUI();
+        ShowConsoleUI();
 
         SubmitRenderCommands(RenderState.Renderer, ClientSize, &RenderState.PassList);
 
         Sleep(5);
     }
 
-    // NOTE: This shouldn't be needed but the debug layer for D3D is triggering
+    // NOTE:
+    // This shouldn't be needed but the debug layer for D3D is triggering
     // an error and preventing the window from closing if the resources
-    // related to fonts aren't released. So this is for convenience :)
+    // related to fonts aren't released. So this is for convenience :P
 
     ui_font_list *FontList = &UIState.Fonts;
     IterateLinkedList(FontList, ui_font *, Font)

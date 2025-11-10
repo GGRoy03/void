@@ -3,6 +3,7 @@
 #include "style_parser.h"
 #include "text.h"
 #include "layout.h"
+#include "paint.h"
 #include "component.h"
 
 #include "ui_config.h"

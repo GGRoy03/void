@@ -34,7 +34,6 @@ typedef struct unicode_decode
 
 #define byte_string_literal(String) ByteString((u8 *)String, sizeof(String) - 1)
 #define byte_string_compile(String) {(u8 *)String, sizeof(String) - 1}
-#define wide_string_literal(String) WideString((u16 *)String, (sizeof(String) - 2) / 2) // NOTE: Might be broken?
 
 // [Constructors]
 
@@ -43,14 +42,15 @@ internal wide_string WideString  (u16 *String, u64 Size);
 
 // [String Utilities]
 
-internal b32         IsValidByteString  (byte_string Input);
-internal b32         IsAsciiString      (byte_string Input);
-internal b32         ByteStringMatches  (byte_string A, byte_string B, bit_field Flags);
-internal byte_string ByteStringCopy     (byte_string String, memory_arena *Arena);
-internal byte_string ByteStringAppend   (byte_string Target, byte_string Source, u64 At,memory_arena *Arena);
+internal b32         IsValidByteString   (byte_string Input);
+internal b32         IsAsciiString       (byte_string Input);
+internal b32         ByteStringMatches   (byte_string A, byte_string B, bit_field Flags);
+internal byte_string ByteStringCopy      (byte_string String, memory_arena *Arena);
+internal byte_string ByteStringAppend    (byte_string Target, byte_string Source, u64 At,memory_arena *Arena);
+internal void        ByteStringAppendTo  (byte_string Target, byte_string Source, u64 At);
 
-external b32         IsValidWideString  (wide_string Input);
-internal b32         WideStringMatches  (wide_string A, wide_string B, bit_field Flags);
+external b32         IsValidWideString   (wide_string Input);
+internal b32         WideStringMatches   (wide_string A, wide_string B, bit_field Flags);
 
 // [Character Utilities]
 

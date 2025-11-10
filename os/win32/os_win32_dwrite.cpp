@@ -4,7 +4,6 @@ extern "C"
 #include "os/os_inc.h"
 #include "render/render_inc.h"
 #include "ui/core.h"
-#include "editor/console.h"
 #include "third_party/stb_rect_pack.h"
 }
 

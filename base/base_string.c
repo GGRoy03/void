@@ -61,11 +61,8 @@ ByteStringMatches(byte_string Str1, byte_string Str2, bit_field Flags)
         {
             while (Pointer1 < End)
             {
-                u8 Char1 = *Pointer1;
-                u8 Char2 = *Pointer2;
-
-                if (IsAlpha(Char1)) Char1 = ToLowerChar(Char1);
-                if (IsAlpha(Char2)) Char2 = ToLowerChar(Char2);
+                u8 Char1 = ToLowerChar(*Pointer1);
+                u8 Char2 = ToLowerChar(*Pointer2);
 
                 if (Char1 == Char2)
                 {
@@ -95,18 +92,6 @@ ByteStringCopy(byte_string Input, memory_arena *Arena)
 }
 
 internal byte_string
-ByteStringAppendBefore(byte_string Pre, byte_string Post, memory_arena *Arena)
-{
-    u64         Size   = Pre.Size + Post.Size;
-    byte_string Result = ByteString(PushArray(Arena, u8, Size), Size);
-
-    memcpy(Result.String           , Pre.String, Pre.Size);
-    memcpy(Result.String + Pre.Size, Post.String, Post.Size);
-
-    return Result;
-}
-
-internal byte_string
 ByteStringAppend(byte_string Target, byte_string Source, u64 At, memory_arena *Arena)
 {
     byte_string Result = ByteString(0, 0);
@@ -119,22 +104,19 @@ ByteStringAppend(byte_string Target, byte_string Source, u64 At, memory_arena *A
         Result = ByteString(Str, Size);
 
         // Copy from target[0]..At into the result buffer.
-
         for(u32 Idx = 0; Idx < At; ++Idx)
         {
             Result.String[Idx] = Target.String[Idx];
         }
 
         // Append the source string into the result buffer.
-
         u32 SourceIdx = 0;
-        for(u32 Idx = At; Idx < Source.Size; ++Idx)
+        for(u32 Idx = At; SourceIdx < Source.Size; ++Idx)
         {
             Result.String[Idx] = Source.String[SourceIdx++];
         }
 
         // Copy the rest of target into the result buffer.
-
         u32 TargetIdx = At;
         for(u32 Idx = At + Source.Size; TargetIdx < Target.Size; ++Idx)
         {
@@ -143,6 +125,34 @@ ByteStringAppend(byte_string Target, byte_string Source, u64 At, memory_arena *A
     }
 
     return Result;
+}
+
+internal void
+ByteStringAppendTo(byte_string Target, byte_string Source, u64 At)
+{
+    Assert(IsValidByteString(Target));
+    Assert(IsValidByteString(Source));
+
+    if(At + Source.Size < Target.Size)
+    {
+        // [Target.String || Source.String || Target.String]
+        //  DO NOT TOUCH
+        //                                     COPY PAST APPEND
+        //                       APPEND
+
+        u32 TargetIdx = At;
+        u32 WriteIdx  = At + Source.Size;
+        while (TargetIdx < Target.Size && Target.String[TargetIdx] != '\0')
+        {
+            Target.String[WriteIdx++] = Target.String[TargetIdx++];
+        }
+
+        u32 SourceIdx = 0;
+        for(u32 Idx = At; SourceIdx < Source.Size; ++Idx)
+        {
+            Target.String[Idx] = Source.String[SourceIdx++];
+        }
+    }
 }
 
 external b32
@@ -183,7 +193,7 @@ IsDigit(u8 Char)
 internal b32
 IsWhiteSpace(u8 Char)
 {
-    b32 Result = (Char == ' ') || (Char == '\t');
+    b32 Result = (Char == ' ') || (Char == '\t') || (Char == '\0');
     return Result;
 }
 
@@ -194,19 +204,22 @@ IsNewLine(u8 Char)
     return Result;
 }
 
-internal u8 
+internal u8
 ToLowerChar(u8 Char)
 {
-    Assert(IsAlpha(Char));
+    u8 Result = Char;
 
-    u8 Result = '\0';
-    if (Char < 'a')
+    if(IsAlpha(Char))
     {
-        Result = Char + ('a' - 'A');
-    }
-    else
-    {
-        Result = Char;
+        Result = '\0';
+        if (Char < 'a')
+        {
+            Result = Char + ('a' - 'A');
+        }
+        else
+        {
+            Result = Char;
+        }
     }
 
     return Result;
