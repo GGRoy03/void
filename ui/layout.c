@@ -1236,10 +1236,6 @@ PreOrderPlaceSubtree(ui_layout_node *Root, ui_subtree *Subtree)
                 }
             }
 
-            // NOTE:
-            // Instead of branching we could use vector masks?
-            // I don't know what the compiler does.
-
             if(Box->Display == UIDisplay_Flex)
             {
                 UIFlexDirection_Type Direction = Box->FlexBox.Direction;
@@ -1478,8 +1474,8 @@ PostOrderMeasureSubtree(ui_layout_node *Root, ui_subtree *Subtree)
         UIFlexDirection_Type CrossAxis = MainAxis == UIFlexDirection_Row ? UIFlexDirection_Column : UIFlexDirection_Row;
 
         vec2_f32 ContentSize = GetContentBoxSize(&Root->Value);
-        f32      MainSize    = MainAxis == UIFlexDirection_Row ? ContentSize.X : ContentSize.Y;
-        f32      CrossSize   = MainAxis == UIFlexDirection_Row ? ContentSize.Y : ContentSize.X;
+        f32      MainAvSize  = MainAxis == UIFlexDirection_Row ? ContentSize.X : ContentSize.Y;
+        f32      CrossAvSize = MainAxis == UIFlexDirection_Row ? ContentSize.Y : ContentSize.X;
 
         f32 *MainAxisSize = PushArray(Subtree->Transient, f32, Root->ChildCount);
         Assert(MainAxisSize);
@@ -1515,8 +1511,12 @@ PostOrderMeasureSubtree(ui_layout_node *Root, ui_subtree *Subtree)
 
         if(ItemCount)
         {
+            f32 MainAxisSpacing = MainAxis == UIFlexDirection_Row ? Box->Spacing.Horizontal : Box->Spacing.Vertical;
+            SpaceNeeded += (ItemCount - 1) * MainAxisSpacing;
+            Box->FlexBox.ChildrenSize = SpaceNeeded;
+
             f32 Spacing   = MainAxis == UIFlexDirection_Row ? Box->Spacing.Horizontal : Box->Spacing.Vertical;
-            f32 FreeSpace = MainSize - SpaceNeeded - (ItemCount * Spacing);
+            f32 FreeSpace = MainAvSize - SpaceNeeded - (ItemCount * Spacing);
 
             if(FreeSpace > 0)
             {
@@ -1542,22 +1542,22 @@ PostOrderMeasureSubtree(ui_layout_node *Root, ui_subtree *Subtree)
 
                     // BUG: Summing up the main axis size doesn't account for spacing.
 
+                    // WARN:
+                    // Why am I even summing up here? Don't I already know the children size?
+
                     UIAlignItems_Type Align = GetChildFlexAlignment(Box, CBox);
                     if(Align == UIAlignItems_Stretch)
                     {
                         if(CrossAxis == UIFlexDirection_Row)
                         {
-                            FinalWidth  = CrossSize;
+                            FinalWidth  = CrossAvSize;
                             FinalHeight = MainAxisSize[ChildIdx];
-
-                            Box->FlexBox.ChildrenSize += FinalHeight;
                         } else
                         if(CrossAxis == UIFlexDirection_Column)
                         {
                             FinalWidth  = MainAxisSize[ChildIdx];
-                            FinalHeight = CrossSize;
+                            FinalHeight = CrossAvSize;
 
-                            Box->FlexBox.ChildrenSize += FinalWidth;
                         }
                     }
                     else
@@ -1566,15 +1566,11 @@ PostOrderMeasureSubtree(ui_layout_node *Root, ui_subtree *Subtree)
                         {
                             FinalWidth  = GetOuterBoxSize(CBox).X;
                             FinalHeight = MainAxisSize[ChildIdx];
-
-                            Box->FlexBox.ChildrenSize += FinalHeight;
                         } else
                         if(CrossAxis == UIFlexDirection_Column)
                         {
                             FinalWidth  = MainAxisSize[ChildIdx];
                             FinalHeight = GetOuterBoxSize(CBox).Y;
-
-                            Box->FlexBox.ChildrenSize += FinalWidth;
                         }
                     }
 
@@ -1827,10 +1823,10 @@ PaintTreeFromRoot(ui_layout_node *Root, ui_subtree *Subtree)
                     PaintUIRect(FinalRect, BorderColor, CornerRadii, BorderWidth, Softness, BatchList, Arena);
                 }
 
-                // rect_f32 ContentRect = TranslateRectF32(Node->Value.ContentBox, NodeOrigin);
-                // {
-                //    PaintUIRect(ContentRect, UIColor(0.f, 255.f, 0.f, 255.f), CornerRadii, 1.f, Softness, BatchList, Arena);
-                // }
+                 //rect_f32 ContentRect = TranslateRectF32(Node->Value.ContentBox, NodeOrigin);
+                 //{
+                 //   PaintUIRect(ContentRect, UIColor(0.f, 255.f, 0.f, 255.f), CornerRadii, 1.f, Softness, BatchList, Arena);
+                 //}
 
                 if(HasFlag(Node->Flags, UILayoutNode_HasText))
                 {
