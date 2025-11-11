@@ -145,6 +145,19 @@ typedef struct ui_rect
     f32              BorderWidth, Softness, SampleTexture, _P0; // Style Params
 } ui_rect;
 
+// ------------------------------------------------------------------------------------
+// User Callbacks
+
+typedef enum UIEvent_State
+{
+    UIEvent_Untouched = 0,
+    UIEvent_Rejected  = 1,
+    UIEvent_Handled   = 2,
+} UIEvent_State;
+
+typedef UIEvent_State (*ui_text_input_onchar)  (u8 Char, void *UserData);
+typedef UIEvent_State (*ui_text_input_onkey)   (OSInputKey_Type Key, void *UserData);
+
 // ui_node:
 //  Main representation of a node in the UI (Button, Window, ...)
 
@@ -175,10 +188,15 @@ internal void    UINodeReserveChildren  (ui_node Node, u32 Amount);
 // Resource:
 //   ...
 
-internal void UINodeClearText     (ui_node Node);
-internal void UINodeSetText       (ui_node Node, byte_string Text);
-internal void UINodeSetTextInput  (ui_node Node, u8 *Buffer, u64 BufferSize);
-internal void UINodeSetScroll     (ui_node Node, UIAxis_Type Axis);
+internal void UINodeSetText        (ui_node Node, byte_string Text);
+internal void UINodeSetTextInput   (ui_node Node, u8 *Buffer, u64 BufferSize);
+internal void UINodeClearTextInput (ui_node Node);
+internal void UINodeSetScroll      (ui_node Node, UIAxis_Type Axis);
+
+// Callbacks:
+//   ...
+
+internal void UINodeListenOnKey  (ui_node Node, ui_text_input_onkey Callback, void *UserData);
 
 // Debug:
 //   ---
@@ -191,7 +209,52 @@ internal void UINodeDebugBox  (ui_node Node, bit_field Flag, b32 Draw);
 internal ui_node UINode       (bit_field Flags);
 internal void    UINodeSetId  (ui_node Node, byte_string Id);
 
-// ------------------------------------------------------------------------------------
+
+// -----------------------------------------------------------------------------------
+// NodeIdTable_Size:
+//  NodeIdTable_128Bits is the default size for this table which uses 128 SIMD to find/insert in the table
+//
+// ui_node_id_table_params
+//  GroupSize : How many values per "groups" this must be one of NodeIDTableSize
+//  GroupCount: How many groups the table contains, this must be a power of two (Asserted in PlaceNodeIdTableInMemory)
+//  This table never resizes and the amount of slots must acount for the worst case scenario.
+//  Number of slots is computed by GroupSize * GroupCount.
+//
+// GetNodeIdTableFootprint:
+//   Return the number of bytes required to store a node-id table for `Params`.
+//   The caller must allocate at least this many bytes (aligned for ui_node_id_entry/ui_node_id_table)
+//   before calling PlaceNodeIdTableInMemory.
+//
+// PlaceNodeIdTableInMemory:
+//   Initialize a ui_node_id_table inside the caller-supplied Memory block and return a pointer
+//   to the placed ui_node_id_table. Does NOT allocate memory. If Memory == NULL the function
+//   returns NULL, thus caller must only check that the returned memory is non-null.
+//   Caller owns the memory and is responsible for managing it.
+// -------------------------------------------------------------------------------------------------------------------
+
+typedef enum NodeIdTable_Size
+{
+    NodeIdTable_128Bits = 16,
+} NodeIdTable_Size;
+
+typedef struct ui_node_id_table_params
+{
+    NodeIdTable_Size GroupSize;
+    u64              GroupCount;
+} ui_node_id_table_params;
+
+internal u64                GetNodeIdTableFootprint   (ui_node_id_table_params Params);
+internal ui_node_id_table * PlaceNodeIdTableInMemory  (ui_node_id_table_params Params, void *Memory);
+
+// ui_node_id_table:
+//   Opaque pointer to the table.
+//
+// SetNodeId:
+//  If the table or the node are invalid, this function has no effect.
+//  If an entry with the same name already exists, this function has no effect.
+//
+// FindNodeById:
+//  Returns the node if found (Must be inserted via SetNodeId) or an unusable one if not.
 
 #include <immintrin.h>
 
@@ -314,12 +377,12 @@ typedef struct ui_layout_node ui_layout_node;
 
 typedef enum UIIntent_Type
 {
-    UIIntent_None       = 0,
-    UIIntent_Drag       = 1,
-    UIIntent_ResizeX    = 2,
-    UIIntent_ResizeY    = 3,
-    UIIntent_ResizeXY   = 4,
-    UIIntent_ModifyText = 5,
+    UIIntent_None          = 0,
+    UIIntent_Drag          = 1,
+    UIIntent_ResizeX       = 2,
+    UIIntent_ResizeY       = 3,
+    UIIntent_ResizeXY      = 4,
+    UIIntent_EditTextInput = 5,
 } UIIntent_Type;
 
 typedef struct ui_event_list

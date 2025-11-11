@@ -401,6 +401,7 @@ AppendLayoutChild(u32 ParentIndex, u32 ChildIndex, ui_subtree *Subtree)
     Assert(Child);
 
     AppendToDoublyLinkedList(Parent, Child, Parent->ChildCount);
+    Child->Parent = Parent;
 }
 
 internal void
@@ -655,6 +656,7 @@ typedef enum UIEvent_Type
     UIEvent_Drag      = 1 << 3,
     UIEvent_Scroll    = 1 << 4,
     UIEvent_TextInput = 1 << 5,
+    UIEvent_Key       = 1 << 6,
 } UIEvent_Type;
 
 typedef struct ui_hover_event
@@ -687,9 +689,15 @@ typedef struct ui_scroll_event
 
 typedef struct ui_text_input_event
 {
-    byte_string     UTF8Text;
+    byte_string     Text;
     ui_layout_node *Node;
 } ui_text_input_event;
+
+typedef struct ui_key_event
+{
+    u32             Keycode;
+    ui_layout_node *Node;
+} ui_key_event;
 
 typedef struct ui_event
 {
@@ -702,6 +710,7 @@ typedef struct ui_event
         ui_drag_event       Drag;
         ui_scroll_event     Scroll;
         ui_text_input_event TextInput;
+        ui_key_event        Key;
     };
 } ui_event;
 
@@ -761,9 +770,16 @@ RecordUIDragEvent(ui_layout_node *Node, vec2_f32 Delta, ui_event_list *EventList
 }
 
 internal void
+RecordUIKeyEvent(u32 Keycode, ui_layout_node *Node, ui_event_list *EventList, memory_arena *Arena)
+{
+    ui_event Event = {.Type = UIEvent_Key, .Key.Node = Node, .Key.Keycode = Keycode};
+    RecordUIEvent(Event, EventList, Arena);
+}
+
+internal void
 RecordUITextInputEvent(byte_string Text, ui_layout_node *Node, ui_event_list *EventList, memory_arena *Arena)
 {
-    ui_event Event = {.Type = UIEvent_TextInput, .TextInput.Node = Node, .TextInput.UTF8Text = Text};
+    ui_event Event = {.Type = UIEvent_TextInput, .TextInput.Node = Node, .TextInput.Text = Text};
     RecordUIEvent(Event, EventList, Arena);
 }
 
@@ -914,7 +930,7 @@ AttemptNodeFocus(vec2_f32 MousePosition, ui_layout_node *Root, memory_arena *Are
         if(HasFlag(Root->Flags, UILayoutNode_HasTextInput))
         {
             Result->Focused = Root;
-            Result->Intent  = UIIntent_ModifyText;
+            Result->Intent  = UIIntent_EditTextInput;
         }
 
         RecordUIClickEvent(Root, Result, Arena);
@@ -966,15 +982,31 @@ GenerateFocusedNodeEvents(ui_event_list *Events, memory_arena *Arena)
     {
         RecordUIDragEvent(Events->Focused, MouseDelta, Events, Arena);
     } else
-    if(Events->Intent == UIIntent_ModifyText)
+    if(Events->Intent == UIIntent_EditTextInput)
     {
-        os_text_action_buffer *TextBuffer = OSGetTextActionBuffer();
-        for(u32 Idx = 0; Idx < TextBuffer->Count; ++Idx)
-        {
-            os_text_action *TextAction = &TextBuffer->Actions[Idx];
-            byte_string     Text       = ByteString(TextAction->UTF8, TextAction->Size);
+        // NOTE:
+        // Might be a more general event.
 
-            RecordUITextInputEvent(Text, Events->Focused, Events, Arena);
+        os_button_playback *Playback = OSGetButtonPlayback();
+        Assert(Playback);
+
+        for(u32 Idx = 0; Idx < Playback->Count; ++Idx)
+        {
+            os_button_action Action = Playback->Actions[Idx];
+            if(Action.IsPressed)
+            {
+                u32 Key = Action.Keycode;
+                RecordUIKeyEvent(Key, Events->Focused, Events, Arena);
+            }
+        }
+
+        os_utf8_playback *Text = OSGetTextPlayback();
+        Assert(Text);
+
+        if(Text->Count)
+        {
+            byte_string TextAsString = ByteString(Text->UTF8, Text->Count);
+            RecordUITextInputEvent(TextAsString, Events->Focused, Events, Arena);
         }
     }
 }
@@ -1059,55 +1091,50 @@ ProcessUIEvents(ui_event_list *Events, ui_subtree *Subtree)
             UpdateScrollNode(Scroll.Delta, Scroll.Node, Region);
         } break;
 
-        // NOTE:
-        // Quite a mess.
+        case UIEvent_Key:
+        {
+            ui_key_event Key = Event->Key;
+            Assert(Key.Node);
+
+            ui_layout_node    *Node  = Key.Node;
+            ui_resource_table *Table = UIState.ResourceTable;
+
+            if(HasFlag(Node->Flags, UILayoutNode_HasTextInput))
+            {
+                ui_text_input *Input = QueryTextInputResource(Node->Index, Subtree, Table);
+                Assert(Input);
+
+                if(Input->OnKey)
+                {
+                    Input->OnKey(Key.Keycode, Input->OnKeyUserData);
+                }
+            }
+        } break;
 
         case UIEvent_TextInput:
         {
             ui_text_input_event TextInput = Event->TextInput;
+            Assert(TextInput.Node);
 
-            ui_resource_table *Table = UIState.ResourceTable;
             ui_layout_node    *Node  = TextInput.Node;
-            Assert(Node);
+            ui_resource_table *Table = UIState.ResourceTable;
 
-            ui_node_style *Style = GetNodeStyle(Node->Index, Subtree);
-            ui_font       *Font  = UIGetFont(Style->Properties[StyleState_Default]);
-
+            ui_text       *Text  = QueryTextResource(Node->Index, Subtree, Table);
             ui_text_input *Input = QueryTextInputResource(Node->Index, Subtree, Table);
+
+            Assert(Text);
             Assert(Input);
-            Assert(Input->UserBuffer.String);
 
-            ui_resource_key   TextKey   = MakeResourceKey(UIResource_Text, Node->Index, Subtree);
-            ui_resource_state TextState = FindResourceByKey(TextKey, Table);
-
-            ui_text *Text = TextState.Resource;
-            if(!Text)
+            if(IsValidByteString(TextInput.Text))
             {
-                // NOTE:
-                // These manual allocations should not exist. But we have no allocator for the resources.
+                ui_node_style *Style = GetNodeStyle(Node->Index, Subtree);
+                ui_font       *Font  = UIGetFont(Style->Properties[StyleState_Default]);
+                UITextAppend_(TextInput.Text, Font, Text);
 
-                u64   Size     = GetUITextFootprint(Input->UserBuffer.Size);
-                void *Memory   = OSReserveMemory(Size);
-                b32   Commited = OSCommitMemory(Memory, Size);
-                Assert(Memory && Commited);
-
-                Text = PlaceUITextInMemory(ByteString(0, 0), Input->UserBuffer.Size, Font, Memory);
-                Assert(Text);
-
-                if(IsValidByteString(Input->UserBuffer))
-                {
-                    UITextAppend_(Input->UserBuffer, Font, Text);
-                }
-
-                UpdateResourceTable(TextState.Id, TextKey, Text, UIResource_Text, Table);
+                // NOTE: BAD! IDK WHAT TO DO!
+                ByteStringAppendTo(Input->UserBuffer, TextInput.Text, Input->InternalCount);
+                Input->InternalCount += TextInput.Text.Size;
             }
-
-            Assert(IsValidByteString(TextInput.UTF8Text));
-            UITextAppend_(TextInput.UTF8Text, Font, Text);
-
-            // NOTE: BAD!
-            ByteStringAppendTo(Input->UserBuffer, TextInput.UTF8Text, Input->InternalCount);
-            Input->InternalCount += TextInput.UTF8Text.Size;
 
             if(Text->ShapedCount > 0)
             {
@@ -1336,6 +1363,21 @@ PreOrderPlaceSubtree(ui_layout_node *Root, ui_subtree *Subtree)
                 Useless(CrossAxisSpacing);
             }
 
+            if(Box->Display == UIDisplay_Normal)
+            {
+                IterateLinkedList(Node, ui_layout_node *, Child)
+                {
+                    ui_layout_box *CBox  = &Child->Value;
+                    vec2_f32       CSize = GetOuterBoxSize(CBox);
+
+                    CBox->VisualOffset = Vec2F32(Cursor.X, Cursor.Y);
+
+                    Cursor.Y += CSize.Y;
+
+                    PushNodeQueue(&Queue, Child);
+                }
+            }
+
             if(HasFlag(Node->Flags, UILayoutNode_HasText))
             {
                 ui_text *Text = QueryTextResource(Node->Index, Subtree, Table);
@@ -1411,6 +1453,12 @@ PreOrderMeasureSubtree(ui_layout_node *Root, ui_subtree *Subtree)
 
             ui_layout_box *Box         = &Node->Value;
             vec2_f32       ContentSize = GetContentBoxSize(Box);
+
+            if(Box->Display == UIDisplay_Normal)
+            {
+                // TODO:
+                // Implement this.
+            }
 
             if(Box->Display == UIDisplay_Flex)
             {

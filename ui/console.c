@@ -133,16 +133,13 @@ HandleConsoleFlag(byte_string Flag, console_ui *Console)
     {
         Console->Mode = ConsoleMode_Inspect;
 
-        // NOTE:
-        // API Needs a bit of clean ups.
-
-        ui_node ContentWindows = FindNodeById(ui_id("Console_ContentWindows"), Console->Pipeline->IdTable);
+        ui_node ContentWindows = UIFindNodeById(ui_id("Console_ContentWindows"), Console->Pipeline->IdTable);
         if(ContentWindows.CanUse)
         {
             ui_node InspectWindow = {0};
             UIBlock(InspectWindow = UINode(UILayoutNode_IsParent))
             {
-                Assert(InspectWindow.CanUse);
+                UINodeSetStyle(InspectWindow, ConsoleStyle_InspectWindow);
 
                 UILabel(str8_lit("Testing child append and creating windows"), ConsoleStyle_HeaderStatus);
             }
@@ -204,11 +201,26 @@ ReadConsolePrompt(console_ui *Console)
         }
     }
 
-    ui_node PromptNode = FindNodeById(ui_id("Console_Prompt"), Console->Pipeline->IdTable);
+    ui_node PromptNode = UIFindNodeById(ui_id("Console_Prompt"), Console->Pipeline->IdTable);
     if(PromptNode.CanUse)
     {
-        UINodeClearText(PromptNode);
+        UINodeClearTextInput(PromptNode);
     }
+}
+
+internal UIEvent_State
+ConsolePrompt_PressedKey(OSInputKey_Type Key, void *UserData)
+{
+    console_ui *Console = (console_ui *)UserData;
+    Assert(Console);
+
+    if(Key == OSInputKey_Enter)
+    {
+        ReadConsolePrompt(Console);
+        return UIEvent_Handled;
+    }
+
+    return UIEvent_Untouched;
 }
 
 // ------------------------------------------------------------------------------------
@@ -273,6 +285,7 @@ InitializeConsoleUI(console_ui *Console)
             ui_node Input = UITextInput(Console->PromptBuffer, Console->PromptBufferSize, ConsoleStyle_Prompt);
             {
                 UINodeSetId(Input, ui_id("Console_Prompt"));
+                UINodeListenOnKey(Input, ConsolePrompt_PressedKey, Console);
             }
         }
     }
@@ -296,17 +309,9 @@ ShowConsoleUI(void)
     UIBeginAllSubtrees(Console.Pipeline);
     ClearArena(Console.FrameArena);
 
-    // Read Inputs
-    {
-        if(IsKeyClicked(OSInputKey_Enter))
-        {
-            ReadConsolePrompt(&Console);
-        }
-    }
-
     // Drain The Queue
     {
-        ui_node BufferNode = FindNodeById(ui_id("Console_Buffer"), Console.Pipeline->IdTable);
+        ui_node BufferNode = UIFindNodeById(ui_id("Console_Buffer"), Console.Pipeline->IdTable);
         if (BufferNode.CanUse)
         {
             console_queue_node *Node = 0;

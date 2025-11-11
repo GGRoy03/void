@@ -217,6 +217,14 @@ UITextClear_(ui_text *Text)
     Text->ShapedCount = 0;
 }
 
+internal void
+UITextInputClear_(ui_text_input *TextInput)
+{
+    Assert(TextInput);
+    TextInput->InternalCount = 0;
+    MemorySet(TextInput->UserBuffer.String, 0, TextInput->UserBuffer.Size);
+}
+
 internal ui_text *
 PlaceUITextInMemory(byte_string Text, u64 BufferSize, ui_font *Font, void *Memory)
 {

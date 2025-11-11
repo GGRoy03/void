@@ -107,6 +107,11 @@ typedef struct ui_text_input
 {
     byte_string UserBuffer;
     u64         InternalCount;
+
+    // User Callbacks
+    ui_text_input_onchar OnChar;
+    ui_text_input_onkey  OnKey;
+    void                *OnKeyUserData;
 } ui_text_input;
 
 internal u64       GetUITextFootprint   (u64 TextSize);
@@ -114,6 +119,8 @@ internal ui_text * PlaceUITextInMemory  (byte_string Text, u64 BufferSize, ui_fo
 
 internal void UITextAppend_  (byte_string UTF8, ui_font *Font, ui_text *Text);
 internal void UITextClear_   (ui_text *Text);
+
+internal void UITextInputClear_(ui_text_input *TextInput);
 
 // [Fonts]
 

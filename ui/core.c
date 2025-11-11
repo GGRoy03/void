@@ -290,7 +290,7 @@ SetNodeId(byte_string Id, ui_node Node, ui_node_id_table *Table)
 }
 
 internal ui_node
-FindNodeById(byte_string Id, ui_node_id_table *Table)
+UIFindNodeById(byte_string Id, ui_node_id_table *Table)
 {
     ui_node Result = {0};
 
@@ -461,16 +461,21 @@ UINodeReserveChildren(ui_node Node, u32 Amount)
 }
 
 internal void
-UINodeClearText(ui_node Node)
+UINodeClearTextInput(ui_node Node)
 {
     Assert(Node.CanUse);
 
     ui_subtree *Subtree = GetSubtreeForNode(Node);
     Assert(Subtree);
 
-    ui_text *Text = QueryTextResource(Node.IndexInTree, Subtree, UIState.ResourceTable);
+    ui_text       *Text      = QueryTextResource(Node.IndexInTree, Subtree, UIState.ResourceTable);
+    ui_text_input *TextInput = QueryTextInputResource(Node.IndexInTree, Subtree, UIState.ResourceTable);
+
     Assert(Text);
+    Assert(TextInput);
+
     UITextClear_(Text);
+    UITextInputClear_(TextInput);
 }
 
 internal void
@@ -556,6 +561,29 @@ UINodeSetTextInput(ui_node Node, u8 *Buffer, u64 BufferSize)
     // Still don't know how to feel about this.
     // It's not great, that's for sure.
     SetLayoutNodeFlags(Node.IndexInTree, UILayoutNode_HasTextInput, Subtree);
+
+    // NOTE:
+    // Is this cheating?
+    UINodeSetText(Node, ByteString(Buffer, BufferSize));
+}
+
+internal void
+UINodeListenOnKey(ui_node Node, ui_text_input_onkey Callback, void *UserData)
+{
+    Assert(Node.CanUse);
+
+    ui_subtree *Subtree = GetSubtreeForNode(Node);
+    Assert(Subtree);
+
+    // NOTE:
+    // For now these callbacks are limited to text inputs. Unsure if I want to expose
+    // them more generally. It's also not clear that it's limited to text input.
+
+    ui_text_input *TextInput = QueryTextInputResource(Node.IndexInTree, Subtree, UIState.ResourceTable);
+    Assert(TextInput);
+
+    TextInput->OnKey         = Callback;
+    TextInput->OnKeyUserData = UserData;
 }
 
 internal void

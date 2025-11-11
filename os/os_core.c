@@ -106,7 +106,7 @@ OSClearInputs(os_inputs *Inputs)
     }
 
     Inputs->ButtonBuffer.Count = 0;
-    Inputs->TextBuffer.Count   = 0;
+    Inputs->UTF8Buffer.Count   = 0;
 }
 
 // [Agnostic File API]

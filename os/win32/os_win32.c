@@ -74,14 +74,15 @@ OSWin32WindowProc(HWND Handle, UINT Message, WPARAM WParam, LPARAM LParam)
 
         memory_region Local = EnterMemoryRegion(OSWin32State.Arena);
 
-        byte_string UTF8 = WideStringToByteString(String, Local.Arena);
-        if(IsValidByteString(UTF8))
-        {
-            os_text_action Action = {0};
-            Action.Size = UTF8.Size;
-            MemoryCopy(Action.UTF8, UTF8.String, UTF8.Size);
+        byte_string New = WideStringToByteString(String, Local.Arena);
 
-            Inputs->TextBuffer.Actions[Inputs->TextBuffer.Count++] = Action;
+        u8 *Start = Inputs->UTF8Buffer.UTF8 + Inputs->UTF8Buffer.Count;
+        u8 *End   = Inputs->UTF8Buffer.UTF8 + Inputs->UTF8Buffer.Size;
+
+        if(IsValidByteString(New) && (Start + New.Size < End))
+        {
+            MemoryCopy(Start, New.String, New.Size);
+            Inputs->UTF8Buffer.Count += New.Size;
         }
 
         LeaveMemoryRegion(Local);
@@ -206,6 +207,9 @@ wWinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPWSTR CmdLine, i32 ShowCmd
         OSWin32State.HWindow    = OSWin32InitializeWindow(Vec2I32(1920,1080), ShowCmd);
         OSWin32State.SystemInfo = OSWin32QuerySystemInfo();
         OSWin32State.Arena      = AllocateArena(ArenaParams);
+
+        OSWin32State.Inputs.ButtonBuffer.Size = 128;
+        OSWin32State.Inputs.UTF8Buffer.Size   = Kilobyte(1);
 
         OSWin32InitializeDWriteFactory(&OSWin32State.DWriteFactory);
     }
@@ -475,18 +479,18 @@ OSGetInputs(void)
     return Result;
 }
 
-internal os_button_action_buffer *
-OSGetButtonActionBuffer(void)
+internal os_button_playback *
+OSGetButtonPlayback(void)
 {
-    os_inputs               *Inputs = &OSWin32State.Inputs;
-    os_button_action_buffer *Result = &Inputs->ButtonBuffer;
+    os_inputs          *Inputs = &OSWin32State.Inputs;
+    os_button_playback *Result = &Inputs->ButtonBuffer;
     return Result;
 }
 
-internal os_text_action_buffer *
-OSGetTextActionBuffer(void)
+internal os_utf8_playback *
+OSGetTextPlayback(void)
 {
-    os_inputs             *Inputs = &OSWin32State.Inputs;
-    os_text_action_buffer *Result = &Inputs->TextBuffer;
+    os_inputs        *Inputs = &OSWin32State.Inputs;
+    os_utf8_playback *Result = &Inputs->UTF8Buffer;
     return Result;
 }
