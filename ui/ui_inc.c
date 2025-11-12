@@ -5,5 +5,4 @@
 #include "layout.c"
 #include "paint.c"
 #include "component.c"
-
 #include "console.c"

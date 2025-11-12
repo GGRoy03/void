@@ -324,8 +324,18 @@ internal ui_scroll_region * QueryScrollRegion       (u32 NodeIndex, ui_subtree *
 // ------------------------------------------------------------------------------------
 
 typedef struct ui_style_registry ui_style_registry;
-
 typedef struct ui_font ui_font;
+
+typedef enum UIIntent_Type
+{
+    UIIntent_None          = 0,
+    UIIntent_Drag          = 1,
+    UIIntent_ResizeX       = 2,
+    UIIntent_ResizeY       = 3,
+    UIIntent_ResizeXY      = 4,
+    UIIntent_EditTextInput = 5,
+} UIIntent_Type;
+
 typedef struct ui_font_list
 {
     ui_font *First;
@@ -340,26 +350,53 @@ typedef struct ui_pipeline_buffer
     u32          Size;
 } ui_pipeline_buffer;
 
+typedef struct ui_hovered_node
+{
+    u32         Index;
+    ui_subtree *Subtree;
+} ui_hovered_node;
+
+typedef struct ui_focused_node
+{
+    u32           Index;
+    ui_subtree   *Subtree;
+    b32           IsTextInput;
+    UIIntent_Type Intent;
+} ui_focused_node;
+
 typedef struct ui_state
 {
     // Resources
     ui_resource_table  *ResourceTable;
     ui_pipeline_buffer  Pipelines;
 
+    // Internal State
+    ui_hovered_node Hovered;
+    ui_focused_node Focused;
+
+    console_queue Console;
+
     // NOTE: What about this?
     ui_font_list     Fonts;
-
     memory_arena    *StaticData;
 
     // State
     ui_pipeline *CurrentPipeline;
     vec2_i32     WindowSize;
-
-    // Systems
-    console_queue Console;
 } ui_state;
 
 global ui_state UIState;
+
+internal void UIBeginFrame               (vec2_i32 WindowSize);
+internal void UIEndFrame                 (void);
+
+internal void            UISetNodeHover  (u32 NodeIndex, ui_subtree *Subtree);
+internal b32             UIHasNodeHover  (void);
+internal ui_hovered_node UIGetNodeHover  (void);
+
+internal void            UISetNodeFocus  (u32 NodeIndex, ui_subtree *Subtree, b32 IsTextInput, UIIntent_Type Intent);
+internal b32             UIHasNodeFocus  (void);
+internal ui_focused_node UIGetNodeFocus  (void);
 
 // [Helpers]
 
@@ -375,24 +412,11 @@ internal b32              IsNormalizedColor  (ui_color Color);
 typedef struct ui_event_node ui_event_node;
 typedef struct ui_layout_node ui_layout_node;
 
-typedef enum UIIntent_Type
-{
-    UIIntent_None          = 0,
-    UIIntent_Drag          = 1,
-    UIIntent_ResizeX       = 2,
-    UIIntent_ResizeY       = 3,
-    UIIntent_ResizeXY      = 4,
-    UIIntent_EditTextInput = 5,
-} UIIntent_Type;
-
 typedef struct ui_event_list
 {
     ui_event_node *First;
     ui_event_node *Last;
     u32            Count;
-
-    ui_layout_node *Focused;
-    UIIntent_Type   Intent;
 } ui_event_list;
 
 typedef struct ui_subtree_params
@@ -412,7 +436,7 @@ typedef struct ui_subtree
     ui_event_list Events;
 
     // Transient
-    memory_arena  *Transient;
+    memory_arena *Transient;
 
     // Info
     u64 NodeCount;
@@ -447,7 +471,7 @@ typedef struct ui_pipeline
     void *VShader;
     void *PShader;
 
-    // Internal State (DO NOT TOUCH)
+    // WIP
     ui_style_registry *Registry;
     ui_node_id_table  *IdTable;
     u64                NextSubtreeId;
@@ -457,8 +481,6 @@ typedef struct ui_pipeline
 } ui_pipeline;
 
 #define UISubtree(Params) DeferLoop(UIBeginSubtree(Params), UIEndSubtree(Params))
-
-internal b32 IsValidSubtree  (ui_subtree *Subtree);
 
 internal void          UIBeginSubtree       (ui_subtree_params Params);
 internal void          UIEndSubtree         (ui_subtree_params Params);

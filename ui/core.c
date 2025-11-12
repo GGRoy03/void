@@ -943,7 +943,7 @@ QueryScrollRegion(u32 NodeIndex, ui_subtree *Subtree, ui_resource_table *Table)
 }
 
 // ----------------------------------------------------------------------------------
-// Pipeline Internal Implementation
+// Context Internal Implementation
 
 internal u64
 GetSubtreeStaticFootprint(u64 NodeCount)
@@ -955,16 +955,125 @@ GetSubtreeStaticFootprint(u64 NodeCount)
     return Result;
 }
 
-// ----------------------------------------------------------------------------------
-// Pipeline Public API Implementation
+internal b32
+IsValidHoveredNode(ui_hovered_node *Node)
+{
+    Assert(Node);
 
-// NOTE:
-// Is this even used?
+    b32 Result = (Node->Subtree && Node->Index < Node->Subtree->NodeCount);
+    return Result;
+}
+
+internal void
+ClearHoveredNode(ui_hovered_node *Node)
+{
+    Assert(Node);
+
+    Node->Index   = 0;
+    Node->Subtree = 0;
+}
 
 internal b32
-IsValidSubtree(ui_subtree *Subtree)
+IsValidFocusedNode(ui_focused_node *Node)
 {
-    b32 Result = (Subtree) && (Subtree->Persistent) && (Subtree->Transient) && (Subtree->LayoutTree);
+    Assert(Node);
+
+    b32 Result = (Node->Subtree && Node->Index < Node->Subtree->NodeCount);
+    return Result;
+}
+
+internal void
+ClearFocusedNode(ui_focused_node *Node)
+{
+    Assert(Node);
+
+    Node->Index       = 0;
+    Node->Subtree     = 0;
+    Node->IsTextInput = 0;
+    Node->Intent      = UIIntent_None;
+}
+
+// ----------------------------------------------------------------------------------
+// Context Public API Implementation
+
+internal void
+UIBeginFrame(vec2_i32 WindowSize)
+{
+    b32      MouseReleased = OSIsMouseReleased(OSMouseButton_Left);
+    b32      MouseClicked  = OSIsMouseClicked(OSMouseButton_Left);
+    vec2_f32 MousePosition = OSGetMousePosition();
+
+    ui_focused_node Focused = UIState.Focused;
+    if(IsValidFocusedNode(&Focused))
+    {
+        if(MouseClicked && Focused.IsTextInput && !IsMouseInsideOuterBox(MousePosition, Focused.Index, Focused.Subtree))
+        {
+            ClearFocusedNode(&UIState.Focused);
+        } else
+        if(MouseReleased && !Focused.IsTextInput)
+        {
+            ClearFocusedNode(&UIState.Focused);
+        }
+    }
+
+    UIState.WindowSize = WindowSize;
+}
+
+internal void
+UIEndFrame(void)
+{
+    ClearHoveredNode(&UIState.Hovered);
+}
+
+internal void
+UISetNodeHover(u32 NodeIndex, ui_subtree *Subtree)
+{
+    Assert(!IsValidHoveredNode(&UIState.Hovered));
+
+    UIState.Hovered.Index   = NodeIndex;
+    UIState.Hovered.Subtree = Subtree;
+}
+
+internal b32
+UIHasNodeHover(void)
+{
+    b32 Result = IsValidHoveredNode(&UIState.Hovered);
+    return Result;
+}
+
+internal ui_hovered_node
+UIGetNodeHover(void)
+{
+    Assert(IsValidHoveredNode(&UIState.Hovered));
+
+    ui_hovered_node Result = UIState.Hovered;
+    return Result;
+}
+
+internal void
+UISetNodeFocus(u32 NodeIndex, ui_subtree *Subtree, b32 IsTextInput, UIIntent_Type Intent)
+{
+    Assert(!IsValidFocusedNode(&UIState.Focused));
+
+    UIState.Focused.Index       = NodeIndex;
+    UIState.Focused.Subtree     = Subtree;
+    UIState.Focused.IsTextInput = IsTextInput;
+    UIState.Focused.Intent      = Intent;
+}
+
+internal b32
+UIHasNodeFocus(void)
+{
+    b32 Result = IsValidFocusedNode(&UIState.Focused);
+    return Result;
+}
+
+internal ui_focused_node
+UIGetNodeFocus(void)
+{
+    Assert(IsValidFocusedNode(&UIState.Focused));
+
+    ui_focused_node Result = UIState.Focused;
     return Result;
 }
 

@@ -364,8 +364,6 @@ PlaceLayoutTreeInMemory(u64 NodeCount, void *Memory)
 internal ui_node
 FindLayoutChild(u32 NodeIndex, u32 ChildIndex, ui_subtree *Subtree)
 {
-    Assert(IsValidSubtree(Subtree));
-
     ui_node Result = {0};
 
     ui_layout_node *LayoutNode = GetLayoutNode(NodeIndex, Subtree->LayoutTree);
@@ -391,7 +389,6 @@ FindLayoutChild(u32 NodeIndex, u32 ChildIndex, ui_subtree *Subtree)
 internal void
 AppendLayoutChild(u32 ParentIndex, u32 ChildIndex, ui_subtree *Subtree)
 {
-    Assert(IsValidSubtree(Subtree));
     Assert(ParentIndex != ChildIndex);
 
     ui_layout_node *Parent = GetLayoutNode(ParentIndex, Subtree->LayoutTree);
@@ -784,8 +781,14 @@ RecordUITextInputEvent(byte_string Text, ui_layout_node *Node, ui_event_list *Ev
 }
 
 internal b32
-IsMouseInsideOuterBox(vec2_f32 MousePosition, ui_layout_node *Node)
+IsMouseInsideOuterBox(vec2_f32 MousePosition, u32 NodeIndex, ui_subtree *Subtree)
 {
+    Assert(Subtree);
+    Assert(Subtree->LayoutTree);
+
+    ui_layout_node *Node = GetLayoutNode(NodeIndex, Subtree->LayoutTree);
+    Assert(Node);
+
     vec2_f32 OuterSize  = GetOuterBoxSize(&Node->Value);
     vec2_f32 OuterPos   = GetOuterBoxPosition(&Node->Value);
     vec2_f32 OuterHalf  = Vec2F32(OuterSize.X * 0.5f, OuterSize.Y * 0.5f);
@@ -825,26 +828,6 @@ ClearUIEvents(ui_event_list *EventList)
     EventList->First = 0;
     EventList->Last  = 0;
     EventList->Count = 0;
-
-    b32      MouseReleased = OSIsMouseReleased(OSMouseButton_Left);
-    b32      MouseClicked  = OSIsMouseClicked(OSMouseButton_Left);
-    vec2_f32 MousePosition = OSGetMousePosition();
-
-    if(EventList->Focused)
-    {
-        ui_layout_node *Focused = EventList->Focused;
-
-        if(MouseReleased && !HasFlag(Focused->Flags, UILayoutNode_HasTextInput))
-        {
-            EventList->Focused = 0;
-            EventList->Intent  = UIIntent_None;
-        } else
-        if(MouseClicked && !IsMouseInsideOuterBox(MousePosition, EventList->Focused))
-        {
-            EventList->Focused = 0;
-            EventList->Intent  = UIIntent_None;
-        }
-    }
 }
 
 internal UIIntent_Type
@@ -885,104 +868,123 @@ DetermineResizeIntent(vec2_f32 MousePosition, ui_layout_node *Node)
     return Result;
 }
 
-internal b32
-AttemptNodeFocus(vec2_f32 MousePosition, ui_layout_node *Root, memory_arena *Arena, ui_event_list *Result)
+// NOTE:
+// The hovered node is set on the global state by: UISetNodeHover.
+// We call: UIHasNodeHover to check if that global state was set.
+// It's a bit opaque but it fits well with other parts of the code.
+
+internal void
+FindHoveredNode(vec2_f32 MousePosition, ui_layout_node *Node, ui_subtree *Subtree)
 {
-    if(!IsMouseInsideOuterBox(MousePosition, Root))
+    if(IsMouseInsideOuterBox(MousePosition, Node->Index, Subtree))
     {
-        return 0;
-    }
-
-    IterateLinkedListBackward(Root, ui_layout_node *, Child)
-    {
-        b32 ChildCaptured = AttemptNodeFocus(MousePosition, Child, Arena, Result);
-        if(ChildCaptured)
+        IterateLinkedListBackward(Node, ui_layout_node *, Child)
         {
-            return 1;
-        }
-    }
+            FindHoveredNode(MousePosition, Child, Subtree);
 
-    b32 MouseClicked = OSIsMouseClicked(OSMouseButton_Left);
-
-    if(HasFlag(Root->Flags, UILayoutNode_IsResizable) && MouseClicked)
-    {
-        if(IsMouseInsideBorder(MousePosition, Root))
-        {
-            UIIntent_Type Intent = DetermineResizeIntent(MousePosition, Root);
-            if(Intent != UIIntent_None)
+            if(UIHasNodeHover())
             {
-                Result->Focused = Root;
-                Result->Intent  = Intent;
-                return 1;
+                return;
             }
         }
+
+        UISetNodeHover(Node->Index, Subtree);
     }
 
-    if(HasFlag(Root->Flags, UILayoutNode_IsDraggable) && MouseClicked)
-    {
-        Result->Focused = Root;
-        Result->Intent  = UIIntent_Drag;
-        return 1;
-    }
-
-    if(MouseClicked)
-    {
-        if(HasFlag(Root->Flags, UILayoutNode_HasTextInput))
-        {
-            Result->Focused = Root;
-            Result->Intent  = UIIntent_EditTextInput;
-        }
-
-        RecordUIClickEvent(Root, Result, Arena);
-        return 1;
-    }
-
-    // NOTE:
-    // Should this take focus?
-
-    f32 ScrollDelta = OSGetScrollDelta();
-    if(HasFlag(Root->Flags, UILayoutNode_HasScrollRegion) && ScrollDelta != 0.f)
-    {
-        RecordUIScrollEvent(Root, ScrollDelta, Result, Arena);
-    }
-
-    RecordUIHoverEvent(Root, Result, Arena);
-
-    return 0;
+    return;
 }
 
 internal void
-GenerateFocusedNodeEvents(ui_event_list *Events, memory_arena *Arena)
+AttemptNodeFocus(vec2_f32 MousePosition, ui_layout_node *Root, ui_subtree *Subtree)
 {
-    Assert(Events->Focused);
+    FindHoveredNode(MousePosition, Root, Subtree);
+    if(UIHasNodeHover())
+    {
+        ui_hovered_node Hovered = UIGetNodeHover();
+        Assert(Hovered.Subtree == Subtree);
 
+        ui_layout_node *Node   = GetLayoutNode(Hovered.Index, Hovered.Subtree->LayoutTree);
+        memory_arena   *Arena  = Subtree->Transient;
+        ui_event_list  *Events = &Subtree->Events;
+
+        b32 MouseClicked = OSIsMouseClicked(OSMouseButton_Left);
+
+        if (HasFlag(Node->Flags, UILayoutNode_IsResizable) && MouseClicked)
+        {
+            if (IsMouseInsideBorder(MousePosition, Node))
+            {
+                UIIntent_Type Intent = DetermineResizeIntent(MousePosition, Node);
+                if (Intent != UIIntent_None)
+                {
+                    UISetNodeFocus(Node->Index, Subtree, 0, Intent);
+                    return;
+                }
+            }
+        }
+
+        if (HasFlag(Node->Flags, UILayoutNode_IsDraggable) && MouseClicked)
+        {
+            UISetNodeFocus(Node->Index, Subtree, 0, UIIntent_Drag);
+            return;
+        }
+
+        if (MouseClicked)
+        {
+            if (HasFlag(Node->Flags, UILayoutNode_HasTextInput))
+            {
+                UISetNodeFocus(Node->Index, Subtree, 1, UIIntent_EditTextInput);
+            }
+
+            RecordUIClickEvent(Node, Events, Arena);
+            return;
+        }
+
+        // NOTE:
+        // Should this take focus?
+
+        f32 ScrollDelta = OSGetScrollDelta();
+        if (HasFlag(Node->Flags, UILayoutNode_HasScrollRegion) && ScrollDelta != 0.f)
+        {
+            RecordUIScrollEvent(Node, ScrollDelta, Events, Arena);
+        }
+
+        RecordUIHoverEvent(Node, Events, Arena);
+    }
+}
+
+internal void
+GenerateFocusedNodeEvents(ui_focused_node Focused, ui_event_list *Events, memory_arena *Arena)
+{
     vec2_f32 MouseDelta = OSGetMouseDelta();
     b32      MouseMoved = (MouseDelta.X != 0 || MouseDelta.Y != 0);
 
-    if(MouseMoved && Events->Intent >= UIIntent_ResizeX && Events->Intent <= UIIntent_ResizeXY)
+    ui_layout_node *Node = GetLayoutNode(Focused.Index, Focused.Subtree->LayoutTree);
+    Assert(Node);
+
+    if(MouseMoved && Focused.Intent >= UIIntent_ResizeX && Focused.Intent <= UIIntent_ResizeXY)
     {
         vec2_f32 Delta = Vec2F32(0.f, 0.f);
 
-        if(Events->Intent == UIIntent_ResizeX)
+        if(Focused.Intent == UIIntent_ResizeX)
         {
             Delta.X = MouseDelta.X;
         } else
-        if(Events->Intent == UIIntent_ResizeY)
+        if(Focused.Intent == UIIntent_ResizeY)
         {
             Delta.Y = MouseDelta.Y;
         } else
-        if(Events->Intent == UIIntent_ResizeXY)
+        if(Focused.Intent == UIIntent_ResizeXY)
         {
             Delta = MouseDelta;
         }
 
-        RecordUIResizeEvent(Events->Focused, Delta, Events, Arena);
+        RecordUIResizeEvent(Node, Delta, Events, Arena);
     } else
-    if(MouseMoved && Events->Intent == UIIntent_Drag)
+    if(MouseMoved && Focused.Intent == UIIntent_Drag)
     {
-        RecordUIDragEvent(Events->Focused, MouseDelta, Events, Arena);
+        RecordUIDragEvent(Node, MouseDelta, Events, Arena);
     } else
-    if(Events->Intent == UIIntent_EditTextInput)
+    if(Focused.Intent == UIIntent_EditTextInput)
     {
         // NOTE:
         // Might be a more general event.
@@ -996,7 +998,7 @@ GenerateFocusedNodeEvents(ui_event_list *Events, memory_arena *Arena)
             if(Action.IsPressed)
             {
                 u32 Key = Action.Keycode;
-                RecordUIKeyEvent(Key, Events->Focused, Events, Arena);
+                RecordUIKeyEvent(Key, Node, Events, Arena);
             }
         }
 
@@ -1006,7 +1008,7 @@ GenerateFocusedNodeEvents(ui_event_list *Events, memory_arena *Arena)
         if(Text->Count)
         {
             byte_string TextAsString = ByteString(Text->UTF8, Text->Count);
-            RecordUITextInputEvent(TextAsString, Events->Focused, Events, Arena);
+            RecordUITextInputEvent(TextAsString, Node, Events, Arena);
         }
     }
 }
@@ -1018,16 +1020,21 @@ GenerateUIEvents(vec2_f32 MousePosition, ui_layout_node *Root, ui_subtree *Subtr
     memory_arena  *Arena  = Subtree->Transient;
     Assert(Arena);
 
-    if(!Events->Focused)
+    if(!UIHasNodeFocus())
     {
-        AttemptNodeFocus(MousePosition, Root, Arena, Events);
+        AttemptNodeFocus(MousePosition, Root, Subtree);
     }
 
-    if(Events->Focused)
-    {
-        SetNodeStyleState(StyleState_Focused, Events->Focused->Index, Subtree);
+    // BUG:
+    // The weird part is that this is done on a per-tree basis.
+    // This makes pretty much no sense. Well... Idk?
 
-        GenerateFocusedNodeEvents(Events, Arena);
+    if(UIHasNodeFocus())
+    {
+        ui_focused_node Focused = UIGetNodeFocus();
+
+        SetNodeStyleState(StyleState_Focused, Focused.Index, Focused.Subtree);
+        GenerateFocusedNodeEvents(Focused, Events, Arena);
     }
 }
 

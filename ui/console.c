@@ -14,8 +14,9 @@ typedef enum ConsoleStyle_Type
 
 typedef enum ConsoleMode_Type
 {
-    ConsoleMode_Default = 0, // Console
-    ConsoleMode_Inspect = 1, // Console + Inspect (Dumps Info On Hover)
+    ConsoleMode_Default = 0,
+    ConsoleMode_Inspect = 1,
+    ConsoleMode_Count   = 2,
 } ConsoleMode_Type;
 
 typedef enum ConsoleConstant_Type
@@ -32,16 +33,25 @@ typedef struct console_output
     ConsoleStyle_Type Style;
 } console_output;
 
+typedef struct console_inspect_mode
+{
+    u32         NodeIndex;
+    ui_subtree *Subtree;
+} console_inspect_mode;
+
 typedef struct console_ui
 {
     ui_pipeline  *Pipeline;
     b32           IsInitialized;
 
     // State
-    ConsoleMode_Type Mode;
-    byte_string      StatusText;
-    u8               PromptBuffer[ConsoleConstant_PromptBufferSize];
-    u64              PromptBufferSize;
+    byte_string StatusText;
+    u8          PromptBuffer[ConsoleConstant_PromptBufferSize];
+    u64         PromptBufferSize;
+
+    // Modes
+    b32                  ActiveModes[ConsoleMode_Count];
+    console_inspect_mode Inspect;
 
     // Transient
     memory_arena *FrameArena;
@@ -51,6 +61,33 @@ typedef struct console_ui
     u32 MessageHead;
     u32 MessageTail;
 } console_ui;
+
+// ------------------------------------------------------------------------------------
+// Console State Internal Implementation
+
+internal b32
+IsConsoleModeActive(ConsoleMode_Type Mode, console_ui *Console)
+{
+    b32 Result = Console->ActiveModes[Mode];
+    return Result;
+}
+
+internal void
+SetConsoleModeState(ConsoleMode_Type Mode, b32 State, console_ui *Console)
+{
+    Assert(Mode > ConsoleMode_Default && Mode < ConsoleMode_Count);
+
+    Console->ActiveModes[Mode] = State;
+}
+
+internal b32
+IsSameInspectedNode(u32 NodeIndex, ui_subtree *Subtree, console_ui *Console)
+{
+    b32 Result = (Console->Inspect.NodeIndex == NodeIndex) && (Console->Inspect.Subtree == Subtree);
+    return Result;
+}
+
+// ------------------------------------------------------------------------------------
 
 internal b32
 IsValidConsoleOutput(console_output Output)
@@ -131,7 +168,7 @@ HandleConsoleFlag(byte_string Flag, console_ui *Console)
     byte_string InspectFlag = byte_string_compile("inspect");
     if(ByteStringMatches(InspectFlag, Flag, NoFlag))
     {
-        Console->Mode = ConsoleMode_Inspect;
+        SetConsoleModeState(ConsoleMode_Inspect, 1, Console);
 
         ui_node ContentWindows = UIFindNodeById(ui_id("Console_ContentWindows"), Console->Pipeline->IdTable);
         if(ContentWindows.CanUse)
@@ -146,12 +183,6 @@ HandleConsoleFlag(byte_string Flag, console_ui *Console)
 
             UINodeAppendChild(ContentWindows, InspectWindow);
         }
-    }
-
-    byte_string QuitFlag = byte_string_compile("quit");
-    if(ByteStringMatches(QuitFlag, Flag, NoFlag))
-    {
-        Console->Mode = ConsoleMode_Default;
     }
 }
 
@@ -229,6 +260,7 @@ ConsolePrompt_PressedKey(OSInputKey_Type Key, void *UserData)
 internal b32
 InitializeConsoleUI(console_ui *Console)
 {
+    Assert(Console);
     Assert(!Console->IsInitialized);
 
     Console->StatusText       = str8_lit("We should display useful information here.");
@@ -242,7 +274,7 @@ InitializeConsoleUI(console_ui *Console)
         ArenaParams.ReserveSize       = Kilobyte(64);
         ArenaParams.CommitSize        = Kilobyte(4);
     }
-    Console->FrameArena   = AllocateArena(ArenaParams);
+    Console->FrameArena = AllocateArena(ArenaParams);
 
     ui_pipeline_params PipelineParams =
     {
@@ -296,6 +328,9 @@ InitializeConsoleUI(console_ui *Console)
     return 1;
 }
 
+// ------------------------------------------------------------------------------------
+// Console Public API Implementation
+
 internal void
 ShowConsoleUI(void)
 {
@@ -317,14 +352,41 @@ ShowConsoleUI(void)
             console_queue_node *Node = 0;
             while ((Node = PopConsoleMessageQueue(&UIState.Console)))
             {
-                byte_string    RawMessage = ByteString(Node->Value.Text, Node->Value.TextSize);
-                console_output Output     = FormatConsoleOutput(RawMessage, Node->Value.Severity, Console.FrameArena);
-                ConsolePrintMessage(Output, BufferNode, &Console);
+               byte_string    RawMessage = ByteString(Node->Value.Text, Node->Value.TextSize);
+               console_output Output     = FormatConsoleOutput(RawMessage, Node->Value.Severity, Console.FrameArena);
+               ConsolePrintMessage(Output, BufferNode, &Console);
 
-                FreeConsoleNode(Node);
+               FreeConsoleNode(Node);
             }
         }
     }
 
     UIExecuteAllSubtrees(Console.Pipeline);
+}
+
+// NOTE:
+// Shouldn't exist either.
+
+internal void
+SetConsoleInspectNode(u32 NodeIndex, ui_subtree *Subtree, console_ui *Console)
+{
+    Assert(Console);
+    Assert(Subtree);
+
+    if(IsConsoleModeActive(ConsoleMode_Inspect, Console) && !IsSameInspectedNode(NodeIndex, Subtree, Console))
+    {
+        // TODO:
+        // Dump all the information in the state.
+
+        style_property *Props = GetPaintProperties(NodeIndex, 0, Subtree);
+        Assert(Props);
+
+        // NOTE:
+        // I think I am right. The console should poke into the layout.
+        // Simply because: Hover events are not enough to, well if an element is focused then it's not hovered thus it won't show
+        // up. But again, if an element is focused then it's hovered, untrue if we navigate with tabs for example.
+        // I guess it just depends what we want to inspect?
+
+        Assert(!"Crash Please");
+    }
 }

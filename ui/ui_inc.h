@@ -5,5 +5,5 @@
 #include "layout.h"
 #include "paint.h"
 #include "component.h"
-
+#include "console.h"
 #include "ui_config.h"

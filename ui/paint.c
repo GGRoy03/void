@@ -225,6 +225,7 @@ PaintLayoutTreeFromRoot(ui_layout_node *Root, ui_subtree *Subtree)
 
                 // NOTE:
                 // Should we check if the input is focused or not? Or let the user figure that out?
+                // Because they can just set : @Focused: Caret-Color, Caret-Width
 
                 if(HasFlag(Node->Flags, UILayoutNode_HasTextInput))
                 {

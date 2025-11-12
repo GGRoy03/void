@@ -52,6 +52,8 @@ internal ui_node FindLayoutChild        (u32 NodeIndex, u32 ChildIndex, ui_subtr
 internal void    AppendLayoutChild      (u32 ParentIndex, u32 ChildIndex, ui_subtree *Subtree);
 internal void    ReserveLayoutChildren  (ui_node Node, u32 Amount, ui_subtree *Subtree);
 
+internal b32 IsMouseInsideOuterBox  (vec2_f32 MousePosition, u32 NodeIndex, ui_subtree *Subtree);
+
 internal void UpdateNodeIfNeeded    (u32 NodeIndex, ui_subtree *Subtree);
 internal void SetLayoutNodeFlags    (u32 NodeIndex, bit_field Flags, ui_subtree *Subtree);
 internal void ClearLayoutNodeFlags  (u32 NodeIndex, bit_field Flags, ui_subtree *Subtree);

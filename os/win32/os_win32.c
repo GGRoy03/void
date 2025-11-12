@@ -288,14 +288,11 @@ wWinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPWSTR CmdLine, i32 ShowCmd
             DispatchMessage(&Message);
         }
 
-        vec2_i32 ClientSize = Vec2I32(0, 0);
-        {
-            ClientSize = OSWin32GetClientSize(OSWin32State.HWindow);
+        vec2_i32 ClientSize = OSWin32GetClientSize(OSWin32State.HWindow);
 
-            UIState.WindowSize = ClientSize;
-        }
-
+        UIBeginFrame(ClientSize);
         ShowConsoleUI();
+        UIEndFrame();
 
         SubmitRenderCommands(RenderState.Renderer, ClientSize, &RenderState.PassList);
 
