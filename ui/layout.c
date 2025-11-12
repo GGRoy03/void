@@ -1467,10 +1467,6 @@ PreOrderMeasureSubtree(ui_layout_node *Root, ui_subtree *Subtree)
                 Box->FlexBox.ItemCount   = 0;
                 Box->FlexBox.TotalSize   = 0;
 
-                // NOTE:
-                // Do we just disallow auto sizing when dealing with flex containers?
-                // It does simplify it a lot. I do not think so. Something is wrong.
-
                 UIFlexDirection_Type MainAxis   = Box->FlexBox.Direction;
                 f32                  MainAvSize = MainAxis == UIFlexDirection_Row ? ContentSize.X : ContentSize.Y;
 
@@ -1536,6 +1532,8 @@ PreOrderMeasureSubtree(ui_layout_node *Root, ui_subtree *Subtree)
                     f32 Spacing       = MainAxis == UIFlexDirection_Row ? Box->Spacing.Horizontal : Box->Spacing.Vertical;
                     f32 SpacingAmount = (Box->FlexBox.ItemCount - 1) * Spacing;
                     f32 FreeSpace     = MainAvSize - (SpaceNeeded + SpacingAmount);
+
+                    Box->FlexBox.TotalSize += SpacingAmount;
 
                     if(FreeSpace > 0 && Box->FlexBox.TotalGrow > 0.f)
                     {
