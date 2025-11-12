@@ -192,7 +192,8 @@ PaintLayoutTreeFromRoot(ui_layout_node *Root, ui_subtree *Subtree)
             // Painting
             {
                 render_batch_list *BatchList = GetPaintBatchList(Node, Subtree, ClipRect);
-                style_property    *Style     = GetPaintProperties(Node->Index, 1, Subtree);
+
+                style_property *Style = GetPaintProperties(Node->Index, 1, Subtree);
 
                 ui_corner_radius CornerRadii = UIGetCornerRadius(Style);
                 f32              Softness    = UIGetSoftness(Style);
@@ -220,6 +221,45 @@ PaintLayoutTreeFromRoot(ui_layout_node *Root, ui_subtree *Subtree)
                     {
                         PaintUIGlyph(Text->Shaped[Idx].Position, TextColor, Text->Shaped[Idx].Source, BatchList, Arena);
                     }
+                }
+
+                // NOTE:
+                // Should we check if the input is focused or not? Or let the user figure that out?
+
+                if(HasFlag(Node->Flags, UILayoutNode_HasTextInput))
+                {
+                    ui_text       *Text  = QueryTextResource(Node->Index, Subtree, UIState.ResourceTable);
+                    ui_text_input *Input = QueryTextInputResource(Node->Index, Subtree, UIState.ResourceTable);
+
+                    Assert(Text);
+                    Assert(Input);
+                    Assert(Input->CaretAnchor <= Text->ShapedCount);
+
+                    vec2_f32 ContentPos = GetContentBoxPosition(&Node->Value);
+                    vec2_f32 CaretStart = Vec2F32(ContentPos.X, ContentPos.Y);
+
+                    if(Input->CaretAnchor > 0)
+                    {
+                        ui_shaped_glyph *AfterGlyph = &Text->Shaped[Input->CaretAnchor - 1];
+                        CaretStart.X = AfterGlyph->Position.Max.X;
+                        CaretStart.Y = AfterGlyph->Position.Min.Y;
+                    }
+
+                    ui_color CaretColor = UIGetCaretColor(Style);
+                    f32      CaretWidth = UIGetCaretWidth(Style);
+
+                    rect_f32 Caret = 
+                    {
+                        .Min.X = CaretStart.X,
+                        .Max.X = CaretStart.X + CaretWidth,
+                        .Min.Y = CaretStart.Y,
+                        .Max.Y = CaretStart.Y + Text->LineHeight,
+                    };
+
+                    Input->CaretTimer += 0.05f;
+                    CaretColor.A       = (sinf(Input->CaretTimer * 3.14159f) + 1.f) * 0.5f;
+
+                    PaintUIRect(Caret, CaretColor, UICornerRadius(0, 0, 0, 0), 0, 0, BatchList, Arena);
                 }
 
                 PaintDebugInformation(Node, NodeOrigin, CornerRadii, Softness, BatchList, Arena);

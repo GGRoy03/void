@@ -1129,7 +1129,12 @@ ProcessUIEvents(ui_event_list *Events, ui_subtree *Subtree)
             {
                 ui_node_style *Style = GetNodeStyle(Node->Index, Subtree);
                 ui_font       *Font  = UIGetFont(Style->Properties[StyleState_Default]);
+
+                u32 CountBeforeAppend = Text->ShapedCount;
                 UITextAppend_(TextInput.Text, Font, Text);
+                u32 CountAfterAppend = Text->ShapedCount;
+
+                UITextInputMoveCaret_(Text, Input, CountAfterAppend - CountBeforeAppend);
 
                 // NOTE: BAD! IDK WHAT TO DO!
                 ByteStringAppendTo(Input->UserBuffer, TextInput.Text, Input->InternalCount);

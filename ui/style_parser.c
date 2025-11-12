@@ -68,6 +68,8 @@ read_only global style_parser_table_entry StylePropertyTable[] =
     {byte_string_compile("text-align-x"), StyleProperty_XTextAlign},
     {byte_string_compile("text-align-y"), StyleProperty_YTextAlign},
     {byte_string_compile("text-color")  , StyleProperty_TextColor },
+    {byte_string_compile("caret-color") , StyleProperty_CaretColor},
+    {byte_string_compile("caret-width") , StyleProperty_CaretWidth},
 
     // Flex Properties
     {byte_string_compile("flex-direction") , StyleProperty_FlexDirection },
@@ -969,6 +971,7 @@ ConvertToStyleProperty(style_token *Value, StyleProperty_Type PropType, style_fi
     case StyleProperty_Color:
     case StyleProperty_TextColor:
     case StyleProperty_BorderColor:
+    case StyleProperty_CaretColor:
     {
         if (Value->Type != StyleToken_Vector || Value->Vector.Size != 4)
         {
@@ -994,6 +997,7 @@ ConvertToStyleProperty(style_token *Value, StyleProperty_Type PropType, style_fi
     case StyleProperty_Softness:
     case StyleProperty_FlexGrow:
     case StyleProperty_FlexShrink:
+    case StyleProperty_CaretWidth:
     {
         if (Value->Type != StyleToken_Unit || Value->Unit.Type != UIUnit_Float32)
         {

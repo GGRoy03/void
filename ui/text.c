@@ -218,10 +218,24 @@ UITextClear_(ui_text *Text)
 }
 
 internal void
+UITextInputMoveCaret_(ui_text *Text, ui_text_input *Input, i32 Offset)
+{
+    Assert(Offset != 0);
+
+    i32 CaretPosition = Input->CaretAnchor + Offset;
+    if(CaretPosition >= 0 && CaretPosition <= Text->ShapedCount)
+    {
+        Input->CaretAnchor = CaretPosition;
+        Input->CaretTimer  = 0.f;
+    }
+}
+
+internal void
 UITextInputClear_(ui_text_input *TextInput)
 {
     Assert(TextInput);
     TextInput->InternalCount = 0;
+    TextInput->CaretAnchor   = 0;
     MemorySet(TextInput->UserBuffer.String, 0, TextInput->UserBuffer.Size);
 }
 

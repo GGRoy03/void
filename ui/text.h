@@ -98,15 +98,17 @@ typedef struct ui_text
     ui_shaped_glyph *Shaped;
     u32              ShapedCount;
     u32              ShapedLimit;
+    f32              TotalHeight;
 
-    // Cached Layout Info
-    f32 TotalHeight;
 } ui_text;
 
 typedef struct ui_text_input
 {
     byte_string UserBuffer;
     u64         InternalCount;
+
+    i32 CaretAnchor;
+    f32 CaretTimer;
 
     // User Callbacks
     ui_text_input_onchar OnChar;
@@ -120,7 +122,9 @@ internal ui_text * PlaceUITextInMemory  (byte_string Text, u64 BufferSize, ui_fo
 internal void UITextAppend_  (byte_string UTF8, ui_font *Font, ui_text *Text);
 internal void UITextClear_   (ui_text *Text);
 
-internal void UITextInputClear_(ui_text_input *TextInput);
+
+internal void UITextInputMoveCaret_  (ui_text *Text, ui_text_input *Input, i32 Offset);
+internal void UITextInputClear_      (ui_text_input *TextInput);
 
 // [Fonts]
 

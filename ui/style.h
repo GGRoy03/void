@@ -18,16 +18,18 @@ typedef enum StyleProperty_Type
     StyleProperty_XTextAlign   = 11,
     StyleProperty_YTextAlign   = 12,
     StyleProperty_TextColor    = 13,
+    StyleProperty_CaretColor   = 14,
+    StyleProperty_CaretWidth   = 15,
 
     // Flex Properties
-    StyleProperty_FlexDirection  = 14,
-    StyleProperty_JustifyContent = 15,
-    StyleProperty_AlignItems     = 16,
-    StyleProperty_SelfAlign      = 17,
-    StyleProperty_FlexGrow       = 18,
-    StyleProperty_FlexShrink     = 19,
+    StyleProperty_FlexDirection  = 16,
+    StyleProperty_JustifyContent = 17,
+    StyleProperty_AlignItems     = 18,
+    StyleProperty_SelfAlign      = 19,
+    StyleProperty_FlexGrow       = 20,
+    StyleProperty_FlexShrink     = 21,
 
-    StyleProperty_Count        = 20,
+    StyleProperty_Count        = 22,
     StyleProperty_None         = 666,
 } StyleProperty_Type;
 
@@ -92,11 +94,14 @@ typedef struct ui_node_style
     X(FontSize,       Float32,      f32,                   StyleProperty_FontSize)       \
     X(FlexGrow,       Float32,      f32,                   StyleProperty_FlexGrow)       \
     X(FlexShrink,     Float32,      f32,                   StyleProperty_FlexShrink)     \
+    X(CaretWidth,     Float32,      f32,                   StyleProperty_CaretWidth)     \
                                                                                          \
-    X(Size,           Vec2,         vec2_unit,             StyleProperty_Size)           \
+    X(CaretColor,     Color,        ui_color,              StyleProperty_CaretColor)     \
     X(Color,          Color,        ui_color,              StyleProperty_Color)          \
     X(BorderColor,    Color,        ui_color,              StyleProperty_BorderColor)    \
     X(TextColor,      Color,        ui_color,              StyleProperty_TextColor)      \
+                                                                                         \
+    X(Size,           Vec2,         vec2_unit,             StyleProperty_Size)           \
     X(Padding,        Padding,      ui_padding,            StyleProperty_Padding)        \
     X(Spacing,        Spacing,      ui_spacing,            StyleProperty_Spacing)        \
     X(CornerRadius,   CornerRadius, ui_corner_radius,      StyleProperty_CornerRadius)   \
