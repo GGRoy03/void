@@ -171,13 +171,6 @@ typedef struct ui_node
     u32 SubtreeId;
 } ui_node;
 
-// Style:
-//   Modify a node's style at runtime.
-
-internal void UINodeSetDisplay    (ui_node Node, UIDisplay_Type Type);
-internal void UINodeSetTextColor  (ui_node Node, ui_color Color);
-internal void UINodeSetStyle      (ui_node Node, u32 StyleIndex);
-
 // Layout:
 //   Make sure to check if Node.CanUse is set before trying to use a returned node.
 
@@ -190,8 +183,10 @@ internal void    UINodeReserveChildren  (ui_node Node, u32 Amount);
 
 internal void UINodeSetText        (ui_node Node, byte_string Text);
 internal void UINodeSetTextInput   (ui_node Node, u8 *Buffer, u64 BufferSize);
-internal void UINodeClearTextInput (ui_node Node);
 internal void UINodeSetScroll      (ui_node Node, UIAxis_Type Axis);
+internal void UINodeSetImage       (ui_node Node, byte_string Path, byte_string Group);
+
+internal void UINodeClearTextInput (ui_node Node);
 
 // Callbacks:
 //   ...
@@ -209,6 +204,10 @@ internal void UINodeDebugBox  (ui_node Node, bit_field Flag, b32 Draw);
 internal ui_node UINode       (bit_field Flags);
 internal void    UINodeSetId  (ui_node Node, byte_string Id);
 
+// -----------------------------------------------------------------------------------
+// Image API
+
+internal void UICreateImageGroup  (byte_string Name, i32 Width, i32 Height);
 
 // -----------------------------------------------------------------------------------
 // NodeIdTable_Size:
@@ -247,11 +246,11 @@ internal u64                GetNodeIdTableFootprint   (ui_node_id_table_params P
 internal ui_node_id_table * PlaceNodeIdTableInMemory  (ui_node_id_table_params Params, void *Memory);
 
 // ui_node_id_table:
-//   Opaque pointer to the table.
+//   Opaque pointer to the LRU cache. There is no resource life time whatsover, you do not need to de-allocate resources.
 //
 // SetNodeId:
-//  If the table or the node are invalid, this function has no effect.
-//  If an entry with the same name already exists, this function has no effect.
+//  Make sure the table and the node are valid.
+//  Make sure this id is unique for this pipeline.
 //
 // FindNodeById:
 //  Returns the node if found (Must be inserted via SetNodeId) or an unusable one if not.
@@ -267,6 +266,8 @@ typedef enum UIResource_Type
     UIResource_Text         = 1,
     UIResource_TextInput    = 2,
     UIResource_ScrollRegion = 3,
+    UIResource_Image        = 4,
+    UIResource_ImageGroup   = 5,
 } UIResource_Type;
 
 typedef struct ui_resource_key
@@ -298,8 +299,11 @@ internal ui_resource_table * PlaceResourceTableInMemory  (ui_resource_table_para
 
 // Keys:
 //   Opaque handles to resources. Use a resource table to retrieve the associated data
+//   MakeResourceKey is used for node-based resources (Text, Scroll Region, Images)
+//   MakeGlobalResourceKey is used for node-less resources (Image Group, ...)
 
-internal ui_resource_key MakeResourceKey  (UIResource_Type Type, u32 NodeIndex, ui_subtree *Subtree);
+internal ui_resource_key MakeResourceKey       (UIResource_Type Type, u32 NodeIndex, ui_subtree *Subtree);
+internal ui_resource_key MakeGlobalResourceKey (UIResource_Type Type, byte_string Name);
 
 // Resources:
 //   Use FindResourceByKey to retrieve some resource with a key created from MakeResourceKey.
@@ -307,19 +311,15 @@ internal ui_resource_key MakeResourceKey  (UIResource_Type Type, u32 NodeIndex, 
 //   You may update the table using UpdateResourceTable by passing the relevant updated data. The id is retrieved in State.Id.
 
 internal ui_resource_state FindResourceByKey     (ui_resource_key Key, ui_resource_table *Table);
-internal void              UpdateResourceTable   (u32 Id, ui_resource_key Key, void *Memory, UIResource_Type Type, ui_resource_table *Table);
+internal void              UpdateResourceTable   (u32 Id, ui_resource_key Key, void *Memory, ui_resource_table *Table);
 
 // Queries:
 //   Queries both compute a key and retrieve the corresponding resource type.
-//   When querying a resource it is excpected that the resource already exists.
-//   If it does not, an assertion is triggered. It also must be of the correct type.
+//   When querying a resource it is excpected that the resource already exists and
+//   is initialized with the requested type. On failure trigger an assertion.
 
-typedef struct ui_text_input ui_text_input;
-typedef struct ui_scroll_region ui_scroll_region;
-
-internal ui_text          * QueryTextResource       (u32 NodeIndex, ui_subtree *Subtree, ui_resource_table *Table);
-internal ui_text_input    * QueryTextInputResource  (u32 NodeIndex, ui_subtree *Subtree, ui_resource_table *Table);
-internal ui_scroll_region * QueryScrollRegion       (u32 NodeIndex, ui_subtree *Subtree, ui_resource_table *Table);
+internal void * QueryNodeResource    (u32 NodeIndex, ui_subtree *Subtree, UIResource_Type Type, ui_resource_table *Table);
+internal void * QueryGlobalResource  (byte_string Name, UIResource_Type Type, ui_resource_table *Table);
 
 // ------------------------------------------------------------------------------------
 

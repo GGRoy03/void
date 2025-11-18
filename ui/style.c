@@ -1,19 +1,5 @@
-// --------------------------------------------------------------------------------------------------
+// -------------------------------------------------------------------------------------
 // Style Manipulation Internal API
-
-internal void
-SetStyleProperty(u32 NodeIndex, style_property Value, StyleState_Type State, ui_subtree *Subtree)
-{
-    ui_node_style *NodeStyle = Subtree->ComputedStyles + NodeIndex;
-
-    if(NodeStyle)
-    {
-        NodeStyle->Properties[State][Value.Type]              = Value;
-        NodeStyle->Properties[State][Value.Type].IsSetRuntime = 1;
-
-        NodeStyle->IsLastVersion = 0;
-    }
-}
 
 internal ui_cached_style *
 GetCachedStyle(u32 Index, ui_style_registry *Registry)
@@ -30,35 +16,8 @@ GetCachedStyle(u32 Index, ui_style_registry *Registry)
     return Result;
 }
 
-// --------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------
 // Style Manipulation Public API
-
-internal void
-UISetSize(u32 NodeIndex, vec2_unit Size, ui_subtree *Subtree)
-{
-    Assert(Subtree);
-
-    style_property Property = {.Type = StyleProperty_Size, .Vec2 = Size};
-    SetStyleProperty(NodeIndex, Property, StyleState_Default, Subtree);
-}
-
-internal void
-UISetDisplay(u32 NodeIndex, UIDisplay_Type Display, ui_subtree *Subtree)
-{
-    Assert(Subtree);
-
-    style_property Property = {.Type = StyleProperty_Display, .Enum = Display};
-    SetStyleProperty(NodeIndex, Property, StyleState_Default, Subtree);
-}
-
-internal void
-UISetTextColor(u32 NodeIndex, ui_color Color, ui_subtree *Subtree)
-{
-    Assert(Subtree);
-
-    style_property Property = {.Type = StyleProperty_TextColor, .Color = Color};
-    SetStyleProperty(NodeIndex, Property, StyleState_Default, Subtree);
-}
 
 internal u32
 ResolveCachedIndex(u32 Index)
@@ -68,8 +27,6 @@ ResolveCachedIndex(u32 Index)
     u32 Result = Index - 1;
     return Result;
 }
-
-//
 
 internal void
 SetNodeStyleState(StyleState_Type State, u32 NodeIndex, ui_subtree *Subtree)

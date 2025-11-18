@@ -36,11 +36,12 @@ typedef enum UILayoutNode_Flag
     UILayoutNode_HasText         = 1 << 7,
     UILayoutNode_HasTextInput    = 1 << 8,
     UILayoutNode_HasScrollRegion = 1 << 9,
+    UILayoutNode_HasImage        = 1 << 10,
 
     // Debug
-    UILayoutNode_DebugOuterBox   = 1 << 10,
-    UILayoutNode_DebugInnerBox   = 1 << 11,
-    UILayoutNode_DebugContentBox = 1 << 12,
+    UILayoutNode_DebugOuterBox   = 1 << 11,
+    UILayoutNode_DebugInnerBox   = 1 << 12,
+    UILayoutNode_DebugContentBox = 1 << 13,
 } UILayoutNode_Flag;
 
 internal u64              GetLayoutTreeFootprint   (u64 NodeCount);

@@ -76,13 +76,23 @@ GetPaintBatchList(ui_layout_node *LayoutNode, ui_subtree *Subtree, rect_f32 Clip
 
         if(HasFlag(LayoutNode->Flags, UILayoutNode_HasText))
         {
-            ui_resource_table *Table = UIState.ResourceTable;
-
-            ui_text *Text = QueryTextResource(LayoutNode->Index, Subtree, Table);
+            ui_text *Text = QueryNodeResource(LayoutNode->Index, Subtree, UIResource_Text, UIState.ResourceTable);
             Assert(Text);
 
             Params.Texture     = Text->Atlas;
             Params.TextureSize = Text->AtlasSize;
+        }
+
+        if(HasFlag(LayoutNode->Flags, UILayoutNode_HasImage))
+        {
+            ui_image *Image = QueryNodeResource(LayoutNode->Index, Subtree, UIResource_Image, UIState.ResourceTable);
+            Assert(Image);
+
+            ui_image_group *Group = QueryGlobalResource(Image->GroupName, UIResource_ImageGroup, UIState.ResourceTable);
+            Assert(Group);
+
+            Params.Texture     = Group->RenderTexture.View;
+            Params.TextureSize = Group->Size;
         }
     }
 
@@ -110,28 +120,42 @@ GetPaintBatchList(ui_layout_node *LayoutNode, ui_subtree *Subtree, rect_f32 Clip
 }
 
 internal void
-PaintUIRect_(rect_f32 Rect, ui_color Color, ui_corner_radius CornerRadii, f32 BorderWidth, f32 Softness, rect_f32 Source, b32 Sample, render_batch_list *BatchList, memory_arena *Arena)
+PaintUIRect(rect_f32 Rect, ui_color Color, ui_corner_radius CornerRadii, f32 BorderWidth, f32 Softness, render_batch_list *BatchList, memory_arena *Arena)
 {
     ui_rect *UIRect = PushDataInBatchList(Arena, BatchList);
     UIRect->RectBounds    = Rect;
-    UIRect->TextureSource = Source;
     UIRect->Color         = Color;
     UIRect->CornerRadii   = CornerRadii;
     UIRect->BorderWidth   = BorderWidth;
     UIRect->Softness      = Softness;
-    UIRect->SampleTexture = Sample;
+    UIRect->TextureSource = RectF32Zero();
+    UIRect->SampleTexture = 0;
 }
 
 internal void
-PaintUIRect(rect_f32 Rect, ui_color Color, ui_corner_radius CornerRadii, f32 BorderWidth, f32 Softness, render_batch_list *BatchList, memory_arena *Arena)
+PaintUIImage(rect_f32 Rect, rect_f32 Source, render_batch_list *BatchList, memory_arena *Arena)
 {
-    PaintUIRect_(Rect, Color, CornerRadii, BorderWidth, Softness, RectF32Zero(), 0, BatchList, Arena);
+    ui_rect *UIRect = PushDataInBatchList(Arena, BatchList);
+    UIRect->RectBounds    = Rect;
+    UIRect->Color         = UIColor(0, 0, 0, 1);
+    UIRect->CornerRadii   = UICornerRadius(0, 0, 0, 0);
+    UIRect->BorderWidth   = 0;
+    UIRect->Softness      = 0;
+    UIRect->TextureSource = Source;
+    UIRect->SampleTexture = 1;
 }
 
 internal void
-PaintUIGlyph(rect_f32 Rect, ui_color Color, rect_f32 Sample, render_batch_list *BatchList, memory_arena *Arena)
+PaintUIGlyph(rect_f32 Rect, ui_color Color, rect_f32 Source, render_batch_list *BatchList, memory_arena *Arena)
 {
-    PaintUIRect_(Rect, Color, (ui_corner_radius){0}, 0, 0, Sample, 1, BatchList, Arena);
+    ui_rect *UIRect = PushDataInBatchList(Arena, BatchList);
+    UIRect->RectBounds    = Rect;
+    UIRect->Color         = Color;
+    UIRect->CornerRadii   = UICornerRadius(0, 0, 0, 0);
+    UIRect->BorderWidth   = 0;
+    UIRect->Softness      = 0;
+    UIRect->TextureSource = Source;
+    UIRect->SampleTexture = 1;
 }
 
 // -----------------------------------------------------------------------------------
@@ -213,7 +237,7 @@ PaintLayoutTreeFromRoot(ui_layout_node *Root, ui_subtree *Subtree)
 
                 if(HasFlag(Node->Flags, UILayoutNode_HasText))
                 {
-                    ui_text *Text = QueryTextResource(Node->Index, Subtree, UIState.ResourceTable);
+                    ui_text *Text = QueryNodeResource(Node->Index, Subtree, UIResource_Text, UIState.ResourceTable);
                     Assert(Text);
 
                     ui_color TextColor = UIGetTextColor(Style);
@@ -223,14 +247,22 @@ PaintLayoutTreeFromRoot(ui_layout_node *Root, ui_subtree *Subtree)
                     }
                 }
 
+                if(HasFlag(Node->Flags, UILayoutNode_HasImage))
+                {
+                    ui_image *Image = QueryNodeResource(Node->Index, Subtree, UIResource_Image, UIState.ResourceTable);
+                    Assert(Image);
+
+                    PaintUIImage(FinalRect, Image->Source, BatchList, Arena);
+                }
+
                 // NOTE:
                 // Should we check if the input is focused or not? Or let the user figure that out?
                 // Because they can just set : @Focused: Caret-Color, Caret-Width
 
                 if(HasFlag(Node->Flags, UILayoutNode_HasTextInput))
                 {
-                    ui_text       *Text  = QueryTextResource(Node->Index, Subtree, UIState.ResourceTable);
-                    ui_text_input *Input = QueryTextInputResource(Node->Index, Subtree, UIState.ResourceTable);
+                    ui_text       *Text  = QueryNodeResource(Node->Index, Subtree, UIResource_Text     , UIState.ResourceTable);
+                    ui_text_input *Input = QueryNodeResource(Node->Index, Subtree, UIResource_TextInput, UIState.ResourceTable);
 
                     Assert(Text);
                     Assert(Input);
@@ -270,7 +302,7 @@ PaintLayoutTreeFromRoot(ui_layout_node *Root, ui_subtree *Subtree)
             {
                 if (HasFlag(Frame.Node->Flags, UILayoutNode_HasScrollRegion))
                 {
-                    ui_scroll_region *Region = QueryScrollRegion(Frame.Node->Index, Subtree, UIState.ResourceTable);
+                    ui_scroll_region *Region = QueryNodeResource(Frame.Node->Index, Subtree, UIResource_ScrollRegion, UIState.ResourceTable);
                     Assert(Region);
 
                     vec2_f32 NodeScroll = GetScrollNodeTranslation(Region);

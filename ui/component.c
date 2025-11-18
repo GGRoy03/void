@@ -61,3 +61,16 @@ UITextInput(u8 *Buffer, u64 BufferSize, u32 StyleIndex)
 
     return Node;
 }
+
+internal ui_node
+UIImage(byte_string Path, byte_string Group, u32 Style)
+{
+    ui_node Node = UINode(NoFlag);
+    if(Node.CanUse)
+    {
+        UINodeSetStyle(Node, Style);
+        UINodeSetImage(Node, Path, Group);
+    }
+
+    return Node;
+}

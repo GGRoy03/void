@@ -151,6 +151,52 @@ internal b32           CanMergeRectGroupParams  (rect_group_params *Old, rect_gr
 internal render_handle InitializeRenderer    (void *HWindow, vec2_i32 Resolution, memory_arena *Arena);
 internal void          SubmitRenderCommands  (render_handle HRenderer, vec2_i32 Resolution, render_pass_list *RenderPassList);
 
+// ------------------------------------------------------------------------------------
+// Textures
+
+typedef enum RenderTexture_Type
+{
+    RenderTexture_None  = 0,
+    RenderTexture_RGBA  = 1,
+} RenderTexture_Type;
+
+typedef enum RenderTexture_Filter
+{
+    RenderTextureFilter_Nearest = 0,
+    RenderTextureFilter_Linear  = 1,
+} RenderTexture_Filter;
+
+typedef enum RenderTexture_Wrap
+{
+    RenderTextureWrap_Clamp  = 1,
+    RenderTextureWrap_Repeat = 2,
+    RenderTextureWrap_Mirror = 3,
+} RenderTexture_Wrap;
+
+typedef struct render_texture_params
+{
+    RenderTexture_Type   Type;
+    u32                  Width;
+    u32                  Height;
+    RenderTexture_Filter MinFilter;
+    RenderTexture_Filter MagFilter;
+    RenderTexture_Wrap   WrapU;
+    RenderTexture_Wrap   WrapV;
+    void                *InitialData;
+    u32                  InitialDataSize;
+    b32                  GenerateMipmaps;
+} render_texture_params;
+
+typedef struct render_texture
+{
+    render_handle Texture;
+    render_handle View;
+    vec2_f32      Size;
+} render_texture;
+
+internal render_texture CreateRenderTexture    (render_texture_params Params);
+internal void           CopyIntoRenderTexture  (render_texture Texture, rect_f32 Source, u8 *Pixels, u32 Pitch);
+
 // CreateGlyphCache:
 //   Creates the GPU resource used as the persistent glyph cache.
 //   Populates FontContext with the cache-related resources.

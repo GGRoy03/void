@@ -214,19 +214,6 @@ wWinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPWSTR CmdLine, i32 ShowCmd
         OSWin32InitializeDWriteFactory(&OSWin32State.DWriteFactory);
     }
 
-    // Game State
-    {
-        memory_arena_params Params = {0};
-        {
-            Params.AllocatedFromFile = __FILE__;
-            Params.AllocatedFromLine = __LINE__;
-            Params.ReserveSize       = Megabyte(1);
-            Params.CommitSize        = Kilobyte(64);
-        }
-
-        GameState.StaticData = AllocateArena(Params);
-    }
-
     // UI State
     {
         // Static Data
@@ -267,7 +254,7 @@ wWinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPWSTR CmdLine, i32 ShowCmd
         HWND     HWindow    = OSWin32State.HWindow;
         vec2_i32 ClientSize = OSWin32GetClientSize(HWindow);
 
-        RenderState.Renderer = InitializeRenderer(HWindow, ClientSize, GameState.StaticData);
+        RenderState.Renderer = InitializeRenderer(HWindow, ClientSize, OSWin32State.Arena);
     }
 
     b32 IsRunning = 1;

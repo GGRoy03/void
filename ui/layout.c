@@ -46,6 +46,7 @@ typedef struct ui_flex_box
     f32 TotalSize;
     f32 TotalGrow;
     f32 TotalShrink;
+    b32 HasAutoSizedChild;
 } ui_flex_box;
 
 typedef struct ui_flex_item
@@ -873,6 +874,9 @@ DetermineResizeIntent(vec2_f32 MousePosition, ui_layout_node *Node)
 // We call: UIHasNodeHover to check if that global state was set.
 // It's a bit opaque but it fits well with other parts of the code.
 
+// WARN:
+// Errr actually, it's not that good. Maybe re-visit.
+
 internal void
 FindHoveredNode(vec2_f32 MousePosition, ui_layout_node *Node, ui_subtree *Subtree)
 {
@@ -1092,7 +1096,7 @@ ProcessUIEvents(ui_event_list *Events, ui_subtree *Subtree)
             Assert(Scroll.Node);
             Assert(Scroll.Delta);
 
-            ui_scroll_region *Region = QueryScrollRegion(Scroll.Node->Index, Subtree, UIState.ResourceTable);
+            ui_scroll_region *Region = QueryNodeResource(Scroll.Node->Index, Subtree, UIResource_ScrollRegion, UIState.ResourceTable);
             Assert(Region);
 
             UpdateScrollNode(Scroll.Delta, Scroll.Node, Region);
@@ -1108,7 +1112,7 @@ ProcessUIEvents(ui_event_list *Events, ui_subtree *Subtree)
 
             if(HasFlag(Node->Flags, UILayoutNode_HasTextInput))
             {
-                ui_text_input *Input = QueryTextInputResource(Node->Index, Subtree, Table);
+                ui_text_input *Input = QueryNodeResource(Node->Index, Subtree, UIResource_TextInput, Table);
                 Assert(Input);
 
                 if(Input->OnKey)
@@ -1126,8 +1130,8 @@ ProcessUIEvents(ui_event_list *Events, ui_subtree *Subtree)
             ui_layout_node    *Node  = TextInput.Node;
             ui_resource_table *Table = UIState.ResourceTable;
 
-            ui_text       *Text  = QueryTextResource(Node->Index, Subtree, Table);
-            ui_text_input *Input = QueryTextInputResource(Node->Index, Subtree, Table);
+            ui_text       *Text  = QueryNodeResource(Node->Index, Subtree, UIResource_Text     , Table);
+            ui_text_input *Input = QueryNodeResource(Node->Index, Subtree, UIResource_TextInput, Table);
 
             Assert(Text);
             Assert(Input);
@@ -1279,7 +1283,7 @@ PreOrderPlaceSubtree(ui_layout_node *Root, ui_subtree *Subtree)
 
             if(HasFlag(Node->Flags, UILayoutNode_HasScrollRegion))
             {
-                ui_scroll_region *Region = QueryScrollRegion(Node->Index, Subtree, Table);
+                ui_scroll_region *Region = QueryNodeResource(Node->Index, Subtree, UIResource_ScrollRegion, Table);
                 Assert(Region);
 
                 if(Region->Axis == UIAxis_X)
@@ -1392,7 +1396,7 @@ PreOrderPlaceSubtree(ui_layout_node *Root, ui_subtree *Subtree)
 
             if(HasFlag(Node->Flags, UILayoutNode_HasText))
             {
-                ui_text *Text = QueryTextResource(Node->Index, Subtree, Table);
+                ui_text *Text = QueryNodeResource(Node->Index, Subtree, UIResource_Text, Table);
 
                 UIAlign_Type XAlign = UIGetXTextAlign(Style->Properties[StyleState_Default]);
                 UIAlign_Type YAlign = UIGetYTextAlign(Style->Properties[StyleState_Default]);
@@ -1474,10 +1478,11 @@ PreOrderMeasureSubtree(ui_layout_node *Root, ui_subtree *Subtree)
 
             if(Box->Display == UIDisplay_Flex)
             {
-                Box->FlexBox.TotalGrow   = 0.f;
-                Box->FlexBox.TotalShrink = 0.f;
-                Box->FlexBox.ItemCount   = 0;
-                Box->FlexBox.TotalSize   = 0;
+                Box->FlexBox.TotalGrow         = 0.f;
+                Box->FlexBox.TotalShrink       = 0.f;
+                Box->FlexBox.ItemCount         = 0;
+                Box->FlexBox.TotalSize         = 0;
+                Box->FlexBox.HasAutoSizedChild = 0;
 
                 UIFlexDirection_Type MainAxis   = Box->FlexBox.Direction;
                 f32                  MainAvSize = MainAxis == UIFlexDirection_Row ? ContentSize.X : ContentSize.Y;
@@ -1520,7 +1525,7 @@ PreOrderMeasureSubtree(ui_layout_node *Root, ui_subtree *Subtree)
                                 ComputeNodeBoxes(Child, Width.Value, 0.f);
                             }
 
-                            CBox->FlexItem.Size = 10.f;
+                            Box->FlexBox.HasAutoSizedChild = 1;
                         }
 
                         f32 Grow   = UIGetFlexGrow(Props);
@@ -1645,9 +1650,27 @@ PostOrderMeasureSubtree(ui_layout_node *Root, ui_subtree *Subtree)
 
     ui_layout_box *Box = &Root->Value;
 
+    if(HasFlag(Root->Flags, UILayoutNode_HasImage))
+    {
+        ui_image *Image = QueryNodeResource(Root->Index, Subtree, UIResource_Image, UIState.ResourceTable);
+        Assert(Image);
+
+        if(Box->Width.Type == UIUnit_Auto && Box->Height.Type == UIUnit_Auto)
+        {
+            f32 Width  = Image->Source.Max.X - Image->Source.Min.X;
+            f32 Height = Image->Source.Max.Y - Image->Source.Min.Y;
+
+            ComputeNodeBoxes(Root, Width, Height);
+        }
+        else
+        {
+            Assert(!"Not Implemented");
+        }
+    }
+
     if (HasFlag(Root->Flags, UILayoutNode_HasText))
     {
-        ui_text *Text = QueryTextResource(Root->Index, Subtree, UIState.ResourceTable);
+        ui_text *Text = QueryNodeResource(Root->Index, Subtree, UIResource_Text, UIState.ResourceTable);
 
         f32 InnerAvWidth  = GetUITextSpace(Root);
         f32 LineWidth     = 0.f;
@@ -1680,20 +1703,36 @@ PostOrderMeasureSubtree(ui_layout_node *Root, ui_subtree *Subtree)
         }
     }
 
-    if(Box->Display == UIDisplay_Flex)
+    if(Box->Display == UIDisplay_Flex && Box->FlexBox.HasAutoSizedChild)
     {
-        // NOTE:
-        // I have to somehow handle auto sized elements. So... Is it like:
-        // If parent is flex and contains auto elements, then find it/them.
-        // And recompute parent if needed? Because, otherwise it thinks auto sized
-        // elements have 0 width. I assume the reasons it works for console
-        // outputs right now is that: There is no centering. I don't get how auto
-        // interacts with other sizes?
+        UIFlexDirection_Type MainAxis = Box->FlexBox.Direction;
+
+        IterateLinkedList(Root, ui_layout_node *, Child)
+        {
+            ui_layout_box *CBox = &Child->Value;
+
+            b32 MainAxisIsAuto =
+                (MainAxis == UIFlexDirection_Row    && CBox->Width.Type  == UIUnit_Auto) ||
+                (MainAxis == UIFlexDirection_Column && CBox->Height.Type == UIUnit_Auto);
+
+            // NOTE:
+            // I assume this may trigger possible wrapping? What about nested autos?
+            // What if the main axis is auto when trying to display a flex element?
+            // We might need a full recompute then? Unless we disallow?
+
+            if(MainAxisIsAuto)
+            {
+                vec2_f32 Measured     = GetOuterBoxSize(CBox);
+                f32      MeasuredMain = (MainAxis == UIFlexDirection_Row) ? Measured.X : Measured.Y;
+
+                Box->FlexBox.TotalSize += MeasuredMain;
+            }
+        }
     }
 
     if(HasFlag(Root->Flags, UILayoutNode_HasScrollRegion))
     {
-        ui_scroll_region *Region = QueryScrollRegion(Root->Index, Subtree, UIState.ResourceTable);
+        ui_scroll_region *Region = QueryNodeResource(Root->Index, Subtree, UIResource_ScrollRegion, UIState.ResourceTable);
         Assert(Region);
 
         f32 TotalWidth  = 0.f;

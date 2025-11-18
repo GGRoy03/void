@@ -59,7 +59,6 @@ typedef struct glyph_state
 typedef struct ui_font ui_font;
 struct ui_font
 {
-    // LLC
     ui_font *Next;
 
     // Backend

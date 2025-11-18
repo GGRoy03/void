@@ -1,15 +1,19 @@
 typedef enum ConsoleStyle_Type
 {
-    ConsoleStyle_Window          = 1,
-    ConsoleStyle_Header          = 2,
-    ConsoleStyle_HeaderStatus    = 3,
-    ConsoleStyle_WindowContainer = 4,
-    ConsoleStyle_ScrollWindow    = 5,
-    ConsoleStyle_InspectWindow   = 6,
-    ConsoleStyle_MessageInfo     = 7,
-    ConsoleStyle_MessageWarning  = 8,
-    ConsoleStyle_MessageError    = 9,
-    ConsoleStyle_Prompt          = 10,
+    ConsoleStyle_None            = 0 ,
+    ConsoleStyle_Window              ,
+    ConsoleStyle_Header              ,
+    ConsoleStyle_HeaderStatus        ,
+    ConsoleStyle_WindowContainer     ,
+    ConsoleStyle_ScrollWindow        ,
+    ConsoleStyle_InspectWindow       ,
+    ConsoleStyle_BoxModelDiagram     ,
+    ConsoleStyle_BoxModelDiagramLabel,
+    ConsoleStyle_MessageInfo         ,
+    ConsoleStyle_MessageWarning      ,
+    ConsoleStyle_MessageError        ,
+    ConsoleStyle_Prompt              ,
+    ConsoleStyle_Image               ,
 } ConsoleStyle_Type;
 
 typedef enum ConsoleMode_Type
@@ -62,7 +66,7 @@ typedef struct console_ui
     u32 MessageTail;
 } console_ui;
 
-// ------------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------------
 // Console State Internal Implementation
 
 internal b32
@@ -87,7 +91,7 @@ IsSameInspectedNode(u32 NodeIndex, ui_subtree *Subtree, console_ui *Console)
     return Result;
 }
 
-// ------------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------------
 
 internal b32
 IsValidConsoleOutput(console_output Output)
@@ -160,6 +164,64 @@ ConsolePrintMessage(console_output Output, ui_node BufferNode, console_ui *Conso
 }
 
 // -----------------------------------------------------------------------------------
+// Inspect Mode Internal Implementation
+
+internal void
+RenderBoxModelDiagram(ui_layout_node *Node)
+{
+    // rect_f32 OuterBox   = Node->Value.OuterBox;
+    // rect_f32 InnerBox   = Node->Value.OuterBox;
+    // rect_f32 ContentBox = Node->Value.ContentBox;
+
+    ui_node Outer   = {0};
+    ui_node Inner   = {0};
+    ui_node Content = {0};
+
+    vec2_unit BoxSize =
+    {
+        .X.Type    = UIUnit_Percent,
+        .X.Percent = 100.f,
+        .Y.Type    = UIUnit_Percent,
+        .Y.Percent = 100.f,
+    };
+
+    ui_color OuterColor   = UIColor(0.424f, 0.612f, 0.784f, 0.4f);
+    ui_color InnerColor   = UIColor(0.345f, 0.651f, 0.608f, 0.4f);
+    ui_color ContentColor = UIColor(0.431f, 0.627f, 0.765f, 0.5f);
+
+    UIBlock(Outer = UINode(UILayoutNode_IsParent))
+    {
+        vec2_unit OuterBoxSize = 
+        {
+            .X.Type    = UIUnit_Percent,
+            .X.Percent = 100.f,
+            .Y.Type    = UIUnit_Float32,
+            .Y.Float32 = 110.f,
+        };
+
+        UINodeSetStyle(Outer, ConsoleStyle_BoxModelDiagram);
+        UINodeSetSize (Outer, OuterBoxSize);
+        UINodeSetColor(Outer, OuterColor);
+
+        UIBlock(Inner = UINode(UILayoutNode_IsParent))
+        {
+            UINodeSetStyle(Inner, ConsoleStyle_BoxModelDiagram);
+            UINodeSetSize (Inner, BoxSize);
+            UINodeSetColor(Inner, InnerColor);
+
+            UIBlock(Content = UINode(UILayoutNode_IsParent))
+            {
+                UINodeSetStyle(Content, ConsoleStyle_BoxModelDiagram);
+                UINodeSetSize (Content, BoxSize);
+                UINodeSetColor(Content, ContentColor);
+
+                UILabel(str8_lit("[0 x 0]"), ConsoleStyle_BoxModelDiagramLabel);
+            }
+        }
+    }
+}
+
+// -----------------------------------------------------------------------------------
 // Console Prompt Internal Implementation
 
 internal void
@@ -178,7 +240,18 @@ HandleConsoleFlag(byte_string Flag, console_ui *Console)
             {
                 UINodeSetStyle(InspectWindow, ConsoleStyle_InspectWindow);
 
-                UILabel(str8_lit("Testing child append and creating windows"), ConsoleStyle_HeaderStatus);
+                RenderBoxModelDiagram(0);
+
+
+                // TODO:
+                // Draw the box model diagram. Start with 3 rectangles. (Border-Padding-Content)
+                // Add text.
+                // Add numbers.
+                // Add clickability.
+
+
+
+
             }
 
             UINodeAppendChild(ContentWindows, InspectWindow);
@@ -282,6 +355,11 @@ InitializeConsoleUI(console_ui *Console)
     };
     Console->Pipeline = UICreatePipeline(PipelineParams);
 
+    UICreateImageGroup(str8_lit("ImageGroup"), 1024, 1024);
+
+    // NOTE:
+    // This whole subtree thing is quite bad.
+
     ui_subtree_params SubtreeParams =
     {
         .CreateNew = 1,
@@ -292,6 +370,8 @@ InitializeConsoleUI(console_ui *Console)
     {
         UIBlock(UIWindow(ConsoleStyle_Window))
         {
+            UIImage(str8_lit("resources/images/annoyed.png"), str8_lit("ImageGroup"), ConsoleStyle_Image);
+
             ui_node Header = {0};
             UIBlock(Header = UINode(UILayoutNode_IsParent))
             {
@@ -344,49 +424,46 @@ ShowConsoleUI(void)
     UIBeginAllSubtrees(Console.Pipeline);
     ClearArena(Console.FrameArena);
 
-    // Drain The Queue
+    ui_node BufferNode = UIFindNodeById(ui_id("Console_Buffer"), Console.Pipeline->IdTable);
+    if (BufferNode.CanUse)
     {
-        ui_node BufferNode = UIFindNodeById(ui_id("Console_Buffer"), Console.Pipeline->IdTable);
-        if (BufferNode.CanUse)
+        console_queue_node *Node = 0;
+        while ((Node = PopConsoleMessageQueue(&UIState.Console)))
         {
-            console_queue_node *Node = 0;
-            while ((Node = PopConsoleMessageQueue(&UIState.Console)))
-            {
-               byte_string    RawMessage = ByteString(Node->Value.Text, Node->Value.TextSize);
-               console_output Output     = FormatConsoleOutput(RawMessage, Node->Value.Severity, Console.FrameArena);
-               ConsolePrintMessage(Output, BufferNode, &Console);
+           byte_string    RawMessage = ByteString(Node->Value.Text, Node->Value.TextSize);
+           console_output Output     = FormatConsoleOutput(RawMessage, Node->Value.Severity, Console.FrameArena);
 
-               FreeConsoleNode(Node);
-            }
+           ConsolePrintMessage(Output, BufferNode, &Console);
+
+           FreeConsoleNode(Node);
+        }
+    }
+
+    // BUG:
+    // If the hover check hasn't been done, then we have no idea if the node might
+    // appear or not. We might just cheat and always check for hover, but it's a
+    // bandaid. We do not have access to every subtree. Well we do... Uh.
+
+    if (IsConsoleModeActive(ConsoleMode_Inspect, &Console) && UIHasNodeHover())
+    {
+        ui_hovered_node Hovered = UIGetNodeHover();
+        if(!IsSameInspectedNode(Hovered.Index, Hovered.Subtree, &Console))
+        {
+            ui_layout_node *Node  = GetLayoutNode(Hovered.Index, Hovered.Subtree->LayoutTree);
+            style_property *Props = GetPaintProperties(Hovered.Index, 0, Hovered.Subtree);
+
+            Assert(Node);
+            Assert(Props);
+
+            // NOTE:
+            // We can unpack content boxes and whatnot.
+            // As well as the styling. We basically have all the information.
+            // What do we do and how.
+
+            // TODO:
+            // Display all the valuable information!!!
         }
     }
 
     UIExecuteAllSubtrees(Console.Pipeline);
-}
-
-// NOTE:
-// Shouldn't exist either.
-
-internal void
-SetConsoleInspectNode(u32 NodeIndex, ui_subtree *Subtree, console_ui *Console)
-{
-    Assert(Console);
-    Assert(Subtree);
-
-    if(IsConsoleModeActive(ConsoleMode_Inspect, Console) && !IsSameInspectedNode(NodeIndex, Subtree, Console))
-    {
-        // TODO:
-        // Dump all the information in the state.
-
-        style_property *Props = GetPaintProperties(NodeIndex, 0, Subtree);
-        Assert(Props);
-
-        // NOTE:
-        // I think I am right. The console should poke into the layout.
-        // Simply because: Hover events are not enough to, well if an element is focused then it's not hovered thus it won't show
-        // up. But again, if an element is focused then it's hovered, untrue if we navigate with tabs for example.
-        // I guess it just depends what we want to inspect?
-
-        Assert(!"Crash Please");
-    }
 }

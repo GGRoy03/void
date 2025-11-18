@@ -319,10 +319,7 @@ UIFindNodeById(byte_string Id, ui_node_id_table *Table)
 
 // ----------------------------------------------------------------------------
 
-// [Helpers]
-
 internal ui_color
-
 UIColor(f32 R, f32 G, f32 B, f32 A)
 {
     ui_color Result = { R, G, B, A };
@@ -368,299 +365,14 @@ IsNormalizedColor(ui_color Color)
     return Result;
 }
 
-// -------------------------------------------------------------
-// UI Node Private Implementation
-
-internal ui_subtree *
-GetSubtreeForNode(ui_node Node)
-{
-    ui_subtree *Result = GetCurrentSubtree();
-    if(!Result)
-    {
-        Result = FindSubtree(Node);
-    }
-
-    Assert(Result);
-    return Result;
-}
-
-// -------------------------------------------------------------
-// UI Node Public API Implementation
-
-internal void
-UINodeSetDisplay(ui_node Node, UIDisplay_Type Type)
-{
-    Assert(Node.CanUse);
-
-    ui_subtree *Subtree = GetSubtreeForNode(Node);
-    Assert(Subtree);
-
-    UISetDisplay(Node.IndexInTree, Type, Subtree);
-}
-
-internal void
-UINodeSetTextColor(ui_node Node, ui_color Color)
-{
-    Assert(Node.CanUse);
-
-    ui_subtree *Subtree = GetSubtreeForNode(Node);
-    Assert(Subtree);
-
-    UISetTextColor(Node.IndexInTree, Color, Subtree);
-}
-
-internal void
-UINodeSetStyle(ui_node Node, u32 StyleIndex)
-{
-    Assert(Node.CanUse);
-
-    ui_subtree *Subtree = GetSubtreeForNode(Node);
-    Assert(Subtree);
-
-    ui_node_style *Style = GetNodeStyle(Node.IndexInTree, Subtree);
-    Assert(Style);
-
-    Style->CachedStyleIndex = StyleIndex;
-    Style->IsLastVersion    = 0;
-
-    UpdateNodeIfNeeded(Node.IndexInTree, Subtree);
-}
-
-internal ui_node
-UINodeFindChild(ui_node Node, u32 Index)
-{
-    Assert(Node.CanUse);
-
-    ui_subtree *Subtree = GetSubtreeForNode(Node);
-    Assert(Subtree);
-
-    ui_node Result = FindLayoutChild(Node.IndexInTree, Index, Subtree);
-    return Result;
-}
-
-internal void
-UINodeAppendChild(ui_node Node, ui_node Child)
-{
-    Assert(Node.CanUse);
-
-    ui_subtree *Subtree = GetSubtreeForNode(Node);
-    Assert(Subtree);
-
-    AppendLayoutChild(Node.IndexInTree, Child.IndexInTree, Subtree);
-}
-
-internal void
-UINodeReserveChildren(ui_node Node, u32 Amount)
-{
-    Assert(Node.CanUse);
-
-    ui_subtree *Subtree = GetSubtreeForNode(Node);
-    Assert(Subtree);
-
-    ReserveLayoutChildren(Node, Amount, Subtree); // TODO: Pass index.
-}
-
-internal void
-UINodeClearTextInput(ui_node Node)
-{
-    Assert(Node.CanUse);
-
-    ui_subtree *Subtree = GetSubtreeForNode(Node);
-    Assert(Subtree);
-
-    ui_text       *Text      = QueryTextResource(Node.IndexInTree, Subtree, UIState.ResourceTable);
-    ui_text_input *TextInput = QueryTextInputResource(Node.IndexInTree, Subtree, UIState.ResourceTable);
-
-    Assert(Text);
-    Assert(TextInput);
-
-    UITextClear_(Text);
-    UITextInputClear_(TextInput);
-}
-
-internal void
-UINodeSetText(ui_node Node, byte_string Text)
-{
-    Assert(Node.CanUse);
-
-    ui_subtree *Subtree = GetSubtreeForNode(Node);
-    Assert(Subtree);
-
-    ui_resource_table *Table = UIState.ResourceTable;
-
-    // BUG:
-    // One problem is that this key is not strong enough and might collide
-    // with other text keys. What even happens if two keys collide?
-
-    // WARN: 
-    // This code is still a bit of a mess, especially if we have mutliple
-    // ways to create text. We should unify somehow. There's no way I am doing
-    // manual allocations. Really bad!
-
-    ui_resource_key   Key   = MakeResourceKey(UIResource_Text, Node.IndexInTree, Subtree);
-    ui_resource_state State = FindResourceByKey(Key, Table);
-
-    if(!State.Resource)
-    {
-        u64   Size     = GetUITextFootprint(Text.Size);
-        void *Memory   = OSReserveMemory(Size);
-        b32   Commited = OSCommitMemory(Memory, Size);
-        Assert(Memory && Commited);
-
-        ui_node_style *Style = GetNodeStyle(Node.IndexInTree, Subtree);
-        ui_font       *Font  = UIGetFont(Style->Properties[StyleState_Default]);
-
-        ui_text *UIText = PlaceUITextInMemory(Text, Text.Size, Font, Memory);
-        Assert(UIText);
-
-        UpdateResourceTable(State.Id, Key, UIText, UIResource_Text, Table);
-        SetLayoutNodeFlags(Node.IndexInTree, UILayoutNode_HasText, Subtree);
-    }
-    else
-    {
-        // NOTE:
-        // This is not an error, but let's not implement it for now.
-
-        Assert(!"Not Implemented");
-    }
-
-    UpdateNodeIfNeeded(Node.IndexInTree, Subtree);
-}
-
-internal void
-UINodeSetTextInput(ui_node Node, u8 *Buffer, u64 BufferSize)
-{
-    Assert(Node.CanUse);
-
-    ui_subtree *Subtree = GetSubtreeForNode(Node);
-    Assert(Subtree);
-
-    ui_resource_key   Key   = MakeResourceKey(UIResource_TextInput, Node.IndexInTree, Subtree);
-    ui_resource_state State = FindResourceByKey(Key, UIState.ResourceTable);
-
-    // NOTE:
-    // Do we even care if the resource is set or not? Kind of confused.
-    // I mean, we could reuse the same memory, but we can't just stomp it
-    // and the resource cache will handle deallocation.
-
-    // WARN:
-    // Still don't know about these allocations. Haven't found a better way yet.
-
-    u64   Size     = sizeof(ui_text_input);
-    void *Memory   = OSReserveMemory(Size);
-    b32   Commited = OSCommitMemory(Memory, Size);
-    Assert(Memory && Commited);
-
-    ui_text_input *TextInput = (ui_text_input *)Memory;
-    TextInput->UserBuffer     = ByteString(Buffer, BufferSize);
-    TextInput->InternalCount  = strlen((char *)Buffer);
-
-    UpdateResourceTable(State.Id, Key, TextInput, UIResource_TextInput, UIState.ResourceTable);
-
-    // WARN:
-    // Still don't know how to feel about this.
-    // It's not great, that's for sure.
-    SetLayoutNodeFlags(Node.IndexInTree, UILayoutNode_HasTextInput, Subtree);
-
-    // NOTE:
-    // Is this cheating?
-    UINodeSetText(Node, ByteString(Buffer, BufferSize));
-}
-
-internal void
-UINodeListenOnKey(ui_node Node, ui_text_input_onkey Callback, void *UserData)
-{
-    Assert(Node.CanUse);
-
-    ui_subtree *Subtree = GetSubtreeForNode(Node);
-    Assert(Subtree);
-
-    // NOTE:
-    // For now these callbacks are limited to text inputs. Unsure if I want to expose
-    // them more generally. It's also not clear that it's limited to text input.
-
-    ui_text_input *TextInput = QueryTextInputResource(Node.IndexInTree, Subtree, UIState.ResourceTable);
-    Assert(TextInput);
-
-    TextInput->OnKey         = Callback;
-    TextInput->OnKeyUserData = UserData;
-}
-
-internal void
-UINodeSetScroll(ui_node Node, UIAxis_Type Axis)
-{
-    Assert(Node.CanUse);
-
-    ui_subtree *Subtree = GetSubtreeForNode(Node);
-    Assert(Subtree);
-
-    ui_resource_key   Key   = MakeResourceKey(UIResource_ScrollRegion, Node.IndexInTree, Subtree);
-    ui_resource_state State = FindResourceByKey(Key, UIState.ResourceTable);
-
-    // WARN:
-    // Same annoying allocation!
-
-    u64   Size     = sizeof(ui_scroll_region);
-    void *Memory   = OSReserveMemory(Size);
-    b32   Commited = OSCommitMemory(Memory, Size);
-    Assert(Memory && Commited);
-
-    ui_scroll_region *ScrollRegion = (ui_scroll_region *)Memory;
-    ScrollRegion->PixelPerLine = 8.f;
-    ScrollRegion->Axis         = Axis;
-
-    UpdateResourceTable(State.Id, Key, ScrollRegion, UIResource_ScrollRegion, UIState.ResourceTable);
-
-    // WARN:
-    // Still don't know how to feel about this.
-    // It's not great, that's for sure.
-    SetLayoutNodeFlags(Node.IndexInTree, UILayoutNode_HasScrollRegion, Subtree);
-}
-
-internal void
-UINodeDebugBox(ui_node Node, bit_field Flag, b32 Draw)
-{
-    Assert(Node.CanUse);
-    Assert(Flag == UILayoutNode_DebugOuterBox || Flag == UILayoutNode_DebugInnerBox|| Flag == UILayoutNode_DebugContentBox);
-
-    ui_subtree *Subtree = GetCurrentSubtree();
-    Assert(Subtree);
-
-    if(Draw)
-    {
-        SetLayoutNodeFlags(Node.IndexInTree, Flag, Subtree);
-    }
-    else
-    {
-        ClearLayoutNodeFlags(Node.IndexInTree, Flag, Subtree);
-    }
-}
-
-internal void
-UINodeSetId(ui_node Node, byte_string Id)
-{
-    Assert(Node.CanUse);
-
-    ui_pipeline *Pipeline = GetCurrentPipeline();
-    Assert(Pipeline);
-
-    SetNodeId(Id, Node, Pipeline->IdTable);
-}
-
-internal ui_node
-UINode(bit_field Flags)
-{
-    ui_subtree *Subtree = GetCurrentSubtree();
-    Assert(Subtree);
-
-    ui_node Node = AllocateUINode(Flags, Subtree);
-    Assert(Node.CanUse);
-
-    return Node;
-}
-
 // ----------------------------------------------------------------------------------
 // UI Resource Cache Private Implementation
+
+typedef struct ui_resource_allocator
+{
+    u64 AllocatedCount;
+    u64 AllocatedBytes;
+} ui_resource_allocator;
 
 typedef struct ui_resource_entry
 {
@@ -670,13 +382,14 @@ typedef struct ui_resource_entry
     u32 NextLRU;
     u32 PrevLRU;
 
-    UIResource_Type ResourceType;
+    UIResource_Type ResourceType; // NOTE: Useless?
     void           *Memory;
 } ui_resource_entry;
 
 typedef struct ui_resource_table
 {
-    ui_resource_stats Stats;
+    ui_resource_stats     Stats;
+    ui_resource_allocator Allocator;
 
     u32 HashMask;
     u32 HashSlotCount;
@@ -746,6 +459,31 @@ PopFreeResourceEntry(ui_resource_table *Table)
     return Result;
 }
 
+internal UIResource_Type
+GetResourceTypeFromKey(ui_resource_key Key)
+{
+    u64             High = _mm_extract_epi64(Key.Value, 1);
+    UIResource_Type Type = (UIResource_Type)(High >> 32);
+    return Type;
+}
+
+internal void *
+AllocateUIResource(u64 Size, ui_resource_allocator *Allocator)
+{
+    void *Result = OSReserveMemory(Size);
+
+    if(Result)
+    {
+        b32 Committed = OSCommitMemory(Result, Size);
+        Assert(Committed);
+
+        Allocator->AllocatedCount += 1;
+        Allocator->AllocatedBytes += Size;
+    }
+
+    return Result;
+}
+
 // ----------------------------------------------------------------------------------
 // UI Resource Cache Public API
 
@@ -805,6 +543,16 @@ MakeResourceKey(UIResource_Type Type, u32 NodeIndex, ui_subtree *Subtree)
 {
     u64 Low  = (u64)Subtree;
     u64 High = ((u64)Type << 32) | NodeIndex;
+
+    ui_resource_key Key = {.Value = _mm_set_epi64x(High, Low)};
+    return Key;
+}
+
+internal ui_resource_key
+MakeGlobalResourceKey(UIResource_Type Type, byte_string Name)
+{
+    u64 Low  = HashByteString(Name);
+    u64 High = ((u64)Type << 32);
 
     ui_resource_key Key = {.Value = _mm_set_epi64x(High, Low)};
     return Key;
@@ -885,8 +633,11 @@ FindResourceByKey(ui_resource_key Key, ui_resource_table *Table)
     return Result;
 }
 
+// NOTE:
+// The type can always be inferred from the key.
+
 internal void
-UpdateResourceTable(u32 Id, ui_resource_key Key, void *Memory, UIResource_Type Type, ui_resource_table *Table)
+UpdateResourceTable(u32 Id, ui_resource_key Key, void *Memory, ui_resource_table *Table)
 {
     ui_resource_entry *Entry = GetResourceEntry(Id, Table);
     Assert(Entry);
@@ -896,51 +647,451 @@ UpdateResourceTable(u32 Id, ui_resource_key Key, void *Memory, UIResource_Type T
         OSRelease(Entry->Memory);
     }
 
-    if(Entry->Memory)
-    {
-        Assert(Type == Entry->ResourceType);
-    }
-
     Entry->Key          = Key;
     Entry->Memory       = Memory;
-    Entry->ResourceType = Type;
+    Entry->ResourceType = GetResourceTypeFromKey(Key);
 }
 
-internal ui_text *
-QueryTextResource(u32 NodeIndex, ui_subtree *Subtree, ui_resource_table *Table)
+internal void *
+QueryNodeResource(u32 NodeIndex, ui_subtree *Subtree, UIResource_Type Type, ui_resource_table *Table)
 {
-    ui_resource_key   Key   = MakeResourceKey(UIResource_Text, NodeIndex, Subtree);
+    ui_resource_key   Key   = MakeResourceKey(Type, NodeIndex, Subtree);
     ui_resource_state State = FindResourceByKey(Key, Table);
 
-    Assert(State.Resource && State.ResourceType == UIResource_Text);
+    Assert(State.Resource && State.ResourceType == Type);
 
-    ui_text *Result = (ui_text *)State.Resource;
+    void *Result = State.Resource;
     return Result;
 }
 
-internal ui_text_input *
-QueryTextInputResource(u32 NodeIndex, ui_subtree *Subtree, ui_resource_table *Table)
+internal void *
+QueryGlobalResource(byte_string Name, UIResource_Type Type, ui_resource_table *Table)
 {
-    ui_resource_key   Key   = MakeResourceKey(UIResource_TextInput, NodeIndex, Subtree);
+    ui_resource_key   Key   = MakeGlobalResourceKey(Type, Name);
     ui_resource_state State = FindResourceByKey(Key, Table);
 
-    Assert(State.Resource && State.ResourceType == UIResource_TextInput);
+    Assert(State.Resource && State.ResourceType == Type);
 
-    ui_text_input *Result = (ui_text_input *)State.Resource;
+    void *Result = State.Resource;
     return Result;
 }
 
-internal ui_scroll_region *
-QueryScrollRegion(u32 NodeIndex, ui_subtree *Subtree, ui_resource_table *Table)
+// ------------------------------------------------------------
+// UI Image Processing Internal Implementation
+
+typedef struct ui_image
 {
-    ui_resource_key   Key   = MakeResourceKey(UIResource_ScrollRegion, NodeIndex, Subtree);
-    ui_resource_state State = FindResourceByKey(Key, Table);
+    rect_f32    Source;
+    byte_string GroupName;
+} ui_image;
 
-    Assert(State.Resource && State.ResourceType == UIResource_ScrollRegion);
+typedef struct ui_loaded_image
+{
+    rect_f32 Source;
+    b32      IsLoaded;
+} ui_loaded_image;
 
-    ui_scroll_region *Result = (ui_scroll_region *)State.Resource;
+typedef struct ui_image_group
+{
+    vec2_f32       Size;
+    render_texture RenderTexture;
+    stbrp_context  Allocator;
+    stbrp_node    *AllocatorNodes;
+} ui_image_group;
+
+internal u64
+GetImageGroupFootprint(f32 Width)
+{
+    u64 NodeSize = Width * sizeof(stbrp_node);
+    u64 Result   = NodeSize + sizeof(ui_image_group);
     return Result;
 }
+
+// ------------------------------------------------------------
+// UI Image Processing Public Implementation
+
+internal void
+UICreateImageGroup(byte_string Name, i32 Width, i32 Height)
+{
+    Assert(Width  > 0);
+    Assert(Height > 0);
+
+    ui_resource_key   Key   = MakeGlobalResourceKey(UIResource_ImageGroup, Name);
+    ui_resource_state State = FindResourceByKey(Key, UIState.ResourceTable);
+
+    Assert(!State.Resource);
+
+    u64   Size   = GetImageGroupFootprint(Width);
+    void *Memory = AllocateUIResource(Size, &UIState.ResourceTable->Allocator);
+
+    if(Memory)
+    {
+        render_texture_params Texture =
+        {
+            .Type   = RenderTexture_RGBA,
+            .Width  = Width,
+            .Height = Height,
+        };
+
+        stbrp_node *AllocatorNodes = (stbrp_node *)Memory;
+
+        ui_image_group *Group = (ui_image_group *)(AllocatorNodes + Width);
+        Group->Size           = Vec2F32(Width, Height);
+        Group->RenderTexture  = CreateRenderTexture(Texture);
+        Group->AllocatorNodes = AllocatorNodes;
+
+        stbrp_init_target(&Group->Allocator, Width, Height, Group->AllocatorNodes, Width);
+
+        UpdateResourceTable(State.Id, Key, Group, UIState.ResourceTable);
+    }
+}
+
+internal ui_loaded_image
+LoadImageInGroup(byte_string GroupName, byte_string Path)
+{
+    ui_loaded_image Result = {0};
+
+    ui_image_group *Group = QueryGlobalResource(GroupName, UIResource_ImageGroup, UIState.ResourceTable);
+    Assert(Group);
+
+    i32 Width, Height, Channels;
+    u8 *Pixels = stbi_load((char *)Path.String, &Width, &Height, &Channels, 4);
+
+    if(Pixels)
+    {
+        stbrp_rect Rect = {0};
+        Rect.w = (u16)(Width);
+        Rect.h = (u16)(Height);
+
+        Assert(Rect.w == Width);
+        Assert(Rect.h == Height);
+        stbrp_pack_rects(&Group->Allocator, &Rect, 1);
+
+        if(Rect.was_packed)
+        {
+            Result.Source   = RectF32(Rect.x, Rect.y, Rect.w, Rect.h);
+            Result.IsLoaded = 1;
+
+            CopyIntoRenderTexture(Group->RenderTexture, Result.Source, Pixels, Width * Channels);
+
+            stbi_image_free(Pixels);
+        }
+        else
+        {
+            ConsoleWriteMessage(error_message("Unable to load image inside group."));
+        }
+    }
+    else
+    {
+        ConsoleWriteMessage(error_message("Could not find image on disk."));
+    }
+
+    return Result;
+}
+
+// -------------------------------------------------------------
+// UI Node Private Implementation
+
+internal ui_subtree *
+GetSubtreeForNode(ui_node Node)
+{
+    ui_subtree *Result = GetCurrentSubtree();
+    if(!Result)
+    {
+        Result = FindSubtree(Node);
+    }
+
+    Assert(Result);
+    return Result;
+}
+
+// -------------------------------------------------------------
+// UI Node Public API Implementation
+
+#define UI_NODE_SETTERS(X)                       \
+    X(Size,      vec2_unit,      UISetSize)      \
+    X(Display,   UIDisplay_Type, UISetDisplay)   \
+    X(Color,     ui_color,       UISetColor)     \
+    X(TextColor, ui_color,       UISetTextColor)
+
+#define DEFINE_UI_NODE_SETTER(Name, Type, SetFunc) \
+internal void                                      \
+UINodeSet##Name(ui_node Node, Type Value)          \
+{                                                  \
+    Assert(Node.CanUse);                           \
+    ui_subtree *Subtree = GetSubtreeForNode(Node); \
+    Assert(Subtree);                               \
+    SetFunc(Node.IndexInTree, Value, Subtree);     \
+}
+UI_NODE_SETTERS(DEFINE_UI_NODE_SETTER)
+#undef DEFINE_UI_NODE_SETTER
+
+internal void
+UINodeSetStyle(ui_node Node, u32 StyleIndex)
+{
+    Assert(Node.CanUse);
+
+    ui_subtree *Subtree = GetSubtreeForNode(Node);
+    Assert(Subtree);
+
+    ui_node_style *Style = GetNodeStyle(Node.IndexInTree, Subtree);
+    Assert(Style);
+
+    Style->CachedStyleIndex = StyleIndex;
+    Style->IsLastVersion    = 0;
+
+    UpdateNodeIfNeeded(Node.IndexInTree, Subtree);
+}
+
+internal ui_node
+UINodeFindChild(ui_node Node, u32 Index)
+{
+    Assert(Node.CanUse);
+
+    ui_subtree *Subtree = GetSubtreeForNode(Node);
+    Assert(Subtree);
+
+    ui_node Result = FindLayoutChild(Node.IndexInTree, Index, Subtree);
+    return Result;
+}
+
+internal void
+UINodeAppendChild(ui_node Node, ui_node Child)
+{
+    Assert(Node.CanUse);
+
+    ui_subtree *Subtree = GetSubtreeForNode(Node);
+    Assert(Subtree);
+
+    AppendLayoutChild(Node.IndexInTree, Child.IndexInTree, Subtree);
+}
+
+internal void
+UINodeReserveChildren(ui_node Node, u32 Amount)
+{
+    Assert(Node.CanUse);
+
+    ui_subtree *Subtree = GetSubtreeForNode(Node);
+    Assert(Subtree);
+
+    ReserveLayoutChildren(Node, Amount, Subtree); // TODO: Pass index.
+}
+
+internal void
+UINodeClearTextInput(ui_node Node)
+{
+    Assert(Node.CanUse);
+
+    ui_subtree *Subtree = GetSubtreeForNode(Node);
+    Assert(Subtree);
+
+    ui_text       *Text      = QueryNodeResource(Node.IndexInTree, Subtree, UIResource_Text     , UIState.ResourceTable);
+    ui_text_input *TextInput = QueryNodeResource(Node.IndexInTree, Subtree, UIResource_TextInput, UIState.ResourceTable);
+
+    Assert(Text);
+    Assert(TextInput);
+
+    UITextClear_(Text);
+    UITextInputClear_(TextInput);
+}
+
+internal void
+UINodeSetText(ui_node Node, byte_string Text)
+{
+    Assert(Node.CanUse);
+
+    ui_subtree *Subtree = GetSubtreeForNode(Node);
+    Assert(Subtree);
+
+    ui_resource_table *Table = UIState.ResourceTable;
+
+    // WARN:
+    // This code is still a bit of a mess, especially if we have mutlipl
+    // ways to create text. We should unify somehow.
+
+    ui_resource_key   Key   = MakeResourceKey(UIResource_Text, Node.IndexInTree, Subtree);
+    ui_resource_state State = FindResourceByKey(Key, Table);
+
+    if(!State.Resource)
+    {
+        u64   Size   = GetUITextFootprint(Text.Size);
+        void *Memory = AllocateUIResource(Size, &UIState.ResourceTable->Allocator);
+
+        ui_node_style *Style = GetNodeStyle(Node.IndexInTree, Subtree);
+        ui_font       *Font  = UIGetFont(Style->Properties[StyleState_Default]);
+
+        ui_text *UIText = PlaceUITextInMemory(Text, Text.Size, Font, Memory);
+        Assert(UIText);
+
+        UpdateResourceTable(State.Id, Key, UIText, Table);
+        SetLayoutNodeFlags(Node.IndexInTree, UILayoutNode_HasText, Subtree);
+    }
+    else
+    {
+        // NOTE:
+        // This is not an error, but let's not implement it for now.
+
+        Assert(!"Not Implemented");
+    }
+
+    UpdateNodeIfNeeded(Node.IndexInTree, Subtree);
+}
+
+internal void
+UINodeSetTextInput(ui_node Node, u8 *Buffer, u64 BufferSize)
+{
+    Assert(Node.CanUse);
+
+    ui_subtree *Subtree = GetSubtreeForNode(Node);
+    Assert(Subtree);
+
+    ui_resource_key   Key   = MakeResourceKey(UIResource_TextInput, Node.IndexInTree, Subtree);
+    ui_resource_state State = FindResourceByKey(Key, UIState.ResourceTable);
+
+    u64   Size   = sizeof(ui_text_input);
+    void *Memory = AllocateUIResource(Size, &UIState.ResourceTable->Allocator);
+
+    ui_text_input *TextInput = (ui_text_input *)Memory;
+    TextInput->UserBuffer    = ByteString(Buffer, BufferSize);
+    TextInput->InternalCount = strlen((char *)Buffer);
+
+    UpdateResourceTable(State.Id, Key, TextInput, UIState.ResourceTable);
+
+    // NOTE:
+    // I mean... Maybe this is fine. But at least centralize it when we update
+    // the resource table perhaps? And then we kinda have the index from the key.
+    // Just need to make global keys recognizable.
+
+    SetLayoutNodeFlags(Node.IndexInTree, UILayoutNode_HasTextInput, Subtree);
+
+    UINodeSetText(Node, ByteString(Buffer, BufferSize));
+}
+
+internal void
+UINodeSetScroll(ui_node Node, UIAxis_Type Axis)
+{
+    Assert(Node.CanUse);
+
+    ui_subtree *Subtree = GetSubtreeForNode(Node);
+    Assert(Subtree);
+
+    ui_resource_key   Key   = MakeResourceKey(UIResource_ScrollRegion, Node.IndexInTree, Subtree);
+    ui_resource_state State = FindResourceByKey(Key, UIState.ResourceTable);
+
+    u64   Size   = sizeof(ui_scroll_region);
+    void *Memory = AllocateUIResource(Size, &UIState.ResourceTable->Allocator);
+
+    ui_scroll_region *ScrollRegion = (ui_scroll_region *)Memory;
+    ScrollRegion->PixelPerLine = 8.f;
+    ScrollRegion->Axis         = Axis;
+
+    UpdateResourceTable(State.Id, Key, ScrollRegion, UIState.ResourceTable);
+
+    // WARN:
+    // Still don't know how to feel about this.
+    // It's not great, that's for sure. Again this idea of centralizing
+    SetLayoutNodeFlags(Node.IndexInTree, UILayoutNode_HasScrollRegion, Subtree);
+}
+
+// NOTE:
+// Then we at least need to specify that group names must be static strings.
+
+internal void
+UINodeSetImage(ui_node Node, byte_string Path, byte_string Group)
+{
+    Assert(Node.CanUse);
+
+    ui_subtree *Subtree = GetSubtreeForNode(Node);
+    Assert(Subtree);
+
+    ui_loaded_image Image = LoadImageInGroup(Group, Path);
+    if(Image.IsLoaded)
+    {
+        u64   Size   = sizeof(ui_image);
+        void *Memory = AllocateUIResource(Size, &UIState.ResourceTable->Allocator);
+
+        if(Memory)
+        {
+            ui_image *ImageResource = (ui_image *)Memory;
+            ImageResource->Source    = Image.Source;
+            ImageResource->GroupName = Group;
+
+            ui_resource_key   Key   = MakeResourceKey(UIResource_Image, Node.IndexInTree, Subtree);
+            ui_resource_state State = FindResourceByKey(Key, UIState.ResourceTable);
+
+            UpdateResourceTable(State.Id, Key, ImageResource, UIState.ResourceTable);
+            SetLayoutNodeFlags(Node.IndexInTree, UILayoutNode_HasImage, Subtree);
+        }
+        else
+        {
+            ConsoleWriteMessage(error_message("Failed to allocate memory: Image."));
+        }
+    }
+}
+
+internal void
+UINodeListenOnKey(ui_node Node, ui_text_input_onkey Callback, void *UserData)
+{
+    Assert(Node.CanUse);
+
+    ui_subtree *Subtree = GetSubtreeForNode(Node);
+    Assert(Subtree);
+
+    // NOTE:
+    // For now these callbacks are limited to text inputs. Unsure if I want to expose
+    // them more generally. It's also not clear that it's limited to text input.
+
+    ui_text_input *TextInput = QueryNodeResource(Node.IndexInTree, Subtree, UIResource_TextInput, UIState.ResourceTable);
+    Assert(TextInput);
+
+    TextInput->OnKey         = Callback;
+    TextInput->OnKeyUserData = UserData;
+}
+
+
+internal void
+UINodeDebugBox(ui_node Node, bit_field Flag, b32 Draw)
+{
+    Assert(Node.CanUse);
+    Assert(Flag == UILayoutNode_DebugOuterBox || Flag == UILayoutNode_DebugInnerBox|| Flag == UILayoutNode_DebugContentBox);
+
+    ui_subtree *Subtree = GetCurrentSubtree();
+    Assert(Subtree);
+
+    if(Draw)
+    {
+        SetLayoutNodeFlags(Node.IndexInTree, Flag, Subtree);
+    }
+    else
+    {
+        ClearLayoutNodeFlags(Node.IndexInTree, Flag, Subtree);
+    }
+}
+
+internal void
+UINodeSetId(ui_node Node, byte_string Id)
+{
+    Assert(Node.CanUse);
+
+    ui_pipeline *Pipeline = GetCurrentPipeline();
+    Assert(Pipeline);
+
+    SetNodeId(Id, Node, Pipeline->IdTable);
+}
+
+internal ui_node
+UINode(bit_field Flags)
+{
+    ui_subtree *Subtree = GetCurrentSubtree();
+    Assert(Subtree);
+
+    ui_node Node = AllocateUINode(Flags, Subtree);
+    Assert(Node.CanUse);
+
+    return Node;
+}
+
+
 
 // ----------------------------------------------------------------------------------
 // Context Internal Implementation
@@ -1219,6 +1370,8 @@ UIBeginAllSubtrees(ui_pipeline *Pipeline)
         ui_subtree *Subtree = &Node->Value;
 
         ClearArena(Subtree->Transient);
+
+        UpdateSubtreeState(Subtree);
     }
 
     UIState.CurrentPipeline = Pipeline;
@@ -1234,10 +1387,6 @@ UIExecuteAllSubtrees(ui_pipeline *Pipeline)
     {
         ui_subtree *Subtree = &Node->Value;
 
-        // NOTE:
-        // Compute layout -> Update -> Paint
-
-        UpdateSubtreeState(Subtree);
         ComputeSubtreeLayout(Subtree);
         PaintSubtree(Subtree);
     }
