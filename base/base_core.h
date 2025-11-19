@@ -48,7 +48,6 @@ typedef struct render_handle
 
 // [Useful Macros]
 
-#define external
 #define internal      static
 #define global        static
 #define local_persist static

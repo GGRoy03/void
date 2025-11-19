@@ -1,18 +1,15 @@
 extern "C"
 {
 #include "base/base_inc.h"
-#include "os/os_inc.h"
 #include "render/render_inc.h"
 #include "ui/core.h"
 #include "third_party/stb_rect_pack.h"
 }
 
-DisableWarning(4838)
-DisableWarning(4244)
 #include <d2d1.h>
 #include <dwrite.h>
 
-internal b32 
+internal b32
 IsValidOSFontContext(os_font_context *Context)
 {
     b32 Result = (Context) && (Context->TextFormat) && (Context->FontFace) && (Context->RenderTarget) && (Context->FillBrush);

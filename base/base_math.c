@@ -45,7 +45,7 @@ Vec2I32ToVec2F32(vec2_i32 Vec)
 internal matrix_3x3 
 Mat3x3Zero(void)
 {
-    matrix_3x3 Result = {0};
+    matrix_3x3 Result = {};
     return Result;
 }
 
@@ -83,7 +83,7 @@ RectF32(f32 MinX, f32 MinY, f32 Width, f32 Height)
 internal rect_f32
 RectF32Zero(void)
 {
-    rect_f32 Result = {0};
+    rect_f32 Result = {};
     return Result;
 }
 

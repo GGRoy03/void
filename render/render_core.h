@@ -229,4 +229,4 @@ internal b32  CreateGlyphCache      (render_handle HRenderer, vec2_f32 TextureSi
 internal b32  CreateGlyphTransfer   (render_handle HRenderer, vec2_f32 TextureSize, gpu_font_context *FontContext);
 internal void ReleaseGlyphCache     (gpu_font_context *FontContext);
 internal void ReleaseGlyphTransfer  (gpu_font_context *FontContext);
-external void TransferGlyph         (rect_f32 Rect, render_handle HRenderer, gpu_font_context *FontContext);
+internal void TransferGlyph         (rect_f32 Rect, render_handle HRenderer, gpu_font_context *FontContext);

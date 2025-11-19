@@ -1,6 +1,6 @@
 // [Constructors]
 
-external byte_string 
+internal byte_string 
 ByteString(u8 *String, u64 Size)
 {
     byte_string Result = { String, Size };
@@ -155,7 +155,7 @@ ByteStringAppendTo(byte_string Target, byte_string Source, u64 At)
     }
 }
 
-external b32
+internal b32
 IsValidWideString(wide_string Input)
 {
     b32 Result = (Input.String) && (Input.Size);
@@ -247,7 +247,7 @@ read_only global u8 ByteStringClass[32] =
 // 3 byte -> 1110 xxxx 10yy yyyy 10zz zzzz           -> Code Point == (Byte0 & BitMask4) << 12 | (Byte1 & BitMask6) << 6  | (Byte2 & BitMask6)
 // 4 byte -> 1111 1xxx 10yy yyyy 10zz zzzz 10ww wwww -> Code Point == (Byte0 & BitMask3) << 18 | (Byte1 & BitMask6) << 12 | (Byte2 & BitMask6) << 6 | (Byte3 & BitMask6)
 
-external unicode_decode 
+internal unicode_decode 
 DecodeByteString(u8 *ByteString, u64 Maximum)
 {
     unicode_decode Result = { 1, _UI32_MAX };
@@ -408,7 +408,7 @@ EncodeWideString(u16 *WideString, u32 CodePoint)
 
 // [Conversion]
 
-external wide_string 
+internal wide_string 
 ByteStringToWideString(memory_arena *Arena, byte_string Input)
 {
     wide_string Result = WideString(0, 0);

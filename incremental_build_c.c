@@ -1,6 +1,5 @@
 // [General Notes]
-// 1) Functions marked as 'internal' are only used from within files included in this file.
-// 2) Functions marked as 'external' are both used from within files included in this file AND used outside of this file.
+// 1) Contains all headers and C files.
 
 // [Third-Party Libraries]
 

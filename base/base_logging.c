@@ -168,13 +168,13 @@ GetTimeStamp(void)
 // not the best way. At least the behavior is simple and clear
 // producer allocates and consumer frees.
 
-external void
+internal void
 ConsoleWriteMessage(ConsoleMessage_Severity Severity, byte_string Message, console_queue *Queue)
 {
     u64 MessageSize = Message.Size;
     u64 Footprint   = sizeof(console_queue_node) + MessageSize;
 
-    console_queue_node *Node = malloc(Footprint);
+    console_queue_node *Node = (console_queue_node *)malloc(Footprint);
     if(Node)
     {
         Node->Value.Severity  = Severity;

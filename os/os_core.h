@@ -153,9 +153,12 @@ internal void  OSRelease        (void *Memory);
 
 // [Misc]
 
-internal void  OSAbort          (i32 ExitCode);
-internal b32   OSIsValidHandle  (os_handle Handle);
-internal void  OSSetCursor      (OSCursor_Type Type);
+internal void  OSAbort              (i32 ExitCode);
+internal b32   OSIsValidHandle      (os_handle Handle);
+internal void  OSSetCursor          (OSCursor_Type Type);
+
+u64 OSGetTimerFrequency  (void);
+u64 OSReadTimer          (void);
 
 // Inputs:
 //   You may query input state using OSInputKey_Type.
@@ -232,8 +235,8 @@ internal b32 IsKeyClicked  (OSInputKey_Type Key);
 typedef struct os_font_context os_font_context;
 typedef struct gpu_font_context gpu_font_context;
 
-external b32  OSAcquireFontContext  (byte_string FontName, f32 FontSize, gpu_font_context *GPUContext, os_font_context *OSContext);
-external void OSReleaseFontContext  (os_font_context *Context);
+b32  OSAcquireFontContext  (byte_string FontName, f32 FontSize, gpu_font_context *GPUContext, os_font_context *OSContext);
+void OSReleaseFontContext  (os_font_context *Context);
 
 // OSGetGlyphInfo:
 //   Make sure that the glyph run is valid UTF-8 string as well as the OSContext is valid.
@@ -248,6 +251,6 @@ external void OSReleaseFontContext  (os_font_context *Context);
 // OSGetLineHeight:
 //   Queries the LineHeight from a fully intialized context. If result == 0, then the context or the font size is invalid.
 
-external os_glyph_info  OSGetGlyphInfo    (byte_string UTF8, f32 FontSize, os_font_context *OSContext);
-external b32            OSRasterizeGlyph  (byte_string UTF8, rect_f32 Rect, os_font_context *OSContext);
-external f32            OSGetLineHeight   (f32 FontSize, os_font_context *FontContext);
+os_glyph_info  OSGetGlyphInfo    (byte_string UTF8, f32 FontSize, os_font_context *OSContext);
+b32            OSRasterizeGlyph  (byte_string UTF8, rect_f32 Rect, os_font_context *OSContext);
+f32            OSGetLineHeight   (f32 FontSize, os_font_context *FontContext);

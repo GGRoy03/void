@@ -110,7 +110,7 @@ ClearArena(memory_arena *Arena)
     MemorySet((Arena + 1), 0, (Arena->Committed - Arena->Position));
 }
 
-external void
+internal void
 PopArenaTo(memory_arena *Arena, u64 Position)
 {
     memory_arena *Active    = Arena->Current;
@@ -126,7 +126,7 @@ PopArenaTo(memory_arena *Arena, u64 Position)
     Arena->Current->Position = PoppedPos - Arena->Current->BasePosition;
 }
 
-external void
+internal void
 PopArena(memory_arena *Arena, u64 Amount)
 {
     u64 OldPosition = GetArenaPosition(Arena);
@@ -149,7 +149,7 @@ GetArenaPosition(memory_arena *Arena)
     return Result;
 }
 
-external memory_region 
+internal memory_region 
 EnterMemoryRegion(memory_arena *Arena)
 {
     memory_region Result;
@@ -159,7 +159,7 @@ EnterMemoryRegion(memory_arena *Arena)
     return Result;
 }
 
-external void
+internal void
 LeaveMemoryRegion(memory_region Region)
 {
     PopArenaTo(Region.Arena, Region.Position);

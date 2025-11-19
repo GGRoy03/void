@@ -11,4 +11,4 @@ typedef struct os_font_context
     ID2D1SolidColorBrush *FillBrush;
 } os_font_context;
 
-external void OSWin32InitializeDWriteFactory  (IDWriteFactory **OutFactory);
+void OSWin32InitializeDWriteFactory  (IDWriteFactory **OutFactory);

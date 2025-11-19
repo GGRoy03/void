@@ -645,7 +645,7 @@ ReleaseGlyphTransfer(gpu_font_context *FontContext)
     }
 }
 
-external void
+internal void
 TransferGlyph(rect_f32 Rect, render_handle HRenderer, gpu_font_context *FontContext)
 {
     if (IsValidRenderHandle(HRenderer) && IsValidGPUFontContext(FontContext))

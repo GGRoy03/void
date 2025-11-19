@@ -37,7 +37,7 @@ typedef struct unicode_decode
 
 // [Constructors]
 
-external byte_string ByteString  (u8 *String, u64 Size);
+byte_string ByteString  (u8 *String, u64 Size);
 internal wide_string WideString  (u16 *String, u64 Size);
 
 // [String Utilities]
@@ -49,7 +49,7 @@ internal byte_string ByteStringCopy      (byte_string String, memory_arena *Aren
 internal byte_string ByteStringAppend    (byte_string Target, byte_string Source, u64 At,memory_arena *Arena);
 internal void        ByteStringAppendTo  (byte_string Target, byte_string Source, u64 At);
 
-external b32         IsValidWideString   (wide_string Input);
+b32         IsValidWideString   (wide_string Input);
 internal b32         WideStringMatches   (wide_string A, wide_string B, bit_field Flags);
 
 // [Character Utilities]
@@ -62,12 +62,13 @@ internal u8  ToLowerChar   (u8 Char);
 
 // [Encoding/Decoding]
 
-external unicode_decode DecodeByteString  (u8 *String, u64 Maximum);
-internal u32            EncodeWideString  (u16 *WideString, u32 CodePoint);
+unicode_decode DecodeByteString  (u8 *String, u64 Maximum);
+
+internal u32 EncodeWideString    (u16 *WideString, u32 CodePoint);
 
 // [Conversion]
 
-external wide_string ByteStringToWideString(memory_arena *Arena, byte_string Input);
+wide_string ByteStringToWideString(memory_arena *Arena, byte_string Input);
 internal byte_string WideStringToByteString(wide_string Input, memory_arena *Arena);
 
 // [Hashes]
