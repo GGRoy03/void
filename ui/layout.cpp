@@ -1278,6 +1278,8 @@ PreOrderPlaceSubtree(ui_layout_node *Root, ui_subtree *Subtree)
     Assert(Subtree);
     Assert(Subtree->Transient);
 
+    
+
     ui_layout_tree *Tree = Subtree->LayoutTree;
     Assert(Tree);
 
@@ -1833,6 +1835,8 @@ UpdateSubtreeState(ui_subtree *Subtree)
 internal void
 ComputeSubtreeLayout(ui_subtree *Subtree)
 {
+    TimeFunction;
+
     Assert(Subtree);
 
     ui_layout_tree *Tree = Subtree->LayoutTree;
@@ -1849,6 +1853,8 @@ ComputeSubtreeLayout(ui_subtree *Subtree)
 internal void 
 PaintSubtree(ui_subtree *Subtree)
 {
+    TimeFunction;
+
     Assert(Subtree);
     Assert(Subtree->LayoutTree);
     Assert(Subtree->Transient);

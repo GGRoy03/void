@@ -1,6 +1,3 @@
-// [General Notes]
-// 1) Contains all headers and C files.
-
 // [Third-Party Libraries]
 
 #define STB_RECT_PACK_IMPLEMENTATION

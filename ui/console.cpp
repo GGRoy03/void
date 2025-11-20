@@ -244,10 +244,6 @@ HandleConsoleFlag(byte_string Flag, console_ui *Console)
                 // Add text.
                 // Add numbers.
                 // Add clickability.
-
-
-
-
             }
 
             UINodeAppendChild(ContentWindows, InspectWindow);

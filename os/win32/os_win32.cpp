@@ -240,12 +240,19 @@ OSWin32GetClientSize(HWND HWindow)
     return Result;
 }
 
-i32 WINAPI
+internal i32 WINAPI
 wWinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPWSTR CmdLine, i32 ShowCmd)
 {
     Useless(PrevInstance);
     Useless(CmdLine);
     Useless(Instance);
+
+    if(AllocConsole())
+    {
+        FILE *f;
+        freopen_s(&f, "CONOUT$", "w", stdout);
+        freopen_s(&f, "CONOUT$", "w", stderr);
+    }
 
     // OS State (Always query system info first since arena depends on it)
     {
@@ -312,6 +319,10 @@ wWinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPWSTR CmdLine, i32 ShowCmd
         RenderState.Renderer = InitializeRenderer(HWindow, ClientSize, OSWin32State.Arena);
     }
 
+    BeginProfile();
+    u32 PrintProfilingFrame      = 0;
+    u32 PrintProfilingFrameDelta = 1000;
+
     b32 IsRunning = 1;
     while(IsRunning)
     {
@@ -332,13 +343,31 @@ wWinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPWSTR CmdLine, i32 ShowCmd
 
         vec2_i32 ClientSize = OSWin32GetClientSize(OSWin32State.HWindow);
 
-        UIBeginFrame(ClientSize);
-        ShowConsoleUI();
-        UIEndFrame();
+        {
+            TimeBlock("UI Logic");
 
-        SubmitRenderCommands(RenderState.Renderer, ClientSize, &RenderState.PassList);
+            UIBeginFrame(ClientSize);
+            ShowConsoleUI();
+            UIEndFrame();
+        }
 
-        Sleep(5);
+        {
+            TimeBlock("Render Commands");
+            SubmitRenderCommands(RenderState.Renderer, ClientSize, &RenderState.PassList);
+        }
+
+        {
+            TimeBlock("Sleeping");
+            Sleep(5);
+        }
+
+
+        PrintProfilingFrame += 1;
+        if(PrintProfilingFrame == PrintProfilingFrameDelta)
+        {
+            EndAndPrintProfile();
+            PrintProfilingFrame = 0;
+        }
     }
 
     // NOTE:
@@ -532,4 +561,20 @@ OSGetTextPlayback(void)
     os_inputs        *Inputs = &OSWin32State.Inputs;
     os_utf8_playback *Result = &Inputs->UTF8Buffer;
     return Result;
+}
+
+internal u64
+OSReadTimer(void)
+{
+    LARGE_INTEGER Value;
+    QueryPerformanceCounter(&Value);
+    return Value.QuadPart;
+}
+
+internal u64
+OSGetTimerFrequency(void)
+{
+    LARGE_INTEGER Freq;
+    QueryPerformanceFrequency(&Freq);
+    return Freq.QuadPart;
 }
