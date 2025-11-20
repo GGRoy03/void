@@ -103,7 +103,7 @@ IsValidConsoleOutput(console_output Output)
 internal console_output
 FormatConsoleOutput(byte_string Message, ConsoleMessage_Severity Severity, memory_arena *Arena)
 {
-    console_output Result = {0};
+    console_output Result = {};
 
     if(IsValidByteString(Message))
     {
@@ -177,13 +177,11 @@ RenderBoxModelDiagram(ui_layout_node *Node)
     ui_node Inner   = {0};
     ui_node Content = {0};
 
-    vec2_unit BoxSize =
-    {
-        .X.Type    = UIUnit_Percent,
-        .X.Percent = 100.f,
-        .Y.Type    = UIUnit_Percent,
-        .Y.Percent = 100.f,
-    };
+    vec2_unit BoxSize = {};
+    BoxSize.X.Type    = UIUnit_Percent;
+    BoxSize.X.Percent = 100.f;
+    BoxSize.Y.Type    = UIUnit_Percent;
+    BoxSize.Y.Percent = 100.f;
 
     ui_color OuterColor   = UIColor(0.424f, 0.612f, 0.784f, 0.4f);
     ui_color InnerColor   = UIColor(0.345f, 0.651f, 0.608f, 0.4f);
@@ -191,13 +189,11 @@ RenderBoxModelDiagram(ui_layout_node *Node)
 
     UIBlock(Outer = UINode(UILayoutNode_IsParent))
     {
-        vec2_unit OuterBoxSize = 
-        {
-            .X.Type    = UIUnit_Percent,
-            .X.Percent = 100.f,
-            .Y.Type    = UIUnit_Float32,
-            .Y.Float32 = 110.f,
-        };
+        vec2_unit OuterBoxSize = {};
+        OuterBoxSize.X.Type    = UIUnit_Percent;
+        OuterBoxSize.X.Percent = 100.f;
+        OuterBoxSize.Y.Type    = UIUnit_Float32;
+        OuterBoxSize.Y.Float32 = 110.f;
 
         UINodeSetStyle(Outer, ConsoleStyle_BoxModelDiagram);
         UINodeSetSize (Outer, OuterBoxSize);

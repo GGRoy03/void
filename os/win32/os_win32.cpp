@@ -1,8 +1,4 @@
-#include <io.h>
-#include <fcntl.h>
-#include <stdio.h>
-
-read_only global u32 Win32InputTable[256] =
+constexpr u32 Win32InputTable[256] =
 {
     [0x41] = OSInputKey_A,
     [0x42] = OSInputKey_B,
@@ -42,19 +38,19 @@ read_only global u32 Win32InputTable[256] =
     [0x38] = OSInputKey_8,
     [0x39] = OSInputKey_9,
 
-    [VK_RETURN]          = OSInputKey_Enter,
-    [VK_SPACE]           = OSInputKey_Space,
-    [VK_OEM_MINUS]       = OSInputKey_Minus,
-    [VK_OEM_PLUS]        = OSInputKey_Equals,
-    [VK_OEM_4]           = OSInputKey_LeftBracket,
-    [VK_OEM_6]           = OSInputKey_RightBracket,
-    [VK_OEM_5]           = OSInputKey_Backslash,
-    [VK_OEM_1]           = OSInputKey_Semicolon,
-    [VK_OEM_7]           = OSInputKey_Apostrophe,
-    [VK_OEM_COMMA]       = OSInputKey_Comma,
-    [VK_OEM_PERIOD]      = OSInputKey_Period,
-    [VK_OEM_2]           = OSInputKey_Slash,
-    [VK_OEM_3]           = OSInputKey_Grave,
+    [VK_RETURN]     = OSInputKey_Enter,
+    [VK_SPACE]      = OSInputKey_Space,
+    [VK_OEM_MINUS]  = OSInputKey_Minus,
+    [VK_OEM_PLUS]   = OSInputKey_Equals,
+    [VK_OEM_4]      = OSInputKey_LeftBracket,
+    [VK_OEM_6]      = OSInputKey_RightBracket,
+    [VK_OEM_5]      = OSInputKey_Backslash,
+    [VK_OEM_1]      = OSInputKey_Semicolon,
+    [VK_OEM_7]      = OSInputKey_Apostrophe,
+    [VK_OEM_COMMA]  = OSInputKey_Comma,
+    [VK_OEM_PERIOD] = OSInputKey_Period,
+    [VK_OEM_2]      = OSInputKey_Slash,
+    [VK_OEM_3]      = OSInputKey_Grave,
 };
 
 internal os_win32_state OSWin32State;
@@ -316,17 +312,6 @@ wWinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPWSTR CmdLine, i32 ShowCmd
         RenderState.Renderer = InitializeRenderer(HWindow, ClientSize, OSWin32State.Arena);
     }
 
-    // Console
-    if (AllocConsole()) 
-    {
-        HANDLE handle = GetStdHandle(STD_OUTPUT_HANDLE);
-        int fd = _open_osfhandle((intptr_t)handle, _O_TEXT);
-        FILE* fp = _fdopen(fd, "w");
-       *stdout = *fp;
-        setvbuf(stdout, NULL, _IONBF, 0);
-        freopen_s(&fp, "CONOUT$", "w", stdout);
-    }
-
     b32 IsRunning = 1;
     while(IsRunning)
     {
@@ -347,13 +332,9 @@ wWinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPWSTR CmdLine, i32 ShowCmd
 
         vec2_i32 ClientSize = OSWin32GetClientSize(OSWin32State.HWindow);
 
-        BeginProfile();
-
         UIBeginFrame(ClientSize);
         ShowConsoleUI();
         UIEndFrame();
-
-        EndAndPrintProfile();
 
         SubmitRenderCommands(RenderState.Renderer, ClientSize, &RenderState.PassList);
 
@@ -426,7 +407,7 @@ OSFileSize(os_handle Handle)
         HANDLE FileHandle = OSWin32GetNativeHandle(Handle);
         if (FileHandle)
         {
-            LARGE_INTEGER NativeResult = {0};
+            LARGE_INTEGER NativeResult = {};
             b32 Success = GetFileSizeEx(FileHandle, &NativeResult);
             if (Success)
             {
@@ -444,7 +425,7 @@ OSFileSize(os_handle Handle)
 internal os_read_file
 OSReadFile(os_handle Handle, memory_arena *Arena)
 {
-    os_read_file Result     = {0};
+    os_read_file Result     = {};
     HANDLE       FileHandle = (HANDLE)Handle.u64[0];
 
     if (FileHandle != INVALID_HANDLE_VALUE)
@@ -460,7 +441,7 @@ OSReadFile(os_handle Handle, memory_arena *Arena)
             u8   *WritePointer = 0;
 
             Result.Content.Size   = FileSize;
-            Result.Content.String = PushArena(Arena, FileSize, AlignOf(u8));
+            Result.Content.String = (u8 *)PushArena(Arena, FileSize, AlignOf(u8));
 
             while (Success && ToRead > ReadSize)
             {
@@ -551,20 +532,4 @@ OSGetTextPlayback(void)
     os_inputs        *Inputs = &OSWin32State.Inputs;
     os_utf8_playback *Result = &Inputs->UTF8Buffer;
     return Result;
-}
-
-// [Whatever this is]
-
-u64
-OSGetTimerFrequency(void)
-{
-    return 1000000;
-}
-
-u64
-OSReadTimer(void)
-{
-    LARGE_INTEGER Value;
-    QueryPerformanceCounter(&Value);
-    return Value.QuadPart;
 }

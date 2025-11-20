@@ -22,7 +22,7 @@ UILoadFont(byte_string Name, f32 Size)
         vec2_i32 TextureSize = Vec2I32(1024, 1024);
         size_t   Footprint   = (TextureSize.X * sizeof(stbrp_node)) + sizeof(ui_font);
 
-        Result = PushArena(Arena, Footprint, AlignOf(ui_font));
+        Result = (ui_font *)PushArena(Arena, Footprint, AlignOf(ui_font));
 
         if(Result)
         {
@@ -183,8 +183,8 @@ PrepareGlyph(byte_string UTF8, ui_font *Font)
     {
         .Source   = State->Source,
         .Offset   = State->Offset,
-        .AdvanceX = State->AdvanceX,
         .Size     = State->Size,
+        .AdvanceX = State->AdvanceX,
     };
 
     return Result;

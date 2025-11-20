@@ -543,7 +543,7 @@ AllocateUINode(bit_field Flags, ui_subtree *Subtree)
     ui_layout_node *Node = CreateAndInsertLayoutNode(Flags, Subtree);
     if (Node)
     {
-        Result = (ui_node){ .IndexInTree = Node->Index, .SubtreeId = Subtree->Id, .CanUse = 1 };
+        Result = (ui_node){.CanUse = 1, .IndexInTree = Node->Index, .SubtreeId = Subtree->Id};
     }
 
     return Result;
@@ -735,49 +735,69 @@ RecordUIEvent(ui_event Event, ui_event_list *EventList, memory_arena *Arena)
 internal void
 RecordUIHoverEvent(ui_layout_node *Node, ui_event_list *EventList, memory_arena *Arena)
 {
-    ui_event Event = {.Type = UIEvent_Hover, .Hover.Node = Node};
+    ui_event Event = {};
+    Event.Type       = UIEvent_Hover;
+    Event.Hover.Node = Node;
+
     RecordUIEvent(Event, EventList, Arena);
 }
 
 internal void
 RecordUIClickEvent(ui_layout_node *Node, ui_event_list *EventList, memory_arena *Arena)
 {
-    ui_event Event = {.Type = UIEvent_Click, .Click.Node = Node};
+    ui_event Event = {};
+    Event.Type       = UIEvent_Click;
+    Event.Click.Node = Node;
     RecordUIEvent(Event, EventList, Arena);
 }
 
 internal void
 RecordUIScrollEvent(ui_layout_node *Node, f32 Delta, ui_event_list *EventList, memory_arena *Arena)
 {
-    ui_event Event = {.Type = UIEvent_Scroll, .Scroll.Node = Node, .Scroll.Delta = Delta};
+    ui_event Event = {};
+    Event.Type         = UIEvent_Scroll;
+    Event.Scroll.Node  = Node;
+    Event.Scroll.Delta = Delta;
     RecordUIEvent(Event, EventList, Arena);
 }
 
 internal void
 RecordUIResizeEvent(ui_layout_node *Node, vec2_f32 Delta, ui_event_list *EventList, memory_arena *Arena)
 {
-    ui_event Event = {.Type = UIEvent_Resize, .Resize.Node = Node, .Resize.Delta = Delta};
+    ui_event Event = {};
+    Event.Type         = UIEvent_Resize;
+    Event.Resize.Node  = Node;
+    Event.Resize.Delta = Delta;
     RecordUIEvent(Event, EventList, Arena);
 }
 
 internal void
 RecordUIDragEvent(ui_layout_node *Node, vec2_f32 Delta, ui_event_list *EventList, memory_arena *Arena)
 {
-    ui_event Event = {.Type = UIEvent_Drag, .Drag.Node = Node, .Drag.Delta = Delta};
+    ui_event Event = {};
+    Event.Type       = UIEvent_Drag;
+    Event.Drag.Node  = Node;
+    Event.Drag.Delta = Delta;
     RecordUIEvent(Event, EventList, Arena);
 }
 
 internal void
 RecordUIKeyEvent(u32 Keycode, ui_layout_node *Node, ui_event_list *EventList, memory_arena *Arena)
 {
-    ui_event Event = {.Type = UIEvent_Key, .Key.Node = Node, .Key.Keycode = Keycode};
+    ui_event Event = {};
+    Event.Type        = UIEvent_Key;
+    Event.Key.Node    = Node;
+    Event.Key.Keycode = Keycode;
     RecordUIEvent(Event, EventList, Arena);
 }
 
 internal void
 RecordUITextInputEvent(byte_string Text, ui_layout_node *Node, ui_event_list *EventList, memory_arena *Arena)
 {
-    ui_event Event = {.Type = UIEvent_TextInput, .TextInput.Node = Node, .TextInput.Text = Text};
+    ui_event Event = {};
+    Event.Type           = UIEvent_TextInput;
+    Event.TextInput.Node = Node;
+    Event.TextInput.Text = Text;
     RecordUIEvent(Event, EventList, Arena);
 }
 
@@ -1096,7 +1116,7 @@ ProcessUIEvents(ui_event_list *Events, ui_subtree *Subtree)
             Assert(Scroll.Node);
             Assert(Scroll.Delta);
 
-            ui_scroll_region *Region = QueryNodeResource(Scroll.Node->Index, Subtree, UIResource_ScrollRegion, UIState.ResourceTable);
+            ui_scroll_region *Region = (ui_scroll_region *)QueryNodeResource(Scroll.Node->Index, Subtree, UIResource_ScrollRegion, UIState.ResourceTable);
             Assert(Region);
 
             UpdateScrollNode(Scroll.Delta, Scroll.Node, Region);
@@ -1112,12 +1132,12 @@ ProcessUIEvents(ui_event_list *Events, ui_subtree *Subtree)
 
             if(HasFlag(Node->Flags, UILayoutNode_HasTextInput))
             {
-                ui_text_input *Input = QueryNodeResource(Node->Index, Subtree, UIResource_TextInput, Table);
+                ui_text_input *Input = (ui_text_input *)QueryNodeResource(Node->Index, Subtree, UIResource_TextInput, Table);
                 Assert(Input);
 
                 if(Input->OnKey)
                 {
-                    Input->OnKey(Key.Keycode, Input->OnKeyUserData);
+                    Input->OnKey((OSInputKey_Type)Key.Keycode, Input->OnKeyUserData);
                 }
             }
         } break;
@@ -1130,8 +1150,8 @@ ProcessUIEvents(ui_event_list *Events, ui_subtree *Subtree)
             ui_layout_node    *Node  = TextInput.Node;
             ui_resource_table *Table = UIState.ResourceTable;
 
-            ui_text       *Text  = QueryNodeResource(Node->Index, Subtree, UIResource_Text     , Table);
-            ui_text_input *Input = QueryNodeResource(Node->Index, Subtree, UIResource_TextInput, Table);
+            ui_text       *Text  = (ui_text *)      QueryNodeResource(Node->Index, Subtree, UIResource_Text     , Table);
+            ui_text_input *Input = (ui_text_input *)QueryNodeResource(Node->Index, Subtree, UIResource_TextInput, Table);
 
             Assert(Text);
             Assert(Input);
@@ -1283,7 +1303,7 @@ PreOrderPlaceSubtree(ui_layout_node *Root, ui_subtree *Subtree)
 
             if(HasFlag(Node->Flags, UILayoutNode_HasScrollRegion))
             {
-                ui_scroll_region *Region = QueryNodeResource(Node->Index, Subtree, UIResource_ScrollRegion, Table);
+                ui_scroll_region *Region = (ui_scroll_region *)QueryNodeResource(Node->Index, Subtree, UIResource_ScrollRegion, Table);
                 Assert(Region);
 
                 if(Region->Axis == UIAxis_X)
@@ -1396,7 +1416,7 @@ PreOrderPlaceSubtree(ui_layout_node *Root, ui_subtree *Subtree)
 
             if(HasFlag(Node->Flags, UILayoutNode_HasText))
             {
-                ui_text *Text = QueryNodeResource(Node->Index, Subtree, UIResource_Text, Table);
+                ui_text *Text = (ui_text *)QueryNodeResource(Node->Index, Subtree, UIResource_Text, Table);
 
                 UIAlign_Type XAlign = UIGetXTextAlign(Style->Properties[StyleState_Default]);
                 UIAlign_Type YAlign = UIGetYTextAlign(Style->Properties[StyleState_Default]);
@@ -1652,7 +1672,7 @@ PostOrderMeasureSubtree(ui_layout_node *Root, ui_subtree *Subtree)
 
     if(HasFlag(Root->Flags, UILayoutNode_HasImage))
     {
-        ui_image *Image = QueryNodeResource(Root->Index, Subtree, UIResource_Image, UIState.ResourceTable);
+        ui_image *Image = (ui_image *)QueryNodeResource(Root->Index, Subtree, UIResource_Image, UIState.ResourceTable);
         Assert(Image);
 
         if(Box->Width.Type == UIUnit_Auto && Box->Height.Type == UIUnit_Auto)
@@ -1670,7 +1690,7 @@ PostOrderMeasureSubtree(ui_layout_node *Root, ui_subtree *Subtree)
 
     if (HasFlag(Root->Flags, UILayoutNode_HasText))
     {
-        ui_text *Text = QueryNodeResource(Root->Index, Subtree, UIResource_Text, UIState.ResourceTable);
+        ui_text *Text = (ui_text *)QueryNodeResource(Root->Index, Subtree, UIResource_Text, UIState.ResourceTable);
 
         f32 InnerAvWidth  = GetUITextSpace(Root);
         f32 LineWidth     = 0.f;
@@ -1732,7 +1752,7 @@ PostOrderMeasureSubtree(ui_layout_node *Root, ui_subtree *Subtree)
 
     if(HasFlag(Root->Flags, UILayoutNode_HasScrollRegion))
     {
-        ui_scroll_region *Region = QueryNodeResource(Root->Index, Subtree, UIResource_ScrollRegion, UIState.ResourceTable);
+        ui_scroll_region *Region = (ui_scroll_region *)QueryNodeResource(Root->Index, Subtree, UIResource_ScrollRegion, UIState.ResourceTable);
         Assert(Region);
 
         f32 TotalWidth  = 0.f;

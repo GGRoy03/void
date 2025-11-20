@@ -176,8 +176,8 @@ typedef enum RenderTexture_Wrap
 typedef struct render_texture_params
 {
     RenderTexture_Type   Type;
-    u32                  Width;
-    u32                  Height;
+    i32                  Width;
+    i32                  Height;
     RenderTexture_Filter MinFilter;
     RenderTexture_Filter MagFilter;
     RenderTexture_Wrap   WrapU;

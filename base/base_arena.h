@@ -2,10 +2,10 @@
 
 typedef struct memory_arena_params
 {
-    u64   CommitSize;
-    u64   ReserveSize;
-    char *AllocatedFromFile;
-    u32   AllocatedFromLine;
+    u64         CommitSize;
+    u64         ReserveSize;
+    const char *AllocatedFromFile;
+    u32         AllocatedFromLine;
 } memory_arena_params;
 
 typedef struct memory_arena memory_arena;
@@ -22,8 +22,8 @@ struct memory_arena
     u64 BasePosition;
     u64 Position;
 
-    char *AllocatedFromFile;
-    u32   AllocatedFromLine;
+    const char *AllocatedFromFile;
+    u32         AllocatedFromLine;
 };
 
 typedef struct memory_region

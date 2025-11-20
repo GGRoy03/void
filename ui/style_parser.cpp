@@ -29,6 +29,8 @@ enum StyleParser_Constant
     StyleParser_VarHashEntryPerFile = 256,
 };
 
+constexpr u32 InvalidStyleTableResult = Bit32;
+
 typedef struct style_parser_table_entry
 {
     byte_string Name;
@@ -131,8 +133,6 @@ read_only global style_parser_table_entry TextAlignTable[] =
     {byte_string_compile("center") , UIAlign_Center },
     {byte_string_compile("end")    , UIAlign_End    },
 };
-
-#define InvalidStyleTableResult Bit32
 
 internal u32
 FindEnumFromStyleTable(byte_string Name, read_only style_parser_table_entry *Table, u32 TableSize)
@@ -356,7 +356,7 @@ ReadIdentifier(os_read_file *File)
 internal ui_unit
 ReadUnit(os_read_file *File, style_file_debug_info *Debug)
 {
-    ui_unit Result = {0};
+    ui_unit Result = {};
 
     if (IsDigit(PeekFile(File, 0)))
     {
@@ -421,8 +421,8 @@ ReadUnit(os_read_file *File, style_file_debug_info *Debug)
     {
         byte_string Identifier = ReadIdentifier(File);
 
-        Result.Type = FindEnumFromStyleTable(Identifier, StyleUnitKeywordTable, ArrayCount(StyleUnitKeywordTable));
-        if(Result.Type == InvalidStyleTableResult)
+        Result.Type = (UIUnit_Type)FindEnumFromStyleTable(Identifier, StyleUnitKeywordTable, ArrayCount(StyleUnitKeywordTable));
+        if(Result.Type == UIUnit_None)
         {
             ReportStyleFileError(Debug, error_message("Found invalid identifier in file."));
         }
@@ -437,7 +437,7 @@ ReadUnit(os_read_file *File, style_file_debug_info *Debug)
 internal style_vector
 ReadVector(os_read_file *File, style_file_debug_info *Debug)
 {
-    style_vector Result = {0};
+    style_vector Result = {};
 
     while(Result.Size < 4)
     {
@@ -474,7 +474,7 @@ ReadVector(os_read_file *File, style_file_debug_info *Debug)
 internal tokenized_style_file
 TokenizeStyleFile(os_read_file File, memory_arena *Arena, style_file_debug_info *Debug)
 {
-    tokenized_style_file Result = {0};
+    tokenized_style_file Result = {};
     Result.Buffer.Tokens = PushArray(Arena, style_token, StyleParser_MaximumTokenPerFile);
     Result.Buffer.Size   = StyleParser_MaximumTokenPerFile;
 
@@ -493,11 +493,10 @@ TokenizeStyleFile(os_read_file File, memory_arena *Arena, style_file_debug_info 
             {
                 style_token *Token = 0;
 
-                StyleToken_Type TokenType = FindEnumFromStyleTable(Identifier, StyleKeywordTable, ArrayCount(StyleKeywordTable));
-
+                u32 TokenType = FindEnumFromStyleTable(Identifier, StyleKeywordTable, ArrayCount(StyleKeywordTable));
                 if(TokenType != InvalidStyleTableResult)
                 {
-                    Token = EmitStyleToken(&Result.Buffer, TokenType, AtLine, AtByte);
+                    Token = EmitStyleToken(&Result.Buffer, (StyleToken_Type)TokenType, AtLine, AtByte);
                 }
 
                 if(Token == 0)
@@ -869,7 +868,7 @@ ParseStyleState(style_token_buffer *Buffer, style_file_debug_info *Debug)
         u32 Enum = FindEnumFromStyleTable(Name->Identifier, StyleStateTable, ArrayCount(StyleStateTable));
         if(Enum != InvalidStyleTableResult)
         {
-            Result = Enum;
+            Result = (StyleState_Type)Enum;
         }
     }
 
@@ -889,7 +888,7 @@ ParseStyleState(style_token_buffer *Buffer, style_file_debug_info *Debug)
 internal style_property
 ConvertToStyleProperty(style_token *Value, StyleProperty_Type PropType, style_file_debug_info *Debug)
 {
-    style_property Result = {0};
+    style_property Result = {};
     Result.IsSet = 1;
     Result.Type  = PropType;
 
@@ -1103,18 +1102,19 @@ ConvertToStyleProperty(style_token *Value, StyleProperty_Type PropType, style_fi
 internal style_property
 ParseStyleProperty(style_token_buffer *Buffer, style_var_table *VarTable, style_file_debug_info *Debug)
 {
-    style_property Property = {0};
+    style_property Property = {};
 
     style_token *Name = ConsumeStyleToken(Buffer, StyleToken_Identifier, byte_string_literal("Expected an attribute name."), Debug);
     if(Name)
     {
-        Property.Type = FindEnumFromStyleTable(Name->Identifier, StylePropertyTable, ArrayCount(StylePropertyTable));
-
-        if(Property.Type == InvalidStyleTableResult)
+        u32 PropertyType = FindEnumFromStyleTable(Name->Identifier, StylePropertyTable, ArrayCount(StylePropertyTable));
+        if(PropertyType == InvalidStyleTableResult)
         {
             ReportStyleFileError(Debug, error_message("Invalid attribute name"));
             return Property;
         }
+
+        Property.Type = (StyleProperty_Type)PropertyType;
     }
     else
     {
@@ -1211,7 +1211,7 @@ SynchronizeToNextProperty(style_token_buffer *Buffer)
 internal style_block
 ParseStyleBlock(style_token_buffer *Buffer, style_var_table *VarTable, style_file_debug_info *Debug)
 {
-    style_block Result = {0};
+    style_block Result = {};
 
     if(!ConsumeStyleToken(Buffer, StyleToken_OpenBrace, byte_string_literal("Expected a { after style header."), Debug))
     {
@@ -1299,7 +1299,7 @@ typedef struct style_header
 internal style_header
 ParseStyleHeader(style_token_buffer *Buffer, style_file_debug_info *Debug)
 {
-    style_header Header = {0};
+    style_header Header = {};
 
     if(!ConsumeStyleToken(Buffer, StyleToken_Style, byte_string_literal("Expected 'style' keyword"), Debug))
     {
@@ -1393,7 +1393,7 @@ ParseStyleFile(tokenized_style_file *File, memory_arena *RoutineArena, memory_ar
 
         style_var_table *VarTable = 0;
         {
-            style_var_table_params Params = {0};
+            style_var_table_params Params = {};
             Params.EntryCount = StyleParser_MaximumVarPerFile;
             Params.HashCount  = StyleParser_VarHashEntryPerFile;
 
@@ -1426,7 +1426,7 @@ ParseStyleFile(tokenized_style_file *File, memory_arena *RoutineArena, memory_ar
                     Variable = ParseStyleVariable(&File->Buffer, Debug);
                 };
 
-                style Style = {0};
+                style Style = {};
                 Style.Header = ParseStyleHeader(&File->Buffer, Debug);
                 Style.Block  = ParseStyleBlock(&File->Buffer, VarTable, Debug);
 
@@ -1456,9 +1456,9 @@ CreateStyleRegistry(byte_string FileName, memory_arena *OutputArena)
 {
     ui_style_registry *Result = 0;
 
-    memory_arena *RoutineArena = {0};
+    memory_arena *RoutineArena = {};
     {
-        memory_arena_params Params = {0};
+        memory_arena_params Params = {};
         Params.AllocatedFromLine = __LINE__;
         Params.AllocatedFromFile = __FILE__;
         Params.ReserveSize       = StyleParser_MaximumFileSize + (StyleParser_MaximumTokenPerFile * sizeof(style_token));
@@ -1490,7 +1490,7 @@ CreateStyleRegistry(byte_string FileName, memory_arena *OutputArena)
         return Result;
     }
 
-    style_file_debug_info Debug = {0};
+    style_file_debug_info Debug = {};
     Debug.FileContent = File;
     Debug.FileName    = FileName;
 

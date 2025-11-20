@@ -9,9 +9,9 @@ ConsolePushMessage(console_queue_node *Node, console_queue *Queue)
 internal void
 ConsolePushMessageList(console_queue_node *First, console_queue_node *Last, console_queue *Queue)
 {
-    atomic_store_explicit(&Last->Next, 0, memory_order_relaxed);
-    console_queue_node *Prev = atomic_exchange_explicit(&Queue->Head, Last, memory_order_acq_rel);
-    atomic_store_explicit(&Prev->Next, First, memory_order_release);
+    atomic_store_explicit(&Last->Next, 0, std::memory_order_relaxed);
+    console_queue_node *Prev = atomic_exchange_explicit(&Queue->Head, Last, std::memory_order_acq_rel);
+    atomic_store_explicit(&Prev->Next, First, std::memory_order_release);
 }
 
 internal void
@@ -28,7 +28,7 @@ ConsolePushMessageBatch(u64 NodeCount, console_queue_node *Nodes[], console_queu
     for(u64 Idx = 0; Idx < NodeCount; Idx++)
     {
         console_queue_node *Node = Nodes[Idx];
-        atomic_store_explicit(&Node->Next, Nodes[Idx + 1], memory_order_relaxed);
+        atomic_store_explicit(&Node->Next, Nodes[Idx + 1], std::memory_order_relaxed);
     }
 
     ConsolePushMessageList(First, Last, Queue);
@@ -39,25 +39,25 @@ ConsolePushMessageBatch(u64 NodeCount, console_queue_node *Nodes[], console_queu
 internal void
 InitializeConsoleMessageQueue(console_queue *Queue)
 {
-    atomic_store_explicit(&Queue->Head         , &Queue->Sentinel, memory_order_relaxed);
-    atomic_store_explicit(&Queue->Tail         , &Queue->Sentinel, memory_order_relaxed);
-    atomic_store_explicit(&Queue->Sentinel.Next,                0, memory_order_relaxed);
+    atomic_store_explicit(&Queue->Head         , &Queue->Sentinel, std::memory_order_relaxed);
+    atomic_store_explicit(&Queue->Tail         , &Queue->Sentinel, std::memory_order_relaxed);
+    atomic_store_explicit(&Queue->Sentinel.Next,                0, std::memory_order_relaxed);
 }
 
 internal void
 ConsoleMessageQueuePushFront(console_queue_node *Node, console_queue *Queue)
 {
-    console_queue_node *Tail = atomic_load_explicit(&Queue->Tail, memory_order_relaxed);
-    atomic_store_explicit(&Node->Next , Tail, memory_order_relaxed);
-    atomic_store_explicit(&Queue->Tail, Node, memory_order_relaxed);
+    console_queue_node *Tail = atomic_load_explicit(&Queue->Tail, std::memory_order_relaxed);
+    atomic_store_explicit(&Node->Next , Tail, std::memory_order_relaxed);
+    atomic_store_explicit(&Queue->Tail, Node, std::memory_order_relaxed);
 }
 
 internal b32
 ConsoleMessageQueueIsEmpty(console_queue *Queue)
 {
-    console_queue_node *Tail = atomic_load_explicit(&Queue->Tail, memory_order_relaxed); // Consumer Only Read/Write
-    console_queue_node *Next = atomic_load_explicit(&Tail->Next , memory_order_acquire); // Written By Producer / Read By Consumer
-    console_queue_node *Head = atomic_load_explicit(&Queue->Head, memory_order_acquire); // Written By Producer / Read By Consumer
+    console_queue_node *Tail = atomic_load_explicit(&Queue->Tail, std::memory_order_relaxed); // Consumer Only Read/Write
+    console_queue_node *Next = atomic_load_explicit(&Tail->Next , std::memory_order_acquire); // Written By Producer / Read By Consumer
+    console_queue_node *Head = atomic_load_explicit(&Queue->Head, std::memory_order_acquire); // Written By Producer / Read By Consumer
 
     b32 Result = (Tail == &Queue->Sentinel) && (Next == 0) && (Tail == Head);
     return Result;
@@ -66,8 +66,8 @@ ConsoleMessageQueueIsEmpty(console_queue *Queue)
 internal ConsoleMessagePoll_Result
 PollConsoleMessageQueue(console_queue_node **OutNode, console_queue *Queue)
 {
-    console_queue_node *Tail = atomic_load_explicit(&Queue->Tail, memory_order_relaxed); // Consumer Only Read/Write
-    console_queue_node *Next = atomic_load_explicit(&Tail->Next , memory_order_acquire); // Written By Producer(Heah=Tail)/ Read By C
+    console_queue_node *Tail = atomic_load_explicit(&Queue->Tail, std::memory_order_relaxed); // Consumer Only Read/Write
+    console_queue_node *Next = atomic_load_explicit(&Tail->Next , std::memory_order_acquire); // Written By Producer(Heah=Tail)/ Read By C
     console_queue_node *Head = 0;
 
     if(Tail == &Queue->Sentinel)
@@ -76,7 +76,7 @@ PollConsoleMessageQueue(console_queue_node **OutNode, console_queue *Queue)
         {
             // Retry to fetch the head to see if any new content was created by a producer thread
             // while polling. If it was, retry the poll.
-            Head = atomic_load_explicit(&Queue->Head, memory_order_acquire);
+            Head = atomic_load_explicit(&Queue->Head, std::memory_order_acquire);
             if(Tail != Head)
             {
                 return ConsoleMessagePoll_Retry;
@@ -88,16 +88,16 @@ PollConsoleMessageQueue(console_queue_node **OutNode, console_queue *Queue)
         }
 
         // Skip over the sentinel
-        atomic_store_explicit(&Queue->Tail, Next, memory_order_relaxed); // Consumer Only Read/Write
+        atomic_store_explicit(&Queue->Tail, Next, std::memory_order_relaxed); // Consumer Only Read/Write
         Tail = Next;
-        Next = atomic_load_explicit(&Tail->Next, memory_order_acquire);  // Why acquire?
+        Next = atomic_load_explicit(&Tail->Next, std::memory_order_acquire);  // Why acquire?
     }
 
     // If we have a next node (node after tail), return the tail
     // and set the tail to the next node.
     if(Next != 0)
     {
-        atomic_store_explicit(&Queue->Tail, Next, memory_order_relaxed);
+        atomic_store_explicit(&Queue->Tail, Next, std::memory_order_relaxed);
         *OutNode = Tail;
         return ConsoleMessagePoll_Item;
     }
@@ -105,7 +105,7 @@ PollConsoleMessageQueue(console_queue_node **OutNode, console_queue *Queue)
     // Attempt to reload the head to see if any work was created by a producer.
     // At this point, if no new work is done, we expect the head to equal the tail
     // since there should only be one node (not counting the dummy) in the queue.
-    Head = atomic_load_explicit(&Queue->Head, memory_order_acquire);
+    Head = atomic_load_explicit(&Queue->Head, std::memory_order_acquire);
     if(Tail != Head)
     {
         return ConsoleMessagePoll_Retry;
@@ -118,10 +118,10 @@ PollConsoleMessageQueue(console_queue_node **OutNode, console_queue *Queue)
     // Most of the time, it will be (T->SH), meaning we are setting
     // the tail to the sentinel after returning the last node, but
     // it could also be new work.
-    Next = atomic_load_explicit(&Tail->Next, memory_order_acquire);
+    Next = atomic_load_explicit(&Tail->Next, std::memory_order_acquire);
     if(Next != 0)
     {
-        atomic_store_explicit(&Queue->Tail, Next, memory_order_relaxed);
+        atomic_store_explicit(&Queue->Tail, Next, std::memory_order_relaxed);
         *OutNode = Tail;
         return ConsoleMessagePoll_Item;
     }

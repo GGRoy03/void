@@ -18,7 +18,7 @@
 
 // [Source Files]
 
-#include "base/base_inc.c"
-#include "os/os_inc.c"
-#include "render/render_inc.c"
-#include "ui/ui_inc.c"
+#include "base/base_inc.cpp"
+#include "os/os_inc.cpp"
+#include "render/render_inc.cpp"
+#include "ui/ui_inc.cpp"

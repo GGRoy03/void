@@ -133,9 +133,9 @@ internal style_property * GetCachedProperties  (u32 StyleIndex, StyleState_Type 
 //  Override a style at runtine.
 
 #define UI_STYLE_SETTERS(X) \
-    X(Size,      StyleProperty_Size,      Vec2,  vec2_unit)      \
-    X(Display,   StyleProperty_Display,   Enum,  UIDisplay_Type) \
-    X(TextColor, StyleProperty_TextColor, Color, ui_color)       \
+    X(Size,      StyleProperty_Size,      Vec2,  vec2_unit) \
+    X(Display,   StyleProperty_Display,   Enum,  u32)       \
+    X(TextColor, StyleProperty_TextColor, Color, ui_color)  \
     X(Color    , StyleProperty_Color    , Color, ui_color)
 
 #define DEFINE_UI_STYLE_SETTER(Name, PropType, Field, ValueType)                          \
@@ -143,7 +143,7 @@ internal void                                                                   
 UISet##Name(u32 NodeIndex, ValueType Value, ui_subtree *Subtree)                          \
 {                                                                                         \
     Assert(Subtree);                                                                      \
-    style_property Property = {.Type = PropType, .Field = Value};                         \
+    style_property Property = {.Type = PropType, .Field = (ValueType)Value};              \
                                                                                           \
     ui_node_style *NodeStyle = Subtree->ComputedStyles + NodeIndex;                       \
                                                                                           \
@@ -158,10 +158,6 @@ UISet##Name(u32 NodeIndex, ValueType Value, ui_subtree *Subtree)                
 
 UI_STYLE_SETTERS(DEFINE_UI_STYLE_SETTER)
 #undef DEFINE_UI_STYLE_SETTER
-
-internal void UISetSize       (u32 NodeIndex, vec2_unit      Size   , ui_subtree *Subtree);
-internal void UISetTextColor  (u32 NodeIndex, ui_color       Color  , ui_subtree *Subtree);
-internal void UISetDisplay    (u32 NodeIndex, UIDisplay_Type Display, ui_subtree *Subtree);
 
 // [Helpers]
 

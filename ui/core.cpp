@@ -292,7 +292,7 @@ SetNodeId(byte_string Id, ui_node Node, ui_node_id_table *Table)
 internal ui_node
 UIFindNodeById(byte_string Id, ui_node_id_table *Table)
 {
-    ui_node Result = {0};
+    ui_node Result = {};
 
     if(IsValidByteString(Id) && IsValidNodeIdTable(Table))
     {
@@ -625,7 +625,7 @@ FindResourceByKey(ui_resource_key Key, ui_resource_table *Table)
     NextLRU->PrevLRU  = EntryIndex;
     Sentinel->NextLRU = EntryIndex;
 
-    ui_resource_state Result = {0};
+    ui_resource_state Result = {};
     Result.Id           = EntryIndex;
     Result.ResourceType = FoundEntry->ResourceType;
     Result.Resource     = FoundEntry->Memory;
@@ -749,9 +749,9 @@ UICreateImageGroup(byte_string Name, i32 Width, i32 Height)
 internal ui_loaded_image
 LoadImageInGroup(byte_string GroupName, byte_string Path)
 {
-    ui_loaded_image Result = {0};
+    ui_loaded_image Result = {};
 
-    ui_image_group *Group = QueryGlobalResource(GroupName, UIResource_ImageGroup, UIState.ResourceTable);
+    ui_image_group *Group = (ui_image_group *)QueryGlobalResource(GroupName, UIResource_ImageGroup, UIState.ResourceTable);
     Assert(Group);
 
     i32 Width, Height, Channels;
@@ -759,7 +759,7 @@ LoadImageInGroup(byte_string GroupName, byte_string Path)
 
     if(Pixels)
     {
-        stbrp_rect Rect = {0};
+        stbrp_rect Rect = {};
         Rect.w = (u16)(Width);
         Rect.h = (u16)(Height);
 
@@ -885,8 +885,8 @@ UINodeClearTextInput(ui_node Node)
     ui_subtree *Subtree = GetSubtreeForNode(Node);
     Assert(Subtree);
 
-    ui_text       *Text      = QueryNodeResource(Node.IndexInTree, Subtree, UIResource_Text     , UIState.ResourceTable);
-    ui_text_input *TextInput = QueryNodeResource(Node.IndexInTree, Subtree, UIResource_TextInput, UIState.ResourceTable);
+    ui_text       *Text      = (ui_text *)      QueryNodeResource(Node.IndexInTree, Subtree, UIResource_Text     , UIState.ResourceTable);
+    ui_text_input *TextInput = (ui_text_input *)QueryNodeResource(Node.IndexInTree, Subtree, UIResource_TextInput, UIState.ResourceTable);
 
     Assert(Text);
     Assert(TextInput);
@@ -1041,7 +1041,7 @@ UINodeListenOnKey(ui_node Node, ui_text_input_onkey Callback, void *UserData)
     // For now these callbacks are limited to text inputs. Unsure if I want to expose
     // them more generally. It's also not clear that it's limited to text input.
 
-    ui_text_input *TextInput = QueryNodeResource(Node.IndexInTree, Subtree, UIResource_TextInput, UIState.ResourceTable);
+    ui_text_input *TextInput = (ui_text_input *)QueryNodeResource(Node.IndexInTree, Subtree, UIResource_TextInput, UIState.ResourceTable);
     Assert(TextInput);
 
     TextInput->OnKey         = Callback;
@@ -1239,7 +1239,7 @@ UIBeginSubtree(ui_subtree_params Params)
         {
             u64 Footprint = GetSubtreeStaticFootprint(Params.NodeCount);
 
-            memory_arena_params Params = {0};
+            memory_arena_params Params = {};
             Params.AllocatedFromFile = __FILE__;
             Params.AllocatedFromLine = __LINE__;
             Params.ReserveSize       = Footprint;
@@ -1250,7 +1250,7 @@ UIBeginSubtree(ui_subtree_params Params)
 
         memory_arena *Transient = 0;
         {
-            memory_arena_params Params = {0};
+            memory_arena_params Params = {};
             Params.AllocatedFromFile = __FILE__;
             Params.AllocatedFromLine = __LINE__;
             Params.ReserveSize       = Kilobyte(32);
@@ -1336,7 +1336,7 @@ UICreatePipeline(ui_pipeline_params Params)
 
     // Node Id Table
     {
-        ui_node_id_table_params Params = { 0 };
+        ui_node_id_table_params Params = {};
         Params.GroupSize  = NodeIdTable_128Bits;
         Params.GroupCount = 32;
 

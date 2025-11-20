@@ -1,8 +1,0 @@
-#include "core.c"
-#include "style.c"
-#include "style_parser.c"
-#include "text.c"
-#include "layout.c"
-#include "paint.c"
-#include "component.c"
-#include "console.c"

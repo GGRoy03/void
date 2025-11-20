@@ -168,7 +168,7 @@ typedef struct ui_node
 {
     b32 CanUse;
     u32 IndexInTree;
-    u32 SubtreeId;
+    u64 SubtreeId;
 } ui_node;
 
 // Layout:

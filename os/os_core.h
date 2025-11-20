@@ -157,9 +157,6 @@ internal void  OSAbort              (i32 ExitCode);
 internal b32   OSIsValidHandle      (os_handle Handle);
 internal void  OSSetCursor          (OSCursor_Type Type);
 
-u64 OSGetTimerFrequency  (void);
-u64 OSReadTimer          (void);
-
 // Inputs:
 //   You may query input state using OSInputKey_Type.
 

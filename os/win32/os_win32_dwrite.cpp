@@ -1,11 +1,3 @@
-extern "C"
-{
-#include "base/base_inc.h"
-#include "render/render_inc.h"
-#include "ui/core.h"
-#include "third_party/stb_rect_pack.h"
-}
-
 #include <d2d1.h>
 #include <dwrite.h>
 
@@ -110,7 +102,7 @@ AcquireDirect2D(IDXGISurface *TransferSurface, ID2D1RenderTarget **OutRenderTarg
     return Result;
 }
 
-extern "C" b32
+internal b32
 OSAcquireFontContext(byte_string FontName, f32 FontSize, gpu_font_context *GPUContext, os_font_context *OSContext)
 {
     b32 Result = 0;
@@ -132,7 +124,7 @@ OSAcquireFontContext(byte_string FontName, f32 FontSize, gpu_font_context *GPUCo
     return Result;
 }
 
-extern "C" void
+internal void
 OSReleaseFontContext(os_font_context *Context)
 {
     if(Context)
@@ -163,7 +155,7 @@ OSReleaseFontContext(os_font_context *Context)
     }
 }
 
-extern "C" os_glyph_info
+internal os_glyph_info
 OSGetGlyphInfo(byte_string UTF8, f32 FontSize, os_font_context *Context)
 {
     Assert(UTF8.String);
@@ -237,7 +229,7 @@ OSGetGlyphInfo(byte_string UTF8, f32 FontSize, os_font_context *Context)
     return Result;
 }
 
-extern "C" b32
+internal b32
 OSRasterizeGlyph(byte_string UTF8, rect_f32 Rect, os_font_context *Context)
 {
     b32 Result = 0;
@@ -287,7 +279,7 @@ OSRasterizeGlyph(byte_string UTF8, rect_f32 Rect, os_font_context *Context)
     return Result;
 }
 
-extern "C" f32
+internal f32
 OSGetLineHeight(f32 FontSize, os_font_context *FontContext)
 {
     f32 Result = 0;
@@ -304,7 +296,7 @@ OSGetLineHeight(f32 FontSize, os_font_context *FontContext)
     return Result;
 }
 
-extern "C" void
+internal void
 OSWin32InitializeDWriteFactory(IDWriteFactory **OutFactory)
 {
     DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory), (IUnknown **)OutFactory);

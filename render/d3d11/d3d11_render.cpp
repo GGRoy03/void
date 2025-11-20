@@ -47,33 +47,33 @@ D3D11Release(d3d11_renderer *Renderer)
 
     if (Renderer->Device)
     {
-        ID3D11Device_Release(Renderer->Device);
-        Renderer->Device = 0;
+        Renderer->Device->Release();
+        Renderer->Device = nullptr;
     }
 
     if (Renderer->DeviceContext)
     {
-        ID3D11DeviceContext_Release(Renderer->DeviceContext);
-        Renderer->DeviceContext = 0;
+        Renderer->DeviceContext->Release();
+        Renderer->DeviceContext = nullptr;
     }
 
     if (Renderer->RenderView)
     {
-        ID3D11RenderTargetView_Release(Renderer->RenderView);
-        Renderer->RenderView = 0;
+        Renderer->RenderView->Release();
+        Renderer->RenderView = nullptr;
     }
 
     if (Renderer->SwapChain)
     {
-       IDXGISwapChain1_Release(Renderer->SwapChain);
-       Renderer->SwapChain = 0;
+       Renderer->SwapChain->Release();
+       Renderer->SwapChain = nullptr;
     }
 }
 
 internal d3d11_format
 D3D11GetFormat(RenderTexture_Type Type)
 {
-    d3d11_format Result = {0};
+    d3d11_format Result = {};
 
     switch(Type)
     {
@@ -95,7 +95,7 @@ D3D11GetFormat(RenderTexture_Type Type)
 internal D3D11_TEXTURE_ADDRESS_MODE
 D3D11GetTextureAddressMode(RenderTexture_Wrap Type)
 {
-    D3D11_TEXTURE_ADDRESS_MODE Result = 0;
+    D3D11_TEXTURE_ADDRESS_MODE Result = D3D11_TEXTURE_ADDRESS_CLAMP;
 
     switch(Type)
     {
@@ -138,16 +138,16 @@ InitializeRenderer(void *HWindow, vec2_i32 Resolution, memory_arena *Arena)
     }
 
     {
-        IDXGIDevice *DXGIDevice = 0;
-        Error = ID3D11Device_QueryInterface(Renderer->Device, &IID_IDXGIDevice, (void **)&DXGIDevice);
+        IDXGIDevice *DXGIDevice = nullptr;
+        Error = Renderer->Device->QueryInterface(__uuidof(IDXGIDevice), (void **)&DXGIDevice);
         if (DXGIDevice)
         {
-            IDXGIAdapter *DXGIAdapter = 0;
-            IDXGIDevice_GetAdapter(DXGIDevice, &DXGIAdapter);
+            IDXGIAdapter *DXGIAdapter = nullptr;
+            DXGIDevice->GetAdapter(&DXGIAdapter);
             if (DXGIAdapter)
             {
-                IDXGIFactory2 *Factory = 0;
-                IDXGIAdapter_GetParent(DXGIAdapter, &IID_IDXGIFactory2, (void **)&Factory);
+                IDXGIFactory2 *Factory = nullptr;
+                DXGIAdapter->GetParent(__uuidof(IDXGIFactory2), (void **)&Factory);
                 if (Factory)
                 {
                     HWND Window = (HWND)HWindow;
@@ -160,18 +160,18 @@ InitializeRenderer(void *HWindow, vec2_i32 Resolution, memory_arena *Arena)
                     Desc.Scaling          = DXGI_SCALING_NONE;
                     Desc.SwapEffect       = DXGI_SWAP_EFFECT_FLIP_DISCARD;
 
-                    Error = IDXGIFactory2_CreateSwapChainForHwnd(Factory, (IUnknown *)Renderer->Device,
-                                                                 Window, &Desc, 0, 0,
-                                                                 &Renderer->SwapChain);
+                    Error = Factory->CreateSwapChainForHwnd((IUnknown *)Renderer->Device,
+                                                            Window, &Desc, 0, 0,
+                                                            &Renderer->SwapChain);
 
-                    IDXGIFactory_MakeWindowAssociation(Factory, Window, DXGI_MWA_NO_ALT_ENTER);
-                    IDXGIFactory2_Release(Factory);
+                    Factory->MakeWindowAssociation(Window, DXGI_MWA_NO_ALT_ENTER);
+                    Factory->Release();
                 }
 
-                IDXGIAdapter_Release(DXGIAdapter);
+                DXGIAdapter->Release();
             }
 
-            IDXGIDevice_Release(DXGIDevice);
+            DXGIDevice->Release();
         }
 
         if (FAILED(Error))
@@ -183,13 +183,13 @@ InitializeRenderer(void *HWindow, vec2_i32 Resolution, memory_arena *Arena)
 
     // Render Target View
     {
-        ID3D11Texture2D *BackBuffer = 0;
-        Error = IDXGISwapChain1_GetBuffer(Renderer->SwapChain, 0, &IID_ID3D11Texture2D, (void **)&BackBuffer);
+        ID3D11Texture2D *BackBuffer = nullptr;
+        Error = Renderer->SwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void **)&BackBuffer);
         if(BackBuffer)
         {
-            Error = ID3D11Device_CreateRenderTargetView(Renderer->Device, (ID3D11Resource*)BackBuffer, NULL, &Renderer->RenderView);
+            Error = Renderer->Device->CreateRenderTargetView((ID3D11Resource*)BackBuffer, NULL, &Renderer->RenderView);
 
-            ID3D11Texture2D_Release(BackBuffer);
+            BackBuffer->Release();
         }
 
         if(FAILED(Error))
@@ -201,13 +201,13 @@ InitializeRenderer(void *HWindow, vec2_i32 Resolution, memory_arena *Arena)
 
     // Default Buffers
     {
-        D3D11_BUFFER_DESC Desc = {0};
+        D3D11_BUFFER_DESC Desc = {};
         Desc.ByteWidth      = Kilobyte(64);
         Desc.Usage          = D3D11_USAGE_DYNAMIC;
         Desc.BindFlags      = D3D11_BIND_VERTEX_BUFFER;
         Desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 
-        Error = Renderer->Device->lpVtbl->CreateBuffer(Renderer->Device, &Desc, NULL, &Renderer->VBuffer64KB);
+        Error = Renderer->Device->CreateBuffer(&Desc, NULL, &Renderer->VBuffer64KB);
         if(FAILED(Error))
         {
             D3D11Release(Renderer);
@@ -218,16 +218,16 @@ InitializeRenderer(void *HWindow, vec2_i32 Resolution, memory_arena *Arena)
     // Default Shaders
     {
         ID3D11Device       *Device  = Renderer->Device;
-        ID3D11InputLayout  *ILayout = 0;
-        ID3D11VertexShader *VShader = 0;
-        ID3D11PixelShader  *PShader = 0;
+        ID3D11InputLayout  *ILayout = nullptr;
+        ID3D11VertexShader *VShader = nullptr;
+        ID3D11PixelShader  *PShader = nullptr;
 
         ForEachEnum(RenderPass_Type, RenderPass_Count, Type)
         {
             byte_string Source = D3D11ShaderSourceTable[Type];
 
-            ID3DBlob *VShaderSrcBlob = 0;
-            ID3DBlob *VShaderErrBlob = 0;
+            ID3DBlob *VShaderSrcBlob = nullptr;
+            ID3DBlob *VShaderErrBlob = nullptr;
             Error = D3DCompile(Source.String, Source.Size,
                                0, 0, 0, "VSMain", "vs_5_0",
                                0, 0, &VShaderSrcBlob, &VShaderErrBlob);
@@ -235,22 +235,20 @@ InitializeRenderer(void *HWindow, vec2_i32 Resolution, memory_arena *Arena)
             {
             }
 
-            void *ByteCode = VShaderSrcBlob->lpVtbl->GetBufferPointer(VShaderSrcBlob);
-            u64   ByteSize = VShaderSrcBlob->lpVtbl->GetBufferSize(VShaderSrcBlob);
-            Error = Device->lpVtbl->CreateVertexShader(Device, ByteCode, ByteSize, 0, &VShader);
+            void *ByteCode = VShaderSrcBlob->GetBufferPointer();
+            u64   ByteSize = VShaderSrcBlob->GetBufferSize();
+            Error = Device->CreateVertexShader(ByteCode, ByteSize, 0, &VShader);
             if(FAILED(Error))
             {
             }
 
             d3d11_input_layout Layout = D3D11ILayoutTable[Type];
-            Error = Device->lpVtbl->CreateInputLayout(Device, Layout.Desc, Layout.Count,
-                                                      ByteCode, ByteSize,
-                                                      &ILayout);
+            Error = Device->CreateInputLayout(Layout.Desc, Layout.Count, ByteCode, ByteSize, &ILayout);
             if(FAILED(Error))
             {
             }
 
-            VShaderSrcBlob->lpVtbl->Release(VShaderSrcBlob);
+            VShaderSrcBlob->Release();
 
             Renderer->VShaders[Type] = VShader;
             Renderer->ILayouts[Type] = ILayout;
@@ -260,8 +258,8 @@ InitializeRenderer(void *HWindow, vec2_i32 Resolution, memory_arena *Arena)
         {
             byte_string Source = D3D11ShaderSourceTable[Type];
 
-            ID3DBlob *PShaderSrcBlob = 0;
-            ID3DBlob *PShaderErrBlob = 0;
+            ID3DBlob *PShaderSrcBlob = nullptr;
+            ID3DBlob *PShaderErrBlob = nullptr;
             Error = D3DCompile(Source.String, Source.Size,
                                0, 0, 0, "PSMain", "ps_5_0",
                                0, 0, &PShaderSrcBlob, &PShaderErrBlob);
@@ -269,14 +267,14 @@ InitializeRenderer(void *HWindow, vec2_i32 Resolution, memory_arena *Arena)
             {
             }
 
-            void *ByteCode = PShaderSrcBlob->lpVtbl->GetBufferPointer(PShaderSrcBlob);
-            u64   ByteSize = PShaderSrcBlob->lpVtbl->GetBufferSize(PShaderSrcBlob);
-            Error = Device->lpVtbl->CreatePixelShader(Device, ByteCode, ByteSize, 0, &PShader);
+            void *ByteCode = PShaderSrcBlob->GetBufferPointer();
+            u64   ByteSize = PShaderSrcBlob->GetBufferSize();
+            Error = Device->CreatePixelShader(ByteCode, ByteSize, 0, &PShader);
             if (FAILED(Error))
             {
             }
 
-            PShaderSrcBlob->lpVtbl->Release(PShaderSrcBlob);
+            PShaderSrcBlob->Release();
 
             Renderer->PShaders[Type] = PShader;
         }
@@ -288,9 +286,9 @@ InitializeRenderer(void *HWindow, vec2_i32 Resolution, memory_arena *Arena)
 
         ForEachEnum(RenderPass_Type, RenderPass_Count, Type)
         {
-            ID3D11Buffer *Buffer = 0;
+            ID3D11Buffer *Buffer = nullptr;
 
-            D3D11_BUFFER_DESC Desc = {0};
+            D3D11_BUFFER_DESC Desc = {};
             Desc.ByteWidth      = D3D11UniformBufferSizeTable[Type];
             Desc.Usage          = D3D11_USAGE_DYNAMIC;
             Desc.BindFlags      = D3D11_BIND_CONSTANT_BUFFER;
@@ -298,7 +296,7 @@ InitializeRenderer(void *HWindow, vec2_i32 Resolution, memory_arena *Arena)
 
             AlignMultiple(Desc.ByteWidth, 16);
 
-            Device->lpVtbl->CreateBuffer(Device, &Desc, 0, &Buffer);
+            Device->CreateBuffer(&Desc, 0, &Buffer);
 
             Renderer->UBuffers[Type] = Buffer;
         }
@@ -306,7 +304,7 @@ InitializeRenderer(void *HWindow, vec2_i32 Resolution, memory_arena *Arena)
 
     // Blending
     {
-        D3D11_BLEND_DESC BlendDesc = {0};
+        D3D11_BLEND_DESC BlendDesc = {};
         BlendDesc.RenderTarget[0].BlendEnable           = TRUE;
         BlendDesc.RenderTarget[0].SrcBlend              = D3D11_BLEND_SRC_ALPHA;
         BlendDesc.RenderTarget[0].DestBlend             = D3D11_BLEND_INV_SRC_ALPHA;
@@ -316,14 +314,14 @@ InitializeRenderer(void *HWindow, vec2_i32 Resolution, memory_arena *Arena)
         BlendDesc.RenderTarget[0].BlendOpAlpha          = D3D11_BLEND_OP_ADD;
         BlendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
 
-        if (FAILED(Renderer->Device->lpVtbl->CreateBlendState(Renderer->Device, &BlendDesc, &Renderer->DefaultBlendState)))
+        if (FAILED(Renderer->Device->CreateBlendState(&BlendDesc, &Renderer->DefaultBlendState)))
         {
         }
     }
 
     // Samplers
     {
-        D3D11_SAMPLER_DESC Desc = {0};
+        D3D11_SAMPLER_DESC Desc = {};
         Desc.Filter         = D3D11_FILTER_MIN_MAG_MIP_POINT;
         Desc.AddressU       = D3D11_TEXTURE_ADDRESS_CLAMP;
         Desc.AddressV       = D3D11_TEXTURE_ADDRESS_CLAMP;
@@ -332,7 +330,7 @@ InitializeRenderer(void *HWindow, vec2_i32 Resolution, memory_arena *Arena)
         Desc.ComparisonFunc = D3D11_COMPARISON_ALWAYS;
         Desc.MaxLOD         = D3D11_FLOAT32_MAX;
 
-        Error = Renderer->Device->lpVtbl->CreateSamplerState(Renderer->Device, &Desc, &Renderer->AtlasSamplerState);
+        Error = Renderer->Device->CreateSamplerState(&Desc, &Renderer->AtlasSamplerState);
         if (FAILED(Error))
         {
         }
@@ -340,7 +338,7 @@ InitializeRenderer(void *HWindow, vec2_i32 Resolution, memory_arena *Arena)
 
     // Raster State
     {
-        D3D11_RASTERIZER_DESC Desc = {0};
+        D3D11_RASTERIZER_DESC Desc = {};
         Desc.FillMode              = D3D11_FILL_SOLID;
         Desc.CullMode              = D3D11_CULL_BACK;
         Desc.FrontCounterClockwise = FALSE;
@@ -349,7 +347,7 @@ InitializeRenderer(void *HWindow, vec2_i32 Resolution, memory_arena *Arena)
         Desc.MultisampleEnable     = FALSE;
         Desc.AntialiasedLineEnable = FALSE;
 
-        Error = Renderer->Device->lpVtbl->CreateRasterizerState(Renderer->Device, &Desc, &Renderer->RasterSt[RenderPass_UI]);
+        Error = Renderer->Device->CreateRasterizerState(&Desc, &Renderer->RasterSt[RenderPass_UI]);
         if(FAILED(Error))
         {
         }
@@ -392,7 +390,7 @@ SubmitRenderCommands(render_handle HRenderer, vec2_i32 Resolution, render_pass_l
     // Temporary Clear Screen
     {
         const FLOAT ClearColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
-        DeviceContext->lpVtbl->ClearRenderTargetView(DeviceContext, RenderView, ClearColor);
+        DeviceContext->ClearRenderTargetView(RenderView, ClearColor);
     }
 
     for (render_pass_node *PassNode = RenderPassList->First; PassNode != 0; PassNode = PassNode->Next)
@@ -408,8 +406,8 @@ SubmitRenderCommands(render_handle HRenderer, vec2_i32 Resolution, render_pass_l
 
             // Rasterizer
             D3D11_VIEWPORT Viewport = { 0.0f, 0.0f, (f32)Resolution.X, (f32)Resolution.Y, 0.0f, 1.0f };
-            DeviceContext->lpVtbl->RSSetState(DeviceContext, Renderer->RasterSt[RenderPass_UI]);
-            DeviceContext->lpVtbl->RSSetViewports(DeviceContext, 1, &Viewport);
+            DeviceContext->RSSetState(Renderer->RasterSt[RenderPass_UI]);
+            DeviceContext->RSSetViewports(1, &Viewport);
 
             for (rect_group_node *Node = Params.First; Node != 0; Node = Node->Next)
             {
@@ -420,9 +418,9 @@ SubmitRenderCommands(render_handle HRenderer, vec2_i32 Resolution, render_pass_l
                 ID3D11Buffer *VBuffer = D3D11GetVertexBuffer(BatchList.ByteCount, Renderer);
                 {
                     D3D11_MAPPED_SUBRESOURCE Resource = { 0 };
-                    DeviceContext->lpVtbl->Map(DeviceContext, (ID3D11Resource *)VBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+                    DeviceContext->Map((ID3D11Resource *)VBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
 
-                    u8 *WritePointer = Resource.pData;
+                    u8 *WritePointer = static_cast<u8*>(Resource.pData);
                     u64 WriteOffset  = 0;
                     for (render_batch_node *Batch = BatchList.First; Batch != 0; Batch = Batch->Next)
                     {
@@ -431,23 +429,23 @@ SubmitRenderCommands(render_handle HRenderer, vec2_i32 Resolution, render_pass_l
                         WriteOffset += WriteSize;
                     }
 
-                    DeviceContext->lpVtbl->Unmap(DeviceContext, (ID3D11Resource *)VBuffer, 0);
+                    DeviceContext->Unmap((ID3D11Resource *)VBuffer, 0);
                 }
 
                 // Uniform Buffers
                 ID3D11Buffer *UniformBuffer = Renderer->UBuffers[RenderPass_UI];
                 {
-                    d3d11_rect_uniform_buffer Uniform = { 0 };
+                    d3d11_rect_uniform_buffer Uniform = {};
                     Uniform.Transform[0]        = Vec4F32(NodeParams.Transform.c0r0, NodeParams.Transform.c0r1, NodeParams.Transform.c0r2, 0);
                     Uniform.Transform[1]        = Vec4F32(NodeParams.Transform.c1r0, NodeParams.Transform.c1r1, NodeParams.Transform.c1r2, 0);
                     Uniform.Transform[2]        = Vec4F32(NodeParams.Transform.c2r0, NodeParams.Transform.c2r1, NodeParams.Transform.c2r2, 0);
                     Uniform.ViewportSizeInPixel = Vec2F32((f32)Resolution.X, (f32)Resolution.Y);
                     Uniform.AtlasSizeInPixel    = NodeParams.TextureSize;
 
-                    D3D11_MAPPED_SUBRESOURCE Resource = { 0 };
-                    DeviceContext->lpVtbl->Map(DeviceContext, (ID3D11Resource *)UniformBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
+                    D3D11_MAPPED_SUBRESOURCE Resource = {};
+                    DeviceContext->Map((ID3D11Resource *)UniformBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
                     MemoryCopy(Resource.pData, &Uniform, sizeof(Uniform));
-                    DeviceContext->lpVtbl->Unmap(DeviceContext, (ID3D11Resource *)UniformBuffer, 0);
+                    DeviceContext->Unmap((ID3D11Resource *)UniformBuffer, 0);
                 }
 
                 // Pipeline Info
@@ -457,27 +455,27 @@ SubmitRenderCommands(render_handle HRenderer, vec2_i32 Resolution, render_pass_l
                 ID3D11ShaderResourceView *AtlasView = D3D11GetShaderView(NodeParams.Texture);
 
                 // OM
-                DeviceContext->lpVtbl->OMSetRenderTargets(DeviceContext, 1, &Renderer->RenderView, 0);
-                DeviceContext->lpVtbl->OMSetBlendState(DeviceContext, Renderer->DefaultBlendState, 0, 0xFFFFFFFF);
+                DeviceContext->OMSetRenderTargets(1, &Renderer->RenderView, 0);
+                DeviceContext->OMSetBlendState(Renderer->DefaultBlendState, 0, 0xFFFFFFFF);
 
                 // IA
                 u32 Stride = (u32)BatchList.BytesPerInstance;
                 u32 Offset = 0;
-                DeviceContext->lpVtbl->IASetVertexBuffers(DeviceContext, 0, 1, &VBuffer, &Stride, &Offset);
-                DeviceContext->lpVtbl->IASetInputLayout(DeviceContext, ILayout);
-                DeviceContext->lpVtbl->IASetPrimitiveTopology(DeviceContext, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+                DeviceContext->IASetVertexBuffers(0, 1, &VBuffer, &Stride, &Offset);
+                DeviceContext->IASetInputLayout(ILayout);
+                DeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 
                 // Shaders
-                DeviceContext->lpVtbl->VSSetShader(DeviceContext, VShader, 0, 0);
-                DeviceContext->lpVtbl->VSSetConstantBuffers(DeviceContext, 0, 1, &UniformBuffer);
-                DeviceContext->lpVtbl->PSSetShader(DeviceContext, PShader, 0, 0);
-                DeviceContext->lpVtbl->PSSetShaderResources(DeviceContext, 0, 1, &AtlasView);
-                DeviceContext->lpVtbl->PSSetSamplers(DeviceContext, 0, 1, &Renderer->AtlasSamplerState);
+                DeviceContext->VSSetShader(VShader, 0, 0);
+                DeviceContext->VSSetConstantBuffers(0, 1, &UniformBuffer);
+                DeviceContext->PSSetShader(PShader, 0, 0);
+                DeviceContext->PSSetShaderResources(0, 1, &AtlasView);
+                DeviceContext->PSSetSamplers(0, 1, &Renderer->AtlasSamplerState);
 
                 // Scissor
                 {
                     rect_f32   Clip = NodeParams.Clip;
-                    D3D11_RECT Rect = {0};
+                    D3D11_RECT Rect = {};
 
                     if (Clip.Min.X == 0 && Clip.Min.Y == 0 && Clip.Max.X == 0 && Clip.Max.Y == 0)
                     {
@@ -501,12 +499,12 @@ SubmitRenderCommands(render_handle HRenderer, vec2_i32 Resolution, render_pass_l
                         Rect.bottom = Clip.Max.Y;
                     }
 
-                    DeviceContext->lpVtbl->RSSetScissorRects(DeviceContext, 1, &Rect);
+                    DeviceContext->RSSetScissorRects(1, &Rect);
                 }
 
                 // Draw
                 u32 InstanceCount = (u32)(BatchList.ByteCount / BatchList.BytesPerInstance);
-                DeviceContext->lpVtbl->DrawInstanced(DeviceContext, 4, InstanceCount, 0, 0);
+                DeviceContext->DrawInstanced(4, InstanceCount, 0, 0);
             }
         } break;
 
@@ -516,11 +514,11 @@ SubmitRenderCommands(render_handle HRenderer, vec2_i32 Resolution, render_pass_l
     }
 
     // Present
-    HRESULT Error = SwapChain->lpVtbl->Present(SwapChain, 0, 0);
+    HRESULT Error = SwapChain->Present(0, 0);
     if (FAILED(Error))
     {
     }
-    DeviceContext->lpVtbl->ClearState(DeviceContext);
+    DeviceContext->ClearState();
 
     // Clear
     RenderPassList->First = 0;
@@ -556,10 +554,10 @@ CreateGlyphCache(render_handle HRenderer, vec2_f32 TextureSize, gpu_font_context
         Desc.Usage            = D3D11_USAGE_DEFAULT;
         Desc.BindFlags        = D3D11_BIND_SHADER_RESOURCE;
 
-        Renderer->Device->lpVtbl->CreateTexture2D(Renderer->Device, &Desc, 0, &FontContext->GlyphCache);
+        Renderer->Device->CreateTexture2D(&Desc, 0, &FontContext->GlyphCache);
         if (FontContext->GlyphCache)
         {
-            Renderer->Device->lpVtbl->CreateShaderResourceView(Renderer->Device, (ID3D11Resource *)FontContext->GlyphCache, 0, &FontContext->GlyphCacheView);
+            Renderer->Device->CreateShaderResourceView((ID3D11Resource *)FontContext->GlyphCache, 0, &FontContext->GlyphCacheView);
             Result = (FontContext->GlyphCacheView != 0);
         }
     }
@@ -574,14 +572,14 @@ ReleaseGlyphCache(gpu_font_context *FontContext)
     {
         if (FontContext->GlyphCache)
         {
-            FontContext->GlyphCache->lpVtbl->Release(FontContext->GlyphCache);
-            FontContext->GlyphCache = 0;
+            FontContext->GlyphCache->Release();
+            FontContext->GlyphCache = nullptr;
         }
 
         if (FontContext->GlyphCacheView)
         {
-            FontContext->GlyphCacheView->lpVtbl->Release(FontContext->GlyphCacheView);
-            FontContext->GlyphCacheView = 0;
+            FontContext->GlyphCacheView->Release();
+            FontContext->GlyphCacheView = nullptr;
         }
     }
 }
@@ -595,7 +593,7 @@ CreateGlyphTransfer(render_handle HRenderer, vec2_f32 TextureSize, gpu_font_cont
     {
         d3d11_renderer *Renderer = D3D11GetRenderer(HRenderer);
 
-        D3D11_TEXTURE2D_DESC Desc = {0};
+        D3D11_TEXTURE2D_DESC Desc = {};
         Desc.Width            = (UINT)TextureSize.X;
         Desc.Height           = (UINT)TextureSize.Y;
         Desc.MipLevels        = 1;
@@ -605,13 +603,13 @@ CreateGlyphTransfer(render_handle HRenderer, vec2_f32 TextureSize, gpu_font_cont
         Desc.Usage            = D3D11_USAGE_DEFAULT;
         Desc.BindFlags        = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
 
-        Renderer->Device->lpVtbl->CreateTexture2D(Renderer->Device, &Desc, 0, &FontContext->GlyphTransfer);
+        Renderer->Device->CreateTexture2D(&Desc, 0, &FontContext->GlyphTransfer);
         if (FontContext->GlyphTransfer)
         {
-            Renderer->Device->lpVtbl->CreateShaderResourceView(Renderer->Device, (ID3D11Resource *)FontContext->GlyphTransfer, 0, &FontContext->GlyphTransferView);
+            Renderer->Device->CreateShaderResourceView((ID3D11Resource *)FontContext->GlyphTransfer, 0, &FontContext->GlyphTransferView);
             if (FontContext->GlyphTransferView)
             {
-                FontContext->GlyphTransfer->lpVtbl->QueryInterface(FontContext->GlyphTransfer, &IID_IDXGISurface, (void **)&FontContext->GlyphTransferSurface);
+                FontContext->GlyphTransfer->QueryInterface(__uuidof(IDXGISurface), (void **)&FontContext->GlyphTransferSurface);
                 Result = (FontContext->GlyphTransferSurface != 0);
             }
         }
@@ -627,20 +625,20 @@ ReleaseGlyphTransfer(gpu_font_context *FontContext)
     {
         if (FontContext->GlyphTransfer)
         {
-            FontContext->GlyphTransfer->lpVtbl->Release(FontContext->GlyphTransfer);
-            FontContext->GlyphTransfer = 0;
+            FontContext->GlyphTransfer->Release();
+            FontContext->GlyphTransfer = nullptr;
         }
 
         if (FontContext->GlyphTransferView)
         {
-            FontContext->GlyphTransferView->lpVtbl->Release(FontContext->GlyphTransferView);
-            FontContext->GlyphTransferView = 0;
+            FontContext->GlyphTransferView->Release();
+            FontContext->GlyphTransferView = nullptr;
         }
 
         if (FontContext->GlyphTransferSurface)
         {
-            FontContext->GlyphTransferSurface->lpVtbl->Release(FontContext->GlyphTransferSurface);
-            FontContext->GlyphTransferSurface = 0;
+            FontContext->GlyphTransferSurface->Release();
+            FontContext->GlyphTransferSurface = nullptr;
         }
     }
 }
@@ -660,9 +658,9 @@ TransferGlyph(rect_f32 Rect, render_handle HRenderer, gpu_font_context *FontCont
         SourceBox.bottom = (UINT)Rect.Max.Y;
         SourceBox.back   = 1;
 
-        Renderer->DeviceContext->lpVtbl->CopySubresourceRegion(Renderer->DeviceContext, (ID3D11Resource *)FontContext->GlyphCache,
-                                                              0, (UINT)Rect.Min.X, (UINT)Rect.Min.Y, 0,
-                                                              (ID3D11Resource *)FontContext->GlyphTransfer, 0, &SourceBox);
+        Renderer->DeviceContext->CopySubresourceRegion((ID3D11Resource *)FontContext->GlyphCache,
+                                                      0, (UINT)Rect.Min.X, (UINT)Rect.Min.Y, 0,
+                                                      (ID3D11Resource *)FontContext->GlyphTransfer, 0, &SourceBox);
     }
 }
 
@@ -689,7 +687,7 @@ CreateRenderTexture(render_texture_params Params)
 
     d3d11_format Format = D3D11GetFormat(Params.Type);
 
-    D3D11_TEXTURE2D_DESC TextureDesc = {0};
+    D3D11_TEXTURE2D_DESC TextureDesc = {};
     TextureDesc.Width              = Params.Width;
     TextureDesc.Height             = Params.Height;
     TextureDesc.MipLevels          = Params.GenerateMipmaps ? 0 : 1;
@@ -702,7 +700,7 @@ CreateRenderTexture(render_texture_params Params)
     TextureDesc.CPUAccessFlags     = 0;
     TextureDesc.MiscFlags          = Params.GenerateMipmaps ? D3D11_RESOURCE_MISC_GENERATE_MIPS : 0;
 
-    D3D11_SUBRESOURCE_DATA  InitData        = {0};
+    D3D11_SUBRESOURCE_DATA  InitData        = {};
     D3D11_SUBRESOURCE_DATA *InitDataPointer = 0;
 
     if(Params.InitialData)
@@ -714,26 +712,26 @@ CreateRenderTexture(render_texture_params Params)
         InitDataPointer = &InitData;
     }
 
-    ID3D11Texture2D *Texture = 0;
-    HRESULT HR = ID3D11Device_CreateTexture2D(Backend->Device, &TextureDesc, InitDataPointer, &Texture);
+    ID3D11Texture2D *Texture = nullptr;
+    HRESULT HR = Backend->Device->CreateTexture2D(&TextureDesc, InitDataPointer, &Texture);
     Assert(SUCCEEDED(HR));
 
-    D3D11_SHADER_RESOURCE_VIEW_DESC ViewDesc = {0};
+    D3D11_SHADER_RESOURCE_VIEW_DESC ViewDesc = {};
     ViewDesc.Format                    = Format.Native;
     ViewDesc.ViewDimension             = D3D11_SRV_DIMENSION_TEXTURE2D;
     ViewDesc.Texture2D.MostDetailedMip = 0;
     ViewDesc.Texture2D.MipLevels       = Params.GenerateMipmaps ? -1 : 1;
 
-    ID3D11ShaderResourceView *View = 0;
-    HR = ID3D11Device_CreateShaderResourceView(Backend->Device, (ID3D11Resource*)Texture, &ViewDesc, &View);
+    ID3D11ShaderResourceView *View = nullptr;
+    HR = Backend->Device->CreateShaderResourceView((ID3D11Resource*)Texture, &ViewDesc, &View);
     Assert(SUCCEEDED(HR));
 
     if(Params.GenerateMipmaps && Params.InitialData)
     {
-        ID3D11DeviceContext_GenerateMips(Backend->DeviceContext, View);
+        Backend->DeviceContext->GenerateMips(View);
     }
 
-    render_texture Result = {0};
+    render_texture Result = {};
     Result.Texture = RenderHandle((u64)Texture);
     Result.View    = RenderHandle((u64)View);
     Result.Size    = Vec2F32(Params.Width, Params.Height);
@@ -751,9 +749,9 @@ CopyIntoRenderTexture(render_texture RenderTexture, rect_f32 Source, u8 *Pixels,
     {
         .left   = (UINT)Source.Min.X,
         .top    = (UINT)Source.Min.Y,
+        .front  = 0,
         .right  = (UINT)Source.Max.X,
         .bottom = (UINT)Source.Max.Y,
-        .front  = 0,
         .back   = 1,
     };
 
@@ -763,5 +761,5 @@ CopyIntoRenderTexture(render_texture RenderTexture, rect_f32 Source, u8 *Pixels,
     ID3D11Texture2D *Texture = D3D11GetTexture2D(RenderTexture.Texture);
     Assert(Texture);
 
-    ID3D11DeviceContext_UpdateSubresource(Renderer->DeviceContext, (ID3D11Resource *)Texture, 0, &Box, Pixels, Pitch, 0);
+    Renderer->DeviceContext->UpdateSubresource((ID3D11Resource *)Texture, 0, &Box, Pixels, Pitch, 0);
 }

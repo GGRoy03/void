@@ -108,7 +108,7 @@ IntersectRectF32(rect_f32 A, rect_f32 B)
 
     if (Result.Max.X <= Result.Min.X || Result.Max.Y <= Result.Min.Y)
     {
-        Result = (rect_f32){0};
+        Result = {};
     }
 
     return Result;
