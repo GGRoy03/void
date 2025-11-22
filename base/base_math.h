@@ -223,7 +223,7 @@ struct rectangle_generic
 
     constexpr b32 IsIntersecting(rectangle_generic Rect) const noexcept
     {
-        return !((this->Right >= Rect.Left || this->Left <= Rect.Right) || (this->Bottom >= Rect.Top || this->Top <= Rect.Bottom));
+        return (this->Right > Rect.Left && this->Left < Rect.Right && this->Bottom > Rect.Top && this->Top < Rect.Bottom);
     }
 };
 

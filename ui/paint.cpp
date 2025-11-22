@@ -168,19 +168,19 @@ PaintDebugInformation(ui_layout_node *Node, vec2_f32 NodeOrigin, ui_corner_radiu
 {
     if(HasFlag(Node->Flags, UILayoutNode_DebugOuterBox))
     {
-        rect_f32 OuterRect = TranslateRectF32(Node->Value.OuterBox, NodeOrigin);
+        rect_f32 OuterRect = Node->Value.OuterBox.Translate(NodeOrigin);
         PaintUIRect(OuterRect, UIColor(0.f, 255.f, 0.f, 255.f), CornerRadii, 1.f, Softness, BatchList, Arena);
     }
 
     if(HasFlag(Node->Flags, UILayoutNode_DebugInnerBox))
     {
-        rect_f32 InnerRect = TranslateRectF32(Node->Value.InnerBox, NodeOrigin);
+        rect_f32 InnerRect = Node->Value.InnerBox.Translate(NodeOrigin);
         PaintUIRect(InnerRect, UIColor(0.f, 255.f, 0.f, 255.f), CornerRadii, 1.f, Softness, BatchList, Arena);
     }
 
     if(HasFlag(Node->Flags, UILayoutNode_DebugContentBox))
     {
-        rect_f32 ContentRect = TranslateRectF32(Node->Value.ContentBox, NodeOrigin);
+        rect_f32 ContentRect = Node->Value.ContentBox.Translate(NodeOrigin);
         PaintUIRect(ContentRect, UIColor(0.f, 255.f, 0.f, 255.f), CornerRadii, 1.f, Softness, BatchList, Arena);
     }
 }
@@ -243,7 +243,7 @@ PaintLayoutTreeFromRoot(ui_layout_node *Root, ui_subtree *Subtree)
                     ui_color TextColor = UIGetTextColor(Style);
                     for(u32 Idx = 0; Idx < Text->ShapedCount; ++Idx)
                     {
-                        PaintUIGlyph(Text->Shaped[Idx].Position, TextColor, Text->Shaped[Idx].Source, BatchList, Arena);
+                        PaintUIGlyph(Text->Shaped[Idx].Position.Translate(AccScroll), TextColor, Text->Shaped[Idx].Source, BatchList, Arena);
                     }
                 }
 
@@ -303,10 +303,7 @@ PaintLayoutTreeFromRoot(ui_layout_node *Root, ui_subtree *Subtree)
                     ui_scroll_region *Region = (ui_scroll_region *)QueryNodeResource(Frame.Node->Index, Subtree, UIResource_ScrollRegion, UIState.ResourceTable);
                     Assert(Region);
 
-                    vec2_f32 NodeScroll = GetScrollNodeTranslation(Region);
-
-                    AccScroll.X += NodeScroll.X;
-                    AccScroll.Y += NodeScroll.Y;
+                    AccScroll += GetScrollNodeTranslation(Region);
                 }
 
                 if(HasFlag(Frame.Node->Flags, UILayoutNode_HasClip))
@@ -327,7 +324,7 @@ PaintLayoutTreeFromRoot(ui_layout_node *Root, ui_subtree *Subtree)
             {
                 if (!(HasFlag(Child->Flags, UILayoutNode_DoNotPaint)) && Child->Value.Display != UIDisplay_None)
                 {
-                    PushPaintStack((paint_stack_frame){.Node = Child, .AccScroll = AccScroll, .Clip = ClipRect}, &Stack);
+                    PushPaintStack({.Node = Child, .AccScroll = AccScroll, .Clip = ClipRect}, &Stack);
                 }
             }
         }

@@ -606,17 +606,18 @@ UpdateScrollNode(f32 ScrolledLines, ui_layout_node *Node, ui_scroll_region *Regi
     }
 
     rect_f32 WindowContent = Node->Value.ContentBox;
-    rect_f32 WindowBounds  = WindowContent.Translate(ScrollDelta);
+    rect_f32 WindowBounds  = WindowContent.Translate(ScrollDelta).Translate(Node->Value.VisualOffset);
 
     IterateLinkedList(Node, ui_layout_node *, Child)
     {
         if(Child->Value.Display != UIDisplay_None)
         {
-            vec2_f32 ContentSize = GetContentBoxSize(&Node->Value);
+            vec2_f32 ChildContentSize = GetContentBoxSize(&Child->Value);
+            rect_f32 ChildContent     = Child->Value.ContentBox.Translate(Child->Value.VisualOffset);
 
-            if (ContentSize.X > 0.0f && ContentSize.Y > 0.0f) 
+            if (ChildContentSize.X > 0.0f && ChildContentSize.Y > 0.0f) 
             {
-                if (WindowBounds.IsIntersecting(Node->Value.ContentBox))
+                if (WindowBounds.IsIntersecting(ChildContent))
                 {
                     ClearFlag(Child->Flags, UILayoutNode_DoNotPaint);
                 }
@@ -627,7 +628,6 @@ UpdateScrollNode(f32 ScrolledLines, ui_layout_node *Node, ui_scroll_region *Regi
             }
         }
     }
-
 }
 
 // -----------------------------------------------------------
@@ -1270,8 +1270,6 @@ PreOrderPlaceSubtree(ui_layout_node *Root, ui_subtree *Subtree)
     Assert(Subtree);
     Assert(Subtree->Transient);
 
-    
-
     ui_layout_tree *Tree = Subtree->LayoutTree;
     Assert(Tree);
 
@@ -1438,9 +1436,9 @@ PreOrderPlaceSubtree(ui_layout_node *Root, ui_subtree *Subtree)
                     }
 
                     vec2_f32 Position = vec2_f32(LineStartX + LineWidth, LineStartY);
-                    Shaped->Position.Left = Position.X + Shaped->Offset.X;
-                    Shaped->Position.Top = Position.Y + Shaped->Offset.Y;
-                    Shaped->Position.Right = Shaped->Position.Left + Shaped->Size.X;
+                    Shaped->Position.Left   = Position.X + Shaped->Offset.X;
+                    Shaped->Position.Top    = Position.Y + Shaped->Offset.Y;
+                    Shaped->Position.Right  = Shaped->Position.Left + Shaped->Size.X;
                     Shaped->Position.Bottom = Shaped->Position.Top + Shaped->Size.Y;
 
                     LineWidth += Shaped->AdvanceX;

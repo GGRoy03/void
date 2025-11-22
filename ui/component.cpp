@@ -9,6 +9,7 @@ UIWindow(u32 StyleIndex)
         SetFlag(Flags, UILayoutNode_IsDraggable);
         SetFlag(Flags, UILayoutNode_IsResizable);
         SetFlag(Flags, UILayoutNode_IsParent);
+        SetFlag(Flags, UILayoutNode_HasClip);
     }
 
     ui_node *Node = UICreateNode(Flags, 0);
