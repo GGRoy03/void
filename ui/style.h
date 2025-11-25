@@ -122,6 +122,9 @@ internal Type UIGet##Name(style_property Properties[StyleProperty_Count])   \
 UI_PROPERTY_TABLE
 #undef X
 
+// NOTE:
+// Should just expose a way to clear the paint properties. It's that simple.
+
 // GetHoverStyle:
 //
 

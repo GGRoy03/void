@@ -844,7 +844,7 @@ ui_node * ui_node::FindChild(u32 Index)
     ui_subtree *Subtree = GetSubtreeForNode(this);
     Assert(Subtree);
 
-    u32 NodeIndex = FindLayoutChild(this->IndexInTree, Index, Subtree);
+    u32 NodeIndex = UITreeFindChild(this->IndexInTree, Index, Subtree);
     if(NodeIndex != InvalidLayoutNodeIndex)
     {
         Result = 0; // TODO: Alloc.
@@ -860,7 +860,7 @@ void ui_node::AppendChild(ui_node *Child)
     ui_subtree *Subtree = GetSubtreeForNode(this);
     Assert(Subtree);
 
-    AppendLayoutChild(this->IndexInTree, Child->IndexInTree, Subtree);
+    UITreeAppendChild(this->IndexInTree, Child->IndexInTree, Subtree);
 }
 
 void ui_node::ReserveChildren(u32 Amount)
@@ -870,7 +870,7 @@ void ui_node::ReserveChildren(u32 Amount)
     ui_subtree *Subtree = GetSubtreeForNode(this);
     Assert(Subtree);
 
-    ReserveLayoutChildren(this->IndexInTree, Amount, Subtree);
+    UITreeReserve(this->IndexInTree, Amount, Subtree);
 }
 
 void ui_node::ClearTextInput(void)
@@ -927,8 +927,6 @@ void ui_node::SetText(byte_string Text)
 
         Assert(!"Not Implemented");
     }
-
-    UpdateNodeIfNeeded(this->IndexInTree, Subtree);
 }
 
 void ui_node::SetTextInput(u8 *Buffer, u64 BufferSize)

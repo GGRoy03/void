@@ -76,15 +76,7 @@ typedef struct ui_layout_box
     // Instead of keeping it on the node?? I am confused. I guess it's just a
     // trade-off. Unsure which is better.
 
-    // Layout Info
-    f32        BorderWidth; // NOTE: Idk about this.
-    ui_unit    Width;
-    ui_unit    Height;
-    ui_spacing Spacing;
-    ui_padding Padding;
-
     UIDisplay_Type Display;
-
     union
     {
         ui_flex_item FlexItem;
@@ -151,23 +143,23 @@ GetContentBoxRect(ui_layout_box *Box)
 }
 
 internal void
-ComputeNodeBoxes(ui_layout_box *Box, f32 Width, f32 Height)
+ComputeNodeBoxes(ui_layout_box *Box, f32 BorderWidth, ui_padding Padding, f32 Width, f32 Height)
 {
     Assert(Box);
 
     Box->FixedOuterSize   = vec2_f32(Width, Height);
-    Box->FixedInnerSize   = Box->FixedOuterSize - vec2_f32(Box->BorderWidth * 2, Box->BorderWidth * 2);
-    Box->FixedContentSize = Box->FixedInnerSize - vec2_f32(Box->Padding.Left + Box->Padding.Right, Box->Padding.Top + Box->Padding.Bot);
+    Box->FixedInnerSize   = Box->FixedOuterSize - vec2_f32(BorderWidth * 2, BorderWidth * 2);
+    Box->FixedContentSize = Box->FixedInnerSize - vec2_f32(Padding.Left + Padding.Right, Padding.Top + Padding.Bot);
 }
 
 internal void
-PlaceLayoutBoxes(ui_layout_box *Box, vec2_f32 Origin)
+PlaceLayoutBoxes(ui_layout_box *Box, vec2_f32 Origin, f32 BorderWidth, ui_padding Padding)
 {
     Assert(Box);
 
     Box->FixedOuterPosition   = Origin;
-    Box->FixedInnerPosition   = Box->FixedOuterPosition + (vec2_f32(Box->BorderWidth , Box->BorderWidth));
-    Box->FixedContentPosition = Box->FixedInnerPosition + (vec2_f32(Box->Padding.Left, Box->Padding.Top));
+    Box->FixedInnerPosition   = Box->FixedOuterPosition + (vec2_f32(BorderWidth , BorderWidth));
+    Box->FixedContentPosition = Box->FixedInnerPosition + (vec2_f32(Padding.Left, Padding.Top));
 }
 
 internal b32 
@@ -340,8 +332,11 @@ PlaceLayoutTreeInMemory(u64 NodeCount, void *Memory)
     return Result;
 }
 
+// ------------------------------------------------------------------------------------
+// @Internal: Tree Queries
+
 internal u32
-FindLayoutChild(u32 NodeIndex, u32 ChildIndex, ui_subtree *Subtree)
+UITreeFindChild(u32 NodeIndex, u32 ChildIndex, ui_subtree *Subtree)
 {
     u32 Result = InvalidLayoutNodeIndex;
 
@@ -364,7 +359,7 @@ FindLayoutChild(u32 NodeIndex, u32 ChildIndex, ui_subtree *Subtree)
 }
 
 internal void
-AppendLayoutChild(u32 ParentIndex, u32 ChildIndex, ui_subtree *Subtree)
+UITreeAppendChild(u32 ParentIndex, u32 ChildIndex, ui_subtree *Subtree)
 {
     Assert(ParentIndex != ChildIndex);
 
@@ -384,19 +379,19 @@ AppendLayoutChild(u32 ParentIndex, u32 ChildIndex, ui_subtree *Subtree)
 // Perhaps both?
 
 internal void
-ReserveLayoutChildren(u32 Index, u32 Amount, ui_subtree *Subtree)
+UITreeReserve(u32 NodeIndex, u32 Amount, ui_subtree *Subtree)
 {
-    Assert(Index != InvalidLayoutNodeIndex);
+    Assert(NodeIndex != InvalidLayoutNodeIndex);
     Assert(Subtree);
 
     ui_layout_tree *Tree = Subtree->LayoutTree;
     Assert(Tree);
 
-    b32 NeedPush = (PeekParentStack(&Tree->ParentStack)->Index !=Index);
+    b32 NeedPush = (PeekParentStack(&Tree->ParentStack)->Index != NodeIndex);
 
     if(NeedPush)
     {
-        ui_layout_node *LayoutNode = GetLayoutNode(Index, Tree);
+        ui_layout_node *LayoutNode = GetLayoutNode(NodeIndex, Tree);
         Assert(LayoutNode);
 
         PushParentStack(LayoutNode, &Tree->ParentStack);
@@ -412,79 +407,6 @@ ReserveLayoutChildren(u32 Index, u32 Amount, ui_subtree *Subtree)
     {
         PopParentStack(&Tree->ParentStack);
     }
-}
-
-internal void
-UpdateNodeIfNeeded(u32 NodeIndex, ui_subtree *Subtree)
-{
-    Assert(Subtree);
-    Assert(Subtree->LayoutTree);
-
-    ui_node_style *Style = GetNodeStyle(NodeIndex, Subtree);
-    Assert(Style);
-
-    if(Style->CachedStyleIndex != InvalidCachedStyleIndex && !Style->IsLastVersion)
-    {
-        ui_pipeline *Pipeline = GetCurrentPipeline();
-        Assert(Pipeline);
-
-        style_property *Cached[StyleState_Count] = {0};
-        Cached[StyleState_Default] = GetCachedProperties(Style->CachedStyleIndex, StyleState_Default, Pipeline->Registry);
-        Cached[StyleState_Hovered] = GetCachedProperties(Style->CachedStyleIndex, StyleState_Hovered, Pipeline->Registry);
-        Cached[StyleState_Focused] = GetCachedProperties(Style->CachedStyleIndex, StyleState_Focused, Pipeline->Registry);
-
-        ForEachEnum(StyleState_Type, StyleState_Count, State)
-        {
-            Assert(Cached[State]);
-
-            ForEachEnum(StyleProperty_Type, StyleProperty_Count, Prop)
-            {
-                if(!Style->Properties[State][Prop].IsSetRuntime)
-                {
-                    Style->Properties[State][Prop] = Cached[State][Prop];
-                }
-            }
-        }
-
-        ui_layout_node *LayoutNode = GetLayoutNode(NodeIndex, Subtree->LayoutTree);
-        Assert(LayoutNode);
-        {
-            ui_layout_box  *Box     = &LayoutNode->Value;
-            style_property *Default = Style->Properties[StyleState_Default];
-            Assert(Default);
-
-            // NOTE:
-            // I still don't know about this part. We could very well query the needed style
-            // from the node's style. Unsure why we keep them here? Trying it out
-            // with some attribute (TextAlign-X, TextAlign-Y)
-
-            // Defaults
-            Box->BorderWidth = UIGetBorderWidth(Default);
-            Box->Width       = UIGetSize(Default).X;
-            Box->Height      = UIGetSize(Default).Y;
-            Box->Padding     = UIGetPadding(Default);
-            Box->Spacing     = UIGetSpacing(Default);
-            Box->Display     = UIGetDisplay(Default);
-
-            // Flex
-            Box->FlexBox.Direction  = UIGetFlexDirection(Default);
-            Box->FlexBox.Justify    = UIGetJustifyContent(Default);
-            Box->FlexBox.Align      = UIGetAlignItems(Default);
-            Box->FlexItem.SelfAlign = UIGetSelfAlign(Default);
-        }
-
-        Style->IsLastVersion = 1;
-    }
-}
-
-internal void
-SetLayoutNodeResource(u32 NodeIndex, ui_resource_key Key, ui_subtree *Subtree)
-{
-    Assert(Subtree);
-    Assert(Subtree->LayoutTree);
-
-    ui_layout_node *Node = GetLayoutNode(NodeIndex, Subtree->LayoutTree);
-    Assert(Node);
 }
 
 // NOTE:
@@ -863,7 +785,7 @@ ClearUIEvents(ui_event_list *EventList)
 }
 
 internal UIIntent_Type
-DetermineResizeIntent(vec2_f32 MousePosition, ui_layout_node *Node)
+DetermineResizeIntent(vec2_f32 MousePosition, ui_layout_node *Node, ui_subtree *Subtree)
 {
     vec2_f32 InnerSize = Node->Value.FixedInnerSize;
     vec2_f32 InnerPos  = Node->Value.FixedInnerPosition;
@@ -872,7 +794,7 @@ DetermineResizeIntent(vec2_f32 MousePosition, ui_layout_node *Node)
     f32 Top         = InnerPos.Y;
     f32 Width       = InnerSize.X;
     f32 Height      = InnerSize.Y;
-    f32 BorderWidth = Node->Value.BorderWidth;
+    f32 BorderWidth = UIGetBorderWidth(GetPaintProperties(Node->Index, 0, Subtree));
 
     f32 CornerTolerance = 5.f;
     f32 CornerX         = Left + Width;
@@ -948,7 +870,7 @@ AttemptNodeFocus(vec2_f32 MousePosition, ui_layout_node *Root, ui_subtree *Subtr
         {
             if (IsMouseInsideBorder(MousePosition, Node))
             {
-                UIIntent_Type Intent = DetermineResizeIntent(MousePosition, Node);
+                UIIntent_Type Intent = DetermineResizeIntent(MousePosition, Node, Subtree);
                 if (Intent != UIIntent_None)
                 {
                     UISetNodeFocus(Node->Index, Subtree, 0, Intent);
@@ -1224,15 +1146,13 @@ GetUITextOffset(UIAlign_Type Align, f32 FixedContentSize, f32 TextSize)
 }
 
 internal f32
-GetUITextSpace(ui_layout_node *Node)
+GetUITextSpace(ui_layout_node *Node, ui_unit Width)
 {
     Assert(Node);
 
-    ui_layout_box *Box = &Node->Value;
+    f32 Result = Node->Value.FixedContentSize.X;
 
-    f32 Result = Box->FixedContentSize.X;
-
-    if(Box->Width.Type == UIUnit_Auto)
+    if(Width.Type == UIUnit_Auto)
     {
         ui_layout_node *Parent = Node->Parent;
         Assert(Parent);
@@ -1285,10 +1205,60 @@ FlexJustifyCenter(f32 ChildSize, f32 FixedContentSize)
     return Result;
 }
 
+internal void
+GrowFlexChildren(ui_layout_node *Parent, f32 FreeSpace)
+{
+    Assert(Parent);
+    Assert(FreeSpace > 0.f);
+
+    f32 TotalGrow = Parent->Value.FlexBox.TotalGrow;
+    Assert(TotalGrow > 0.f);
+
+    IterateLinkedList(Parent, ui_layout_node *, Child)
+    {
+        if(Child->Value.Display != UIDisplay_None)
+        {
+            ui_flex_item *Item = &Child->Value.FlexItem;
+
+            f32 Grow      = Item->Grow;
+            f32 GrowRatio = Grow / TotalGrow;
+
+            Item->Size += GrowRatio * FreeSpace;
+         }
+    }
+}
+
+internal void
+ShrinkFlexChildren(ui_layout_node *Parent, f32 FreeSpace)
+{
+    Assert(Parent);
+    Assert(FreeSpace < 0.f);
+
+    f32 TotalShrink = Parent->Value.FlexBox.TotalShrink;
+    Assert(TotalShrink > 0.f);
+
+    IterateLinkedList(Parent, ui_layout_node *, Child)
+    {
+        if(Child->Value.Display != UIDisplay_None)
+        {
+            ui_flex_item *Item = &Child->Value.FlexItem;
+
+            f32 Shrink       = Item->Shrink;
+            f32 ShrinkWeight = Shrink * Item->Size;
+            f32 ShrinkRatio  = ShrinkWeight / TotalShrink;
+
+            Item->Size += ShrinkRatio * FreeSpace;
+        }
+    }
+}
+
 // -----------------------------------------------------------
 // Layout Pass Internal Helpers/Types
 
 DEFINE_TYPED_QUEUE(Node, node, ui_layout_node *);
+
+// NOTE:
+// This code is really garbage.
 
 internal void
 PreOrderPlaceSubtree(ui_layout_node *Root, ui_subtree *Subtree)
@@ -1306,15 +1276,21 @@ PreOrderPlaceSubtree(ui_layout_node *Root, ui_subtree *Subtree)
     node_queue Queue = BeginNodeQueue((typed_queue_params){.QueueSize = Tree->NodeCount}, Subtree->Transient);
     if (Queue.Data)
     {
+        {
+            style_property *Props = GetPaintProperties(Root->Index, 0, Subtree);
+            PlaceLayoutBoxes(&Root->Value, vec2_f32(0, 0), UIGetBorderWidth(Props), UIGetPadding(Props));
+        }
+
         PushNodeQueue(&Queue, Root);
 
-        PlaceLayoutBoxes(&Root->Value, vec2_f32(0, 0));
 
         while (!IsNodeQueueEmpty(&Queue))
         {
             ui_layout_node *Node  = PopNodeQueue(&Queue);
             ui_layout_box  *Box   = &Node->Value;
-            ui_node_style  *Style = GetNodeStyle(Node->Index, Subtree);
+            style_property *Props = GetPaintProperties(Node->Index, 0, Subtree);
+
+            ui_spacing Spacing = UIGetSpacing(Props);
 
             rect_f32 Content = GetContentBoxRect(Box);
             vec2_f32 Cursor  = vec2_f32(Content.Left, Content.Top);
@@ -1327,8 +1303,8 @@ PreOrderPlaceSubtree(ui_layout_node *Root, ui_subtree *Subtree)
                 f32 CrossSize = Direction == UIFlexDirection_Row ? Box->FixedContentSize.Y : Box->FixedContentSize.X;
                 f32 FreeSpace = MainSize - Box->FlexBox.TotalSize;
 
-                f32 MainAxisSpacing  = Direction == UIFlexDirection_Row ? Box->Spacing.Horizontal : Box->Spacing.Vertical;
-                f32 CrossAxisSpacing = Direction == UIFlexDirection_Row ? Box->Spacing.Vertical   : Box->Spacing.Horizontal;
+                f32 MainAxisSpacing  = Direction == UIFlexDirection_Row ? Spacing.Horizontal : Spacing.Vertical;
+                f32 CrossAxisSpacing = Direction == UIFlexDirection_Row ? Spacing.Vertical   : Spacing.Horizontal;
 
                 f32 MainAxisCursor      = Direction == UIFlexDirection_Row ? Cursor.X : Cursor.Y;
                 f32 CrossAxisCursorBase = Direction == UIFlexDirection_Row ? Cursor.Y : Cursor.X;
@@ -1353,7 +1329,11 @@ PreOrderPlaceSubtree(ui_layout_node *Root, ui_subtree *Subtree)
 
                 IterateLinkedList(Node, ui_layout_node *, Child)
                 {
-                    ui_layout_box *CBox = &Child->Value;
+                    ui_layout_box  *CBox  = &Child->Value;
+                    style_property *Props = GetPaintProperties(Child->Index, 0, Subtree);
+
+                    f32        BorderWidth = UIGetBorderWidth(Props);
+                    ui_padding Padding     = UIGetPadding(Props);
 
                     vec2_f32 ChildSize          = CBox->FixedOuterSize;
                     f32      MainAxisChildSize  = Direction == UIFlexDirection_Row ? ChildSize.X : ChildSize.Y;
@@ -1387,11 +1367,11 @@ PreOrderPlaceSubtree(ui_layout_node *Root, ui_subtree *Subtree)
 
                     if(Direction == UIFlexDirection_Row)
                     {
-                        PlaceLayoutBoxes(CBox, vec2_f32(MainAxisCursor, CrossAxisCursor));
+                        PlaceLayoutBoxes(CBox, vec2_f32(MainAxisCursor, CrossAxisCursor), BorderWidth, Padding);
                     } else
                     if(Direction == UIFlexDirection_Column)
                     {
-                        PlaceLayoutBoxes(CBox, vec2_f32(CrossAxisCursor, MainAxisCursor));
+                        PlaceLayoutBoxes(CBox, vec2_f32(CrossAxisCursor, MainAxisCursor), BorderWidth, Padding);
                     }
 
                     MainAxisCursor += MainAxisChildSize + MainAxisSpacing;
@@ -1406,12 +1386,15 @@ PreOrderPlaceSubtree(ui_layout_node *Root, ui_subtree *Subtree)
             {
                 IterateLinkedList(Node, ui_layout_node *, Child)
                 {
-                    ui_layout_box *CBox  = &Child->Value;
-                    vec2_f32       CSize = CBox->FixedOuterSize;
+                    ui_layout_box  *CBox  = &Child->Value;
+                    style_property *Props = GetPaintProperties(Child->Index, 0, Subtree);
 
-                    PlaceLayoutBoxes(CBox, vec2_f32(Cursor.X, Cursor.Y));
+                    f32        BorderWidth = UIGetBorderWidth(Props);
+                    ui_padding Padding     = UIGetPadding(Props);
 
-                    Cursor.Y += CSize.Y;
+                    PlaceLayoutBoxes(CBox, vec2_f32(Cursor.X, Cursor.Y), BorderWidth, Padding);
+
+                    Cursor.Y += CBox->FixedOuterSize.Y;
 
                     PushNodeQueue(&Queue, Child);
                 }
@@ -1421,10 +1404,11 @@ PreOrderPlaceSubtree(ui_layout_node *Root, ui_subtree *Subtree)
             {
                 ui_text *Text = (ui_text *)QueryNodeResource(Node->Index, Subtree, UIResource_Text, Table);
 
-                UIAlign_Type XAlign = UIGetXTextAlign(Style->Properties[StyleState_Default]);
-                UIAlign_Type YAlign = UIGetYTextAlign(Style->Properties[StyleState_Default]);
+                UIAlign_Type XAlign = UIGetXTextAlign(Props);
+                UIAlign_Type YAlign = UIGetYTextAlign(Props);
+                ui_unit      Width  = UIGetSize(Props).X;
 
-                f32 WrapWidth   = GetUITextSpace(Node);
+                f32 WrapWidth   = GetUITextSpace(Node, Width);
                 f32 LineWidth   = 0.f;
                 f32 LineStartX  = Cursor.X;
                 f32 LineStartY  = Cursor.Y + GetUITextOffset(YAlign, Box->FixedContentSize.Y, Text->TotalHeight);
@@ -1464,6 +1448,9 @@ PreOrderPlaceSubtree(ui_layout_node *Root, ui_subtree *Subtree)
     }
 }
 
+// NOTE:
+// This code is legit garbage!!!
+
 internal void
 PreOrderMeasureSubtree(ui_layout_node *Root, ui_subtree *Subtree)
 {
@@ -1478,20 +1465,26 @@ PreOrderMeasureSubtree(ui_layout_node *Root, ui_subtree *Subtree)
 
     if(Queue.Data)
     {
-        UpdateNodeIfNeeded(Root->Index, Subtree);
-        Assert(Root->Value.Width.Type  == UIUnit_Float32);
-        Assert(Root->Value.Height.Type == UIUnit_Float32);
-        ComputeNodeBoxes(&Root->Value, Root->Value.Width.Float32, Root->Value.Height.Float32);
+        {
+            style_property *Props = GetPaintProperties(Root->Index, 0, Subtree);
+            ui_layout_box  *Box   = &Root->Value;
+
+            f32        BorderWidth = UIGetBorderWidth(Props);
+            ui_padding Padding     = UIGetPadding(Props);
+            vec2_unit  Size        = UIGetSize(Props);
+
+            ComputeNodeBoxes(Box, BorderWidth, Padding, Size.X.Float32, Size.Y.Float32);
+        }
 
         PushNodeQueue(&Queue, Root);
 
         while (!IsNodeQueueEmpty(&Queue))
         {
             ui_layout_node *Node = PopNodeQueue(&Queue);
-            Assert(Node);
+            ui_layout_box  *Box   = &Node->Value;
+            style_property *Props = GetPaintProperties(Node->Index, 0, Subtree);
 
-            ui_layout_box *Box         = &Node->Value;
-            vec2_f32       FixedContentSize = Box->FixedContentSize;
+            vec2_f32 ContentSize = Box->FixedContentSize;
 
             if(Box->Display == UIDisplay_Normal)
             {
@@ -1501,136 +1494,123 @@ PreOrderMeasureSubtree(ui_layout_node *Root, ui_subtree *Subtree)
 
             if(Box->Display == UIDisplay_Flex)
             {
-                Box->FlexBox.TotalGrow         = 0.f;
-                Box->FlexBox.TotalShrink       = 0.f;
-                Box->FlexBox.ItemCount         = 0;
-                Box->FlexBox.TotalSize         = 0;
-                Box->FlexBox.HasAutoSizedChild = 0;
+                ui_flex_box *FlexBox = &Box->FlexBox;
 
-                UIFlexDirection_Type MainAxis   = Box->FlexBox.Direction;
-                f32                  MainAvSize = MainAxis == UIFlexDirection_Row ? FixedContentSize.X : FixedContentSize.Y;
+                FlexBox->TotalGrow         = 0.f;
+                FlexBox->TotalShrink       = 0.f;
+                FlexBox->TotalSize         = 0.f;
+                FlexBox->ItemCount         = 0;
+                FlexBox->HasAutoSizedChild = 0;
+
+                UIFlexDirection_Type MainAxis   = FlexBox->Direction;
+                f32                  MainAvSize = MainAxis == UIFlexDirection_Row ? ContentSize.X : ContentSize.Y;
 
                 f32 SpaceNeeded = 0.f;
                 IterateLinkedList(Node, ui_layout_node *, Child)
                 {
-                    UpdateNodeIfNeeded(Child->Index, Subtree);
-
                     if(Child->Value.Display != UIDisplay_None)
                     {
-                        ui_layout_box  *CBox  = &Child->Value;
+                        ui_flex_item   *Item  = &Child->Value.FlexItem;
                         style_property *Props = GetPaintProperties(Child->Index, 0, Subtree);
 
-                        resolved_unit Width  = TryConvertUnitToFloat(CBox->Width , FixedContentSize.X);
-                        resolved_unit Height = TryConvertUnitToFloat(CBox->Height, FixedContentSize.Y);
+                        vec2_unit  Size        = UIGetSize(Props);
+                        f32        BorderWidth = UIGetBorderWidth(Props);
+                        ui_padding Padding     = UIGetPadding(Props);
+
+                        resolved_unit Width  = TryConvertUnitToFloat(Size.X, ContentSize.X);
+                        resolved_unit Height = TryConvertUnitToFloat(Size.Y, ContentSize.Y);
 
                         b32 MainSizeResolved = (MainAxis == UIFlexDirection_Row) ? Width.Resolved : Height.Resolved;
                         if(MainSizeResolved)
                         {
                             if(MainAxis == UIFlexDirection_Row)
                             {
-                                CBox->FlexItem.Size = Width.Value;
+                                Item->Size = Width.Value;
                             }
                             else if(MainAxis == UIFlexDirection_Column)
                             {
-                                CBox->FlexItem.Size = Height.Value;
+                                Item->Size = Height.Value;
                             }
 
-                            ComputeNodeBoxes(CBox, Width.Value, Height.Value);
+                            ComputeNodeBoxes(&Child->Value, BorderWidth, Padding, Width.Value, Height.Value);
                         }
                         else
                         {
                             if(MainAxis == UIFlexDirection_Row)
                             {
-                                ComputeNodeBoxes(CBox, 0.f, Height.Value);
+                                ComputeNodeBoxes(&Child->Value, BorderWidth, Padding, 0.f, Height.Value);
                             }
                             else if(MainAxis == UIFlexDirection_Column)
                             {
-                                ComputeNodeBoxes(CBox, Width.Value, 0.f);
+                                ComputeNodeBoxes(&Child->Value, BorderWidth, Padding, Width.Value, 0.f);
                             }
 
-                            Box->FlexBox.HasAutoSizedChild = 1;
+                            FlexBox->HasAutoSizedChild = 1;
                         }
 
-                        f32 Grow   = UIGetFlexGrow(Props);
-                        f32 Shrink = UIGetFlexShrink(Props);
+                        Item->Grow   = UIGetFlexGrow(Props);
+                        Item->Shrink = UIGetFlexShrink(Props);
 
-                        CBox->FlexItem.Grow   = Grow;
-                        CBox->FlexItem.Shrink = Shrink;
+                        FlexBox->TotalGrow   += Item->Grow;
+                        FlexBox->TotalShrink += Item->Shrink * Item->Size;
+                        FlexBox->ItemCount   += 1;
 
-                        Box->FlexBox.TotalGrow   += Grow;
-                        Box->FlexBox.TotalShrink += Shrink * CBox->FlexItem.Size;
-                        Box->FlexBox.ItemCount   += 1;
-
-                        SpaceNeeded += CBox->FlexItem.Size;
+                        SpaceNeeded += Item->Size;
 
                         PushNodeQueue(&Queue, Child);
                     }
                 }
 
-                if(Box->FlexBox.ItemCount)
+                if(FlexBox->ItemCount)
                 {
-                    f32 Spacing       = MainAxis == UIFlexDirection_Row ? Box->Spacing.Horizontal : Box->Spacing.Vertical;
-                    f32 SpacingAmount = (Box->FlexBox.ItemCount - 1) * Spacing;
+                    ui_spacing Spacing = UIGetSpacing(Props);
+
+                    f32 AxisSpacing   = MainAxis == UIFlexDirection_Row ? Spacing.Horizontal : Spacing.Vertical;
+                    f32 SpacingAmount = (FlexBox->ItemCount - 1) * AxisSpacing;
                     f32 FreeSpace     = MainAvSize - (SpaceNeeded + SpacingAmount);
 
                     Box->FlexBox.TotalSize += SpacingAmount;
 
-                    if(FreeSpace > 0 && Box->FlexBox.TotalGrow > 0.f)
+                    if(FreeSpace > 0.f && FlexBox->TotalGrow > 0.f)
                     {
-                        IterateLinkedList(Node, ui_layout_node *, Child)
-                        {
-                            ui_layout_box *CBox = &Child->Value;
-                            if(Child->Value.Display != UIDisplay_None)
-                            {
-                                f32 Grow      = CBox->FlexItem.Grow;
-                                f32 GrowRatio = Grow / Box->FlexBox.TotalGrow;
-
-                                CBox->FlexItem.Size += GrowRatio * FreeSpace;
-                            }
-                        }
+                        GrowFlexChildren(Node, FreeSpace);
                     }
-                    else if(FreeSpace < 0 && Box->FlexBox.TotalShrink > 0.f)
+                    else if(FreeSpace < 0.f && FlexBox->TotalShrink > 0.f)
                     {
-                        IterateLinkedList(Node, ui_layout_node *, Child)
-                        {
-                            ui_layout_box *CBox = &Child->Value;
-                            if(Child->Value.Display != UIDisplay_None)
-                            {
-                                f32 Shrink       = CBox->FlexItem.Shrink;
-                                f32 ShrinkWeight = Shrink * CBox->FlexItem.Size;
-                                f32 ShrinkRatio  = ShrinkWeight / Box->FlexBox.TotalShrink;
-
-                                CBox->FlexItem.Size += ShrinkRatio * FreeSpace;
-                            }
-                        }
+                        ShrinkFlexChildren(Node, FreeSpace);
                     }
 
-                    f32 CrossAvSize = MainAxis == UIFlexDirection_Row ? FixedContentSize.Y : FixedContentSize.X;
+                    f32 CrossAvSize = MainAxis == UIFlexDirection_Row ? ContentSize.Y : ContentSize.X;
                     IterateLinkedList(Node, ui_layout_node *, Child)
                     {
-                        ui_layout_box *CBox = &Child->Value;
-                        if(CBox->Display != UIDisplay_None)
+                        if(Child->Value.Display != UIDisplay_None)
                         {
+                            style_property *Props = GetPaintProperties(Child->Index, 0, Subtree);
+                            ui_flex_item   *Item  = &Child->Value.FlexItem;
+
+                            f32        BorderWidth = UIGetBorderWidth(Props);
+                            ui_padding Padding     = UIGetPadding(Props);
+
                             f32 FinalWidth  = 0.f;
                             f32 FinalHeight = 0.f;
 
-                            UIAlignItems_Type Align = GetChildFlexAlignment(Box, CBox);
+                            UIAlignItems_Type Align = GetChildFlexAlignment(Box, &Child->Value);
                             if(MainAxis == UIFlexDirection_Row)
                             {
-                                FinalWidth  = CBox->FlexItem.Size;
-                                FinalHeight = Align == UIAlignItems_Stretch ? CrossAvSize : CBox->FixedOuterSize.Y;
+                                FinalWidth  = Item->Size;
+                                FinalHeight = Align == UIAlignItems_Stretch ? CrossAvSize : Child->Value.FixedOuterSize.Y;
 
-                                Box->FlexBox.TotalSize += FinalWidth;
+                                FlexBox->TotalSize += FinalWidth;
                             }
                             else if(MainAxis == UIFlexDirection_Column)
                             {
-                                FinalWidth  = Align == UIAlignItems_Stretch ? CrossAvSize : CBox->FixedOuterSize.X;
-                                FinalHeight = CBox->FlexItem.Size;
+                                FinalWidth  = Align == UIAlignItems_Stretch ? CrossAvSize : Child->Value.FixedOuterSize.X;
+                                FinalHeight = Item->Size;
 
-                                Box->FlexBox.TotalSize += FinalHeight;
+                                FlexBox->TotalSize += FinalHeight;
                             }
 
-                            ComputeNodeBoxes(CBox, FinalWidth, FinalHeight);
+                            ComputeNodeBoxes(&Child->Value, BorderWidth, Padding, FinalWidth, FinalHeight);
                         }
                     }
                 }
@@ -1639,12 +1619,14 @@ PreOrderMeasureSubtree(ui_layout_node *Root, ui_subtree *Subtree)
             {
                 IterateLinkedList(Node, ui_layout_node *, Child)
                 {
-                    UpdateNodeIfNeeded(Child->Index, Subtree);
+                    style_property *Props = GetPaintProperties(Child->Index, 0, Subtree);
 
-                    Box = &Child->Value; // NOTE: ??
+                    vec2_unit  Size        = UIGetSize(Props);
+                    f32        BorderWidth = UIGetBorderWidth(Props);
+                    ui_padding Padding     = UIGetPadding(Props);
 
-                    resolved_unit Width  = TryConvertUnitToFloat(Box->Width , FixedContentSize.X);
-                    resolved_unit Height = TryConvertUnitToFloat(Box->Height, FixedContentSize.Y);
+                    resolved_unit Width  = TryConvertUnitToFloat(Size.X, ContentSize.X);
+                    resolved_unit Height = TryConvertUnitToFloat(Size.Y, ContentSize.Y);
 
                     if(Box->Display != UIDisplay_None)
                     {
@@ -1652,7 +1634,7 @@ PreOrderMeasureSubtree(ui_layout_node *Root, ui_subtree *Subtree)
 
                         if(Width.Resolved || Height.Resolved)
                         {
-                            ComputeNodeBoxes(Box, Width.Value, Height.Value);
+                            ComputeNodeBoxes(Box, BorderWidth, Padding, Width.Value, Height.Value);
                         }
                     }
 
@@ -1671,19 +1653,24 @@ PostOrderMeasureSubtree(ui_layout_node *Root, ui_subtree *Subtree)
         PostOrderMeasureSubtree(Child, Subtree);
     }
 
-    ui_layout_box *Box = &Root->Value;
+    ui_layout_box  *Box   = &Root->Value;
+    style_property *Props = GetPaintProperties(Root->Index, 0, Subtree);
+
+    vec2_unit  Size        = UIGetSize(Props);
+    f32        BorderWidth = UIGetBorderWidth(Props);
+    ui_padding Padding     = UIGetPadding(Props);
 
     if(HasFlag(Root->Flags, UILayoutNode_HasImage))
     {
         ui_image *Image = (ui_image *)QueryNodeResource(Root->Index, Subtree, UIResource_Image, UIState.ResourceTable);
         Assert(Image);
 
-        if(Box->Width.Type == UIUnit_Auto && Box->Height.Type == UIUnit_Auto)
+        if(Size.X.Type == UIUnit_Auto && Size.Y.Type == UIUnit_Auto)
         {
             f32 Width  = Image->Source.Right  - Image->Source.Left;
             f32 Height = Image->Source.Bottom - Image->Source.Top;
 
-            ComputeNodeBoxes(&Root->Value, Width, Height);
+            ComputeNodeBoxes(&Root->Value, BorderWidth, Padding, Width, Height);
         }
         else
         {
@@ -1695,7 +1682,7 @@ PostOrderMeasureSubtree(ui_layout_node *Root, ui_subtree *Subtree)
     {
         ui_text *Text = (ui_text *)QueryNodeResource(Root->Index, Subtree, UIResource_Text, UIState.ResourceTable);
 
-        f32 InnerAvWidth  = GetUITextSpace(Root);
+        f32 InnerAvWidth  = GetUITextSpace(Root, Size.X);
         f32 LineWidth     = 0.f;
         u32 LineWrapCount = 0;
 
@@ -1717,12 +1704,12 @@ PostOrderMeasureSubtree(ui_layout_node *Root, ui_subtree *Subtree)
 
         Text->TotalHeight = ((LineWrapCount + 1) * Text->LineHeight);
 
-        if (Box->Width.Type == UIUnit_Auto)
+        if (Size.X.Type == UIUnit_Auto)
         {
             f32 Width  = (LineWrapCount == 0) ? LineWidth : InnerAvWidth;
             f32 Height = (LineWrapCount + 1) * Text->LineHeight;
 
-            ComputeNodeBoxes(&Root->Value, Width, Height);
+            ComputeNodeBoxes(&Root->Value, BorderWidth, Padding, Width, Height);
         }
     }
 
@@ -1735,8 +1722,8 @@ PostOrderMeasureSubtree(ui_layout_node *Root, ui_subtree *Subtree)
             ui_layout_box *CBox = &Child->Value;
 
             b32 MainAxisIsAuto =
-                (MainAxis == UIFlexDirection_Row    && CBox->Width.Type  == UIUnit_Auto) ||
-                (MainAxis == UIFlexDirection_Column && CBox->Height.Type == UIUnit_Auto);
+                (MainAxis == UIFlexDirection_Row    && Size.X.Type  == UIUnit_Auto) ||
+                (MainAxis == UIFlexDirection_Column && Size.Y.Type == UIUnit_Auto);
 
             // NOTE:
             // I assume this may trigger possible wrapping? What about nested autos?

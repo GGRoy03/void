@@ -155,15 +155,19 @@ internal ui_layout_tree * PlaceLayoutTreeInMemory  (u64 NodeCount, void *Memory)
 internal u32              AllocateLayoutNode       (bit_field Flags, ui_subtree *Subtree);
 internal void             UIEnd                    (void);
 
-internal u32     FindLayoutChild        (u32 ParentIndex, u32 ChildIndex, ui_subtree *Subtree);
-internal void    AppendLayoutChild      (u32 ParentIndex, u32 ChildIndex, ui_subtree *Subtree);
-internal void    ReserveLayoutChildren  (u32 Index, u32 Amount, ui_subtree *Subtree);
-
 internal b32 IsMouseInsideOuterBox  (vec2_f32 MousePosition, u32 NodeIndex, ui_subtree *Subtree);
 
 internal void UpdateNodeIfNeeded    (u32 NodeIndex, ui_subtree *Subtree);
 internal void SetLayoutNodeFlags    (u32 NodeIndex, bit_field Flags, ui_subtree *Subtree);
 internal void ClearLayoutNodeFlags  (u32 NodeIndex, bit_field Flags, ui_subtree *Subtree);
+
+
+// ------------------------------------------------------------------------------------
+// @Internal: Tree Queries
+
+internal u32  UITreeFindChild    (u32 ParentIndex, u32 ChildIndex, ui_subtree *Subtree);
+internal void UITreeAppendChild  (u32 ParentIndex, u32 ChildIndex, ui_subtree *Subtree);
+internal void UITreeReserve      (u32 NodeIndex  , u32 Amount    , ui_subtree *Subtree);
 
 // ------------------------------------------------------------------------------------
 // @Internal: Layout Resources
