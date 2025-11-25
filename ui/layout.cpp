@@ -378,6 +378,11 @@ AppendLayoutChild(u32 ParentIndex, u32 ChildIndex, ui_subtree *Subtree)
     Child->Parent = Parent;
 }
 
+// BUG:
+// Does not check if there is enough space to allocate the children.
+// An assertion should be enough? Unsure, same for append layout child.
+// Perhaps both?
+
 internal void
 ReserveLayoutChildren(u32 Index, u32 Amount, ui_subtree *Subtree)
 {
@@ -545,6 +550,38 @@ UIEnd()
 
 // -----------------------------------------------------------
 // UI Scrolling Internal Implementation
+
+typedef struct ui_scroll_region
+{
+    vec2_f32    ContentSize;
+    f32         ScrollOffset;
+    f32         PixelPerLine;
+    UIAxis_Type Axis;
+} ui_scroll_region;
+
+internal u64
+GetScrollRegionFootprint(void)
+{
+    u64 Result = sizeof(ui_scroll_region);
+    return Result;
+}
+
+internal ui_scroll_region *
+PlaceScrollRegionInMemory(scroll_region_params Params, void *Memory)
+{
+    ui_scroll_region *Result = 0;
+
+    if(Memory)
+    {
+        Result = (ui_scroll_region *)Memory;
+        Result->ContentSize  = vec2_f32(0.f, 0.f);
+        Result->ScrollOffset = 0.f;
+        Result->PixelPerLine = Params.PixelPerLine;
+        Result->Axis         = Params.Axis;
+    }
+
+    return Result;
+}
 
 internal vec2_f32
 GetScrollNodeTranslation(ui_scroll_region *Region)

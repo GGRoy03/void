@@ -1,3 +1,7 @@
+// NOTE:
+// This file needs cleanups. I don't really know which types I want to expose in the header.
+// Also: Consider adding a name space.
+
 // [CORE TYPES]
 
 typedef struct glyph_hash

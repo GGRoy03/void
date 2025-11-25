@@ -23,7 +23,7 @@ UIWindow(u32 StyleIndex)
 }
 
 internal ui_node *
-UIScrollableContent(UIAxis_Type Axis, u32 Style)
+UIScrollableContent(f32 ScrollSpeed, UIAxis_Type Axis, u32 Style)
 {
     bit_field Flags = 0;
     {
@@ -36,7 +36,7 @@ UIScrollableContent(UIAxis_Type Axis, u32 Style)
     if(Node && Node->CanUse)
     {
         Node->SetStyle(Style);
-        Node->SetScroll(Axis);
+        Node->SetScroll(ScrollSpeed, Axis);
     }
 
     return Node;

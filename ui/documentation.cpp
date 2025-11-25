@@ -75,7 +75,7 @@ InitializeVoidDocumentation(ui_void_documentation *Doc)
         UIBlock(Window = UIWindow(VoidDocumentation_MainWindow))
         {
             Assert(Window);
-            Window->SetScroll(UIAxis_Y);
+            Window->SetScroll(32.f, UIAxis_Y);
             Window->DebugBox(UILayoutNode_DebugOuterBox  , 1);
             Window->DebugBox(UILayoutNode_DebugInnerBox  , 1);
             Window->DebugBox(UILayoutNode_DebugContentBox, 1);

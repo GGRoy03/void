@@ -184,7 +184,7 @@ struct ui_node
     // Resource
     void SetText         (byte_string Text);
     void SetTextInput    (u8 *Buffer, u64 BufferSize);
-    void SetScroll       (UIAxis_Type Axis);
+    void SetScroll       (f32 ScrollSpeed, UIAxis_Type Axis);
     void SetImage        (byte_string Path, byte_string Group);
     void ClearTextInput  (void);
 

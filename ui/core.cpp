@@ -42,17 +42,6 @@ FindSubtree(ui_node Node)
     return Result;
 }
 
-// -----------------------------------------------------------------------------------
-// UI Scrolling Implementation
-
-typedef struct ui_scroll_region
-{
-    vec2_f32    ContentSize;
-    f32         ScrollOffset;
-    f32         PixelPerLine;
-    UIAxis_Type Axis;
-} ui_scroll_region;
-
 // ------------------------------------------------------------------------------
 // Node Id Map Implementation
 
@@ -971,7 +960,7 @@ void ui_node::SetTextInput(u8 *Buffer, u64 BufferSize)
     this->SetText(ByteString(Buffer, BufferSize));
 }
 
-void ui_node::SetScroll(UIAxis_Type Axis)
+void ui_node::SetScroll(f32 ScrollSpeed, UIAxis_Type Axis)
 {
     Assert(this->CanUse);
 
@@ -981,19 +970,25 @@ void ui_node::SetScroll(UIAxis_Type Axis)
     ui_resource_key   Key   = MakeResourceKey(UIResource_ScrollRegion, this->IndexInTree, Subtree);
     ui_resource_state State = FindResourceByKey(Key, UIState.ResourceTable);
 
-    u64   Size   = sizeof(ui_scroll_region);
+    u64   Size   = GetScrollRegionFootprint();
     void *Memory = AllocateUIResource(Size, &UIState.ResourceTable->Allocator);
 
-    ui_scroll_region *ScrollRegion = (ui_scroll_region *)Memory;
-    ScrollRegion->PixelPerLine = 8.f;
-    ScrollRegion->Axis         = Axis;
+    scroll_region_params Params =
+    {
+        .PixelPerLine = ScrollSpeed,
+        .Axis         = Axis,
+    };
 
-    UpdateResourceTable(State.Id, Key, ScrollRegion, UIState.ResourceTable);
+    ui_scroll_region *ScrollRegion = PlaceScrollRegionInMemory(Params, Memory);
+    if(ScrollRegion)
+    {
+        UpdateResourceTable(State.Id, Key, ScrollRegion, UIState.ResourceTable);
 
-    // WARN:
-    // Still don't know how to feel about this.
-    // It's not great, that's for sure. Again this idea of centralizing
-    SetLayoutNodeFlags(this->IndexInTree, UILayoutNode_HasScrollRegion, Subtree);
+        // WARN:
+        // Still don't know how to feel about this.
+        // It's not great, that's for sure. Again this idea of centralizing
+        SetLayoutNodeFlags(this->IndexInTree, UILayoutNode_HasScrollRegion, Subtree);
+    }
 }
 
 // NOTE:
