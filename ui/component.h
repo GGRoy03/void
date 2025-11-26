@@ -1,5 +1,5 @@
-internal ui_node * UIWindow             (u32 Style);
-internal ui_node * UIScrollableContent  (f32 ScrollSpeed, UIAxis_Type Axis, u32 StyleIndex);
-internal ui_node * UILabel              (byte_string Text, u32 Style);
-internal ui_node * UITextInput          (u8 *Buffer, u64 BufferSize, u32 StyleIndex);
-internal ui_node * UIImage              (byte_string Path, byte_string Group, u32 Style);
+static ui_node * UIWindow             (uint32_t Style);
+static ui_node * UIScrollableContent  (float ScrollSpeed, UIAxis_Type Axis, uint32_t StyleIndex);
+static ui_node * UILabel              (byte_string Text, uint32_t Style);
+static ui_node * UITextInput          (uint8_t *Buffer, uint64_t BufferSize, uint32_t StyleIndex);
+static ui_node * UIImage              (byte_string Path, byte_string Group, uint32_t Style);

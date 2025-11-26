@@ -4,7 +4,6 @@
 
 #define COBJMACROS
 #define D3D11_NO_HELPERS
-DisableWarning(4201)
 #include <d3d11.h>
 #include <d3dcompiler.h>
 #include <dxgi1_3.h>
@@ -28,15 +27,15 @@ typedef struct gpu_font_context
 
 typedef struct d3d11_rect_uniform_buffer
 {
-    vec4_f32 Transform[3];
-    vec2_f32 ViewportSizeInPixel;
-    vec2_f32 AtlasSizeInPixel;
+    vec4_float Transform[3];
+    vec2_float ViewportSizeInPixel;
+    vec2_float AtlasSizeInPixel;
 } d3d11_rect_uniform_buffer;
 
 typedef struct d3d11_input_layout
 {
-    read_only D3D11_INPUT_ELEMENT_DESC *Desc;
-              u32                       Count;
+    const D3D11_INPUT_ELEMENT_DESC *Desc;
+              uint32_t                       Count;
 } d3d11_input_layout;
 
 typedef struct d3d11_renderer
@@ -60,12 +59,12 @@ typedef struct d3d11_renderer
     ID3D11RasterizerState *RasterSt[RenderPass_Count];
 
     // State
-    vec2_i32 LastResolution;
+    vec2_int LastResolution;
 } d3d11_renderer;
 
 // [Globals]
 
-read_only global D3D11_INPUT_ELEMENT_DESC D3D11RectILayout[] =
+const static D3D11_INPUT_ELEMENT_DESC D3D11RectILayout[] =
 {
     {"POS" , 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_INSTANCE_DATA, 1},
     {"FONT", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_INSTANCE_DATA, 1},
@@ -74,7 +73,7 @@ read_only global D3D11_INPUT_ELEMENT_DESC D3D11RectILayout[] =
     {"STY" , 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_INSTANCE_DATA, 1},
 };
 
-read_only global u8 D3D11RectShader[] =
+const static uint8_t D3D11RectShader[] =
 "// [Inputs/Outputs]                                                                               \n"
 "                                                                                                  \n"
 "cbuffer Constants : register(b0)                                                                  \n"
@@ -222,17 +221,17 @@ read_only global u8 D3D11RectShader[] =
 ;
 
 
-read_only global byte_string D3D11ShaderSourceTable[] =
+const static byte_string D3D11ShaderSourceTable[] =
 {
     byte_string_compile(D3D11RectShader),
 };
 
-read_only global d3d11_input_layout D3D11ILayoutTable[] =
+const static d3d11_input_layout D3D11ILayoutTable[] =
 {
-    {D3D11RectILayout, ArrayCount(D3D11RectILayout)},
+    {D3D11RectILayout, VOID_ARRAYCOUNT(D3D11RectILayout)},
 };
 
-read_only global u64 D3D11UniformBufferSizeTable[] =
+const static uint64_t D3D11UniformBufferSizeTable[] =
 {
     sizeof(d3d11_rect_uniform_buffer),
 };

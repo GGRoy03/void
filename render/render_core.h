@@ -13,14 +13,20 @@ typedef enum RenderPass_Type
     RenderPass_Count = 1,
 } RenderPass_Type;
 
+typedef struct render_handle
+{
+    uint64_t uint64_t[1];
+} render_handle;
+
+
 // Batch types
 // A batch is a linked list of raw byte data
 
 typedef struct render_batch
 {
-    u8 *Memory;
-    u64 ByteCount;
-    u64 ByteCapacity;
+    uint8_t *Memory;
+    uint64_t ByteCount;
+    uint64_t ByteCapacity;
 } render_batch;
 
 typedef struct render_batch_node render_batch_node;
@@ -35,9 +41,9 @@ typedef struct render_batch_list
     render_batch_node *First;
     render_batch_node *Last;
 
-    u64 BatchCount;
-    u64 ByteCount;
-    u64 BytesPerInstance;
+    uint64_t BatchCount;
+    uint64_t ByteCount;
+    uint64_t BytesPerInstance;
 } render_batch_list;
 
 // Params Types
@@ -46,10 +52,10 @@ typedef struct render_batch_list
 
 typedef struct rect_group_params
 {
-    vec2_f32      TextureSize;
+    vec2_float      TextureSize;
     render_handle Texture;
     matrix_3x3    Transform;
-    rect_f32      Clip;
+    rect_float      Clip;
 } rect_group_params;
 
 // Group Types
@@ -72,7 +78,7 @@ typedef struct render_pass_params_ui
 {
     rect_group_node *First;
     rect_group_node *Last;
-    u32              Count;
+    uint32_t              Count;
 } render_pass_params_ui;
 
 // Stats Types
@@ -80,10 +86,10 @@ typedef struct render_pass_params_ui
 
 typedef struct render_pass_ui_stats
 {
-    u32 BatchCount;
-    u32 GroupCount;
-    u32 PassCount;
-    u64 RenderedDataSize;
+    uint32_t BatchCount;
+    uint32_t GroupCount;
+    uint32_t PassCount;
+    uint64_t RenderedDataSize;
 } render_pass_ui_stats;
 
 // Render Pass Types
@@ -125,31 +131,31 @@ typedef struct render_state
     render_pass_list PassList;
 } render_state;
 
-global render_state RenderState;
+static render_state RenderState;
 
 // [Globals]
 
-read_only global u64 RenderPassDataSizeTable[] =
+const static uint64_t RenderPassDataSizeTable[] =
 {
     80, // Inputs to UI pass (ui_rect)
 };
 
 // [Handles]
 
-internal b32           IsValidRenderHandle    (render_handle Handle);
-internal render_handle RenderHandle           (u64 Handle);
-internal b32           RenderHandleMatches    (render_handle H1, render_handle H2);
+static bool           IsValidRenderHandle    (render_handle Handle);
+static render_handle RenderHandle           (uint64_t Handle);
+static bool           RenderHandleMatches    (render_handle H1, render_handle H2);
 
 // [Batches]
 
-internal void        * PushDataInBatchList      (memory_arena *Arena, render_batch_list *BatchList);
-internal render_pass * GetRenderPass            (memory_arena *Arena, RenderPass_Type Type);
-internal b32           CanMergeRectGroupParams  (rect_group_params *Old, rect_group_params *New);
+static void        * PushDataInBatchList      (memory_arena *Arena, render_batch_list *BatchList);
+static render_pass * GetRenderPass            (memory_arena *Arena, RenderPass_Type Type);
+static bool           CanMergeRectGroupParams  (rect_group_params *Old, rect_group_params *New);
 
 // [PER-RENDERER API]
 
-internal render_handle InitializeRenderer    (void *HWindow, vec2_i32 Resolution, memory_arena *Arena);
-internal void          SubmitRenderCommands  (render_handle HRenderer, vec2_i32 Resolution, render_pass_list *RenderPassList);
+static render_handle InitializeRenderer    (void *HWindow, vec2_int Resolution, memory_arena *Arena);
+static void          SubmitRenderCommands  (render_handle HRenderer, vec2_int Resolution, render_pass_list *RenderPassList);
 
 // ------------------------------------------------------------------------------------
 // Textures
@@ -176,26 +182,26 @@ typedef enum RenderTexture_Wrap
 typedef struct render_texture_params
 {
     RenderTexture_Type   Type;
-    i32                  Width;
-    i32                  Height;
+    int                  Width;
+    int                  Height;
     RenderTexture_Filter MinFilter;
     RenderTexture_Filter MagFilter;
     RenderTexture_Wrap   WrapU;
     RenderTexture_Wrap   WrapV;
     void                *InitialData;
-    u32                  InitialDataSize;
-    b32                  GenerateMipmaps;
+    uint32_t                  InitialDataSize;
+    bool                  GenerateMipmaps;
 } render_texture_params;
 
 typedef struct render_texture
 {
     render_handle Texture;
     render_handle View;
-    vec2_f32      Size;
+    vec2_float      Size;
 } render_texture;
 
-internal render_texture CreateRenderTexture    (render_texture_params Params);
-internal void           CopyIntoRenderTexture  (render_texture Texture, rect_f32 Source, u8 *Pixels, u32 Pitch);
+static render_texture CreateRenderTexture    (render_texture_params Params);
+static void           CopyIntoRenderTexture  (render_texture Texture, rect_float Source, uint8_t *Pixels, uint32_t Pitch);
 
 // CreateGlyphCache:
 //   Creates the GPU resource used as the persistent glyph cache.
@@ -225,8 +231,8 @@ internal void           CopyIntoRenderTexture  (render_texture Texture, rect_f32
 
 typedef struct gpu_font_context gpu_font_context;
 
-internal b32  CreateGlyphCache      (render_handle HRenderer, vec2_f32 TextureSize, gpu_font_context *FontContext);
-internal b32  CreateGlyphTransfer   (render_handle HRenderer, vec2_f32 TextureSize, gpu_font_context *FontContext);
-internal void ReleaseGlyphCache     (gpu_font_context *FontContext);
-internal void ReleaseGlyphTransfer  (gpu_font_context *FontContext);
-internal void TransferGlyph         (rect_f32 Rect, render_handle HRenderer, gpu_font_context *FontContext);
+static bool  CreateGlyphCache      (render_handle HRenderer, vec2_float TextureSize, gpu_font_context *FontContext);
+static bool  CreateGlyphTransfer   (render_handle HRenderer, vec2_float TextureSize, gpu_font_context *FontContext);
+static void ReleaseGlyphCache     (gpu_font_context *FontContext);
+static void ReleaseGlyphTransfer  (gpu_font_context *FontContext);
+static void TransferGlyph         (rect_float Rect, render_handle HRenderer, gpu_font_context *FontContext);

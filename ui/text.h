@@ -6,58 +6,58 @@
 
 typedef struct glyph_hash
 {
-    u64 Value;
+    uint64_t Value;
 } glyph_hash;
 
 typedef struct glyph_table_params
 {
-    u32 EntryCount;
-    u32 HashCount;
+    uint32_t EntryCount;
+    uint32_t HashCount;
 } glyph_table_params;
 
 typedef struct glyph_table_stats
 {
-    u64 HitCount;
-    u64 MissCount;
+    uint64_t HitCount;
+    uint64_t MissCount;
 } glyph_table_stats;
 
 typedef struct glyph_entry
 {
     glyph_hash HashValue;
 
-    u32 NextWithSameHash;
-    u32 NextLRU;
-    u32 PrevLRU;
+    uint32_t NextWithSameHash;
+    uint32_t NextLRU;
+    uint32_t PrevLRU;
 
-    b32      IsRasterized;
-    rect_f32 Source;
-    rect_f32 Position;
-    vec2_f32 Offset;
-    vec2_i32 Size;
-    f32      AdvanceX;
+    bool      IsRasterized;
+    rect_float Source;
+    rect_float Position;
+    vec2_float Offset;
+    vec2_int Size;
+    float      AdvanceX;
 } glyph_entry;
 
 typedef struct glyph_table
 {
     glyph_table_stats Stats;
 
-    u32 HashMask;
-    u32 HashCount;
-    u32 EntryCount;
+    uint32_t HashMask;
+    uint32_t HashCount;
+    uint32_t EntryCount;
 
-    u32         *HashTable;
+    uint32_t         *HashTable;
     glyph_entry *Entries;
 } glyph_table;
 
 typedef struct glyph_state
 {
-    u32      Id;
-    b32      IsRasterized;
-    rect_f32 Source;
-    rect_f32 Position;
-    vec2_f32 Offset;
-    vec2_i32 Size;
-    f32      AdvanceX;
+    uint32_t      Id;
+    bool      IsRasterized;
+    rect_float Source;
+    rect_float Position;
+    vec2_float Offset;
+    vec2_int Size;
+    float      AdvanceX;
 } glyph_state;
 
 typedef struct ui_font ui_font;
@@ -70,9 +70,9 @@ struct ui_font
     os_font_context  OSContext;
 
     // Info
-    vec2_f32    TextureSize;
-    f32         LineHeight;
-    f32         Size;
+    vec2_float    TextureSize;
+    float         LineHeight;
+    float         Size;
     byte_string Name;
 
     // 2D Allocator
@@ -86,32 +86,32 @@ struct ui_font
 
 typedef struct ui_shaped_glyph
 {
-    rect_f32 Position;
-    rect_f32 Source;
-    vec2_f32 Offset;
-    vec2_i32 Size;
-    f32      AdvanceX;
+    rect_float Position;
+    rect_float Source;
+    vec2_float Offset;
+    vec2_int Size;
+    float      AdvanceX;
 } ui_shaped_glyph;
 
 typedef struct ui_text
 {
     render_handle    Atlas;
-    vec2_f32         AtlasSize;
-    f32              LineHeight; // NOTE: Weird..
+    vec2_float         AtlasSize;
+    float              LineHeight; // NOTE: Weird..
     ui_shaped_glyph *Shaped;
-    u32              ShapedCount;
-    u32              ShapedLimit;
-    f32              TotalHeight;
+    uint32_t              ShapedCount;
+    uint32_t              ShapedLimit;
+    float              TotalHeight;
 
 } ui_text;
 
 typedef struct ui_text_input
 {
     byte_string UserBuffer;
-    u64         InternalCount;
+    uint64_t         internalCount;
 
-    i32 CaretAnchor;
-    f32 CaretTimer;
+    int CaretAnchor;
+    float CaretTimer;
 
     // User Callbacks
     ui_text_input_onchar OnChar;
@@ -119,17 +119,17 @@ typedef struct ui_text_input
     void                *OnKeyUserData;
 } ui_text_input;
 
-internal u64       GetUITextFootprint   (u64 TextSize);
-internal ui_text * PlaceUITextInMemory  (byte_string Text, u64 BufferSize, ui_font *Font, void *Memory);
+static uint64_t       GetUITextFootprint   (uint64_t TextSize);
+static ui_text * PlaceUITextInMemory  (byte_string Text, uint64_t BufferSize, ui_font *Font, void *Memory);
 
-internal void UITextAppend_  (byte_string UTF8, ui_font *Font, ui_text *Text);
-internal void UITextClear_   (ui_text *Text);
+static void UITextAppend_  (byte_string UTF8, ui_font *Font, ui_text *Text);
+static void UITextClear_   (ui_text *Text);
 
 
-internal void UITextInputMoveCaret_  (ui_text *Text, ui_text_input *Input, i32 Offset);
-internal void UITextInputClear_      (ui_text_input *TextInput);
+static void UITextInputMoveCaret_  (ui_text *Text, ui_text_input *Input, int Offset);
+static void UITextInputClear_      (ui_text_input *TextInput);
 
 // [Fonts]
 
-internal ui_font * UILoadFont   (byte_string Name, f32 Size);
-internal ui_font * UIQueryFont  (byte_string Name, f32 Size);
+static ui_font * UILoadFont   (byte_string Name, float Size);
+static ui_font * UIQueryFont  (byte_string Name, float Size);

@@ -4,7 +4,7 @@
 
 // [CONSTANTS]
 
-enum ConsoleMessage_Severity : u32
+enum ConsoleMessage_Severity : uint32_t
 {
     ConsoleMessage_None  = 0,
     ConsoleMessage_Info  = 1,
@@ -13,14 +13,14 @@ enum ConsoleMessage_Severity : u32
     ConsoleMessage_Fatal = 4,
 };
 
-enum ConsoleMessagePoll_Result : u32
+enum ConsoleMessagePoll_Result : uint32_t
 {
     ConsoleMessagePoll_Empty = 0,
     ConsoleMessagePoll_Item  = 1,
     ConsoleMessagePoll_Retry = 2,
 };
 
-enum ConsoleMessage_Constant : u32
+enum ConsoleMessage_Constant : uint32_t
 {
     ConsoleMessage_MaximumLength = 512,
 };
@@ -34,9 +34,9 @@ enum ConsoleMessage_Constant : u32
 struct console_message
 {
     ConsoleMessage_Severity Severity;
-    u64                     TimeStamp;
-    u8                      Text[ConsoleMessage_MaximumLength];
-    u64                     TextSize;
+    uint64_t                     TimeStamp;
+    uint8_t                      Text[ConsoleMessage_MaximumLength];
+    uint64_t                     TextSize;
 };
 
 struct console_queue_node
@@ -55,21 +55,21 @@ struct console_queue
 
 // [PRODUCER API]
 
-internal void ConsolePushMessage       (console_queue_node *Node, console_queue *Queue);
-internal void ConsolePushMessageList   (console_queue_node *First, console_queue_node *Last, console_queue *Queue);
-internal void ConsolePushMessageBatch  (u64 NodeCount, console_queue_node *Nodes[], console_queue *Queue);
+static void ConsolePushMessage       (console_queue_node *Node, console_queue *Queue);
+static void ConsolePushMessageList   (console_queue_node *First, console_queue_node *Last, console_queue *Queue);
+static void ConsolePushMessageBatch  (uint64_t NodeCount, console_queue_node *Nodes[], console_queue *Queue);
 
 // [CONSUMER API]
 
-internal void                       InitializeConsoleMessageQueue  (console_queue *Queue);
-internal void                       ConsoleMessageQueuePushFront   (console_queue_node *Node, console_queue *Queue);
-internal b32                        ConsoleMessageQueueIsEmpty     (console_queue *Queue);
-internal ConsoleMessagePoll_Result  PollConsoleMessageQueue        (console_queue_node **OutNode, console_queue *Queue);
-internal console_queue_node       * PopConsoleMessageQueue         (console_queue *Queue);
-internal void                       FreeConsoleMessageNode         (console_queue_node *Node);
+static void                       InitializeConsoleMessageQueue  (console_queue *Queue);
+static void                       ConsoleMessageQueuePushFront   (console_queue_node *Node, console_queue *Queue);
+static bool                        ConsoleMessageQueueIsEmpty     (console_queue *Queue);
+static ConsoleMessagePoll_Result  PollConsoleMessageQueue        (console_queue_node **OutNode, console_queue *Queue);
+static console_queue_node       * PopConsoleMessageQueue         (console_queue *Queue);
+static void                       FreeConsoleMessageNode         (console_queue_node *Node);
 
 // [NON-ATOMIC API]
 
-internal u64   GetTimeStamp         (void);
-internal void  ConsoleWriteMessage  (ConsoleMessage_Severity Severity, byte_string Message, console_queue *Queue);
-internal void  FreeConsoleNode      (console_queue_node *Node);
+static uint64_t   GetTimeStamp         (void);
+static void  ConsoleWriteMessage  (ConsoleMessage_Severity Severity, byte_string Message, console_queue *Queue);
+static void  FreeConsoleNode      (console_queue_node *Node);

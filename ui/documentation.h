@@ -1,1 +1,1 @@
-internal void ShowVoidDocumentationUI  (void);
+static void ShowVoidDocumentationUI  (void);

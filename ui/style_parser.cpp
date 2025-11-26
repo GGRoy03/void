@@ -24,33 +24,33 @@ typedef enum StyleToken_Type
 enum StyleParser_Constant
 {
     StyleParser_MaximumTokenPerFile = 100000,
-    StyleParser_MaximumFileSize     = Gigabyte(1),
+    StyleParser_MaximumFileSize     = VOID_GIGABYTE(1),
     StyleParser_MaximumVarPerFile   = 1024,
     StyleParser_VarHashEntryPerFile = 256,
 };
 
-constexpr u32 InvalidStyleTableResult = Bit32;
+constexpr uint32_t InvalidStyleTableResult = VOID_BIT(32);
 
 typedef struct style_parser_table_entry
 {
     byte_string Name;
-    u32         Value;
+    uint32_t         Value;
 } style_parser_table_entry;
 
-read_only global style_parser_table_entry StyleKeywordTable[] =
+const static style_parser_table_entry StyleKeywordTable[] =
 {
     {byte_string_compile("style"), StyleToken_Style},
     {byte_string_compile("var")  , StyleToken_Var  },
 };
 
-read_only global style_parser_table_entry StyleStateTable[] =
+const static style_parser_table_entry StyleStateTable[] =
 {
     {byte_string_compile("default"), StyleState_Default},
     {byte_string_compile("hovered"), StyleState_Hovered},
     {byte_string_compile("focused"), StyleState_Focused},
 };
 
-read_only global style_parser_table_entry StylePropertyTable[] =
+const static style_parser_table_entry StylePropertyTable[] =
 {
     {byte_string_compile("size")        , StyleProperty_Size        },
     {byte_string_compile("color")       , StyleProperty_Color       },
@@ -82,25 +82,25 @@ read_only global style_parser_table_entry StylePropertyTable[] =
     {byte_string_compile("flex-shrink")    , StyleProperty_FlexShrink    },
 };
 
-read_only global style_parser_table_entry StyleUnitKeywordTable[] =
+const static style_parser_table_entry StyleUnitKeywordTable[] =
 {
     {byte_string_compile("auto"), UIUnit_Auto},
 };
 
-read_only global style_parser_table_entry StyleDisplayTable[] =
+const static style_parser_table_entry StyleDisplayTable[] =
 {
     {byte_string_compile("none")  , UIDisplay_None  },
     {byte_string_compile("normal"), UIDisplay_Normal},
     {byte_string_compile("flex")  , UIDisplay_Flex  },
 };
 
-read_only global style_parser_table_entry FlexDirectionTable[] =
+const static style_parser_table_entry FlexDirectionTable[] =
 {
     {byte_string_compile("row")   , UIFlexDirection_Row   },
     {byte_string_compile("column"), UIFlexDirection_Column},
 };
 
-read_only global style_parser_table_entry JustifyContentTable[] =
+const static style_parser_table_entry JustifyContentTable[] =
 {
     {byte_string_compile("start")        , UIJustifyContent_Start       },
     {byte_string_compile("center")       , UIJustifyContent_Center      },
@@ -110,7 +110,7 @@ read_only global style_parser_table_entry JustifyContentTable[] =
     {byte_string_compile("space-evenly") , UIJustifyContent_SpaceEvenly },
 };
 
-read_only global style_parser_table_entry AlignItemsTable[] =
+const static style_parser_table_entry AlignItemsTable[] =
 {
     {byte_string_compile("start")  , UIAlignItems_Start  },
     {byte_string_compile("center") , UIAlignItems_Center },
@@ -118,7 +118,7 @@ read_only global style_parser_table_entry AlignItemsTable[] =
     {byte_string_compile("stretch"), UIAlignItems_Stretch},
 };
 
-read_only global style_parser_table_entry SelfAlignTable[] =
+const static style_parser_table_entry SelfAlignTable[] =
 {
     {byte_string_compile("start")  , UIAlignItems_Start  },
     {byte_string_compile("center") , UIAlignItems_Center },
@@ -127,22 +127,22 @@ read_only global style_parser_table_entry SelfAlignTable[] =
     {byte_string_compile("none")   , UIAlignItems_None  },
 };
 
-read_only global style_parser_table_entry TextAlignTable[] =
+const static style_parser_table_entry TextAlignTable[] =
 {
     {byte_string_compile("start")  , UIAlign_Start  },
     {byte_string_compile("center") , UIAlign_Center },
     {byte_string_compile("end")    , UIAlign_End    },
 };
 
-internal u32
-FindEnumFromStyleTable(byte_string Name, read_only style_parser_table_entry *Table, u32 TableSize)
+static uint32_t
+FindEnumFromStyleTable(byte_string Name, const style_parser_table_entry *Table, uint32_t TableSize)
 {
-    u32 Result = InvalidStyleTableResult;
+    uint32_t Result = InvalidStyleTableResult;
 
-    for (u32 Idx = 0; Idx < TableSize; ++Idx)
+    for (uint32_t Idx = 0; Idx < TableSize; ++Idx)
     {
         style_parser_table_entry Entry = Table[Idx];
-        if (ByteStringMatches(Name, Entry.Name, NoFlag))
+        if (ByteStringMatches(Name, Entry.Name, 0))
         {
             Result = Entry.Value;
             return Result;
@@ -160,13 +160,13 @@ typedef struct style_file_debug_info
     byte_string  FileName;
     os_read_file FileContent;
 
-    u32 CurrentLineInFile;
+    uint32_t CurrentLineInFile;
 
-    u32 ErrorCount;
-    u32 WarningCount;
+    uint32_t ErrorCount;
+    uint32_t WarningCount;
 } style_file_debug_info;
 
-internal void
+static void
 ReportStyleParserError(style_file_debug_info *Debug, ConsoleMessage_Severity Severity, byte_string Message, console_queue *Console)
 {
     if (Severity == ConsoleMessage_Error)
@@ -181,10 +181,10 @@ ReportStyleParserError(style_file_debug_info *Debug, ConsoleMessage_Severity Sev
     ConsoleWriteMessage(Severity, Message, Console);
 }
 
-internal void
+static void
 ReportStyleFileError(style_file_debug_info *Debug, ConsoleMessage_Severity Severity, byte_string Message, console_queue *Console)
 {
-    u8          Buffer[Kilobyte(4)] = { 0 };
+    uint8_t          Buffer[VOID_KILOBYTE(4)] = { 0 };
     byte_string Error = ByteString(Buffer, 0);
 
     Error.Size += snprintf((char *)Error.String, sizeof(Buffer), "[File %s | Line: %u]", Debug->FileName.String, Debug->CurrentLineInFile);
@@ -199,13 +199,13 @@ ReportStyleFileError(style_file_debug_info *Debug, ConsoleMessage_Severity Sever
 typedef struct style_vector
 {
     vec4_unit V;
-    u32       Size;
+    uint32_t       Size;
 } style_vector;
 
 typedef struct style_token
 {
-    u64 LineInFile;
-    u64 ByteInFile;
+    uint64_t LineInFile;
+    uint64_t ByteInFile;
 
     StyleToken_Type Type;
     union
@@ -219,28 +219,28 @@ typedef struct style_token
 typedef struct style_token_buffer
 {
     style_token *Tokens;
-    u64          At;
-    u64          Count;
-    u64          Size;
+    uint64_t          At;
+    uint64_t          Count;
+    uint64_t          Size;
 } style_token_buffer;
 
 typedef struct tokenized_style_file
 {
-    b32                CanBeParsed;
-    u32                StylesCount;
+    bool                CanBeParsed;
+    uint32_t                StylesCount;
     style_token_buffer Buffer;
 } tokenized_style_file;
 
-internal ui_color
+static ui_color
 ToNormalizedColor(vec4_unit Vec)
 {
-    f32      Inverse = 1.f / 255;
+    float      Inverse = 1.f / 255;
     ui_color Result  = UIColor(Vec.X.Float32 * Inverse, Vec.Y.Float32 * Inverse, Vec.Z.Float32 * Inverse, Vec.W.Float32 * Inverse);
     return Result;
 }
 
-internal style_token *
-GetStyleToken(style_token_buffer *Buffer, i64 Index)
+static style_token *
+GetStyleToken(style_token_buffer *Buffer, long long Index)
 {
     style_token *Result = 0;
 
@@ -252,8 +252,8 @@ GetStyleToken(style_token_buffer *Buffer, i64 Index)
     return Result;
 }
 
-internal style_token *
-EmitStyleToken(style_token_buffer *Buffer, StyleToken_Type Type, u64 AtLine, u64 AtByte)
+static style_token *
+EmitStyleToken(style_token_buffer *Buffer, StyleToken_Type Type, uint64_t AtLine, uint64_t AtByte)
 {
     style_token *Result = GetStyleToken(Buffer, Buffer->Count++);
 
@@ -267,8 +267,8 @@ EmitStyleToken(style_token_buffer *Buffer, StyleToken_Type Type, u64 AtLine, u64
     return Result;
 }
 
-internal void
-EatStyleToken(style_token_buffer *Buffer, u32 Count)
+static void
+EatStyleToken(style_token_buffer *Buffer, uint32_t Count)
 {
     if (Buffer->At + Count < Buffer->Count)
     {
@@ -281,12 +281,12 @@ EatStyleToken(style_token_buffer *Buffer, u32 Count)
     }
 }
 
-internal style_token *
-PeekStyleToken(style_token_buffer *Buffer, i32 Offset)
+static style_token *
+PeekStyleToken(style_token_buffer *Buffer, int Offset)
 {
     style_token *Result = GetStyleToken(Buffer, (Buffer->At - 1));
 
-    i64 Index = Buffer->At + Offset;
+    long long Index = Buffer->At + Offset;
     if (Index >= 0 && Index < Buffer->Count)
     {
         Result = GetStyleToken(Buffer, Index);
@@ -295,7 +295,7 @@ PeekStyleToken(style_token_buffer *Buffer, i32 Offset)
     return Result;
 }
 
-internal b32
+static bool
 ExpectStyleToken(style_token_buffer *Buffer, StyleToken_Type Type)
 {
     style_token *Token = PeekStyleToken(Buffer, 0);
@@ -309,7 +309,7 @@ ExpectStyleToken(style_token_buffer *Buffer, StyleToken_Type Type)
     return 0;
 }
 
-internal style_token *
+static style_token *
 ConsumeStyleToken(style_token_buffer *Buffer, StyleToken_Type Type, byte_string ErrorMessage, style_file_debug_info *Debug)
 {
     style_token *Token = PeekStyleToken(Buffer, 0);
@@ -324,21 +324,21 @@ ConsumeStyleToken(style_token_buffer *Buffer, StyleToken_Type Type, byte_string 
     return 0;
 }
 
-internal b32
+static bool
 MatchStyleToken(style_token_buffer *Buffer, StyleToken_Type Type)
 {
     style_token *Token = PeekStyleToken(Buffer, 0);
     return Token->Type == Type;
 }
 
-internal byte_string
+static byte_string
 ReadIdentifier(os_read_file *File)
 {
     byte_string Result = ByteString(PeekFilePointer(File), 0);
 
     while (IsValidFile(File))
     {
-        u8 Character = PeekFile(File, 0);
+        uint8_t Character = PeekFile(File, 0);
         if (IsAlpha(Character) || Character == '_' || Character == '-')
         {
             ++Result.Size;
@@ -353,17 +353,17 @@ ReadIdentifier(os_read_file *File)
     return Result;
 }
 
-internal ui_unit
+static ui_unit
 ReadUnit(os_read_file *File, style_file_debug_info *Debug)
 {
     ui_unit Result = {};
 
     if (IsDigit(PeekFile(File, 0)))
     {
-        f64 Number = 0;
+        double Number = 0;
         while (IsValidFile(File))
         {
-            u8 Char = PeekFile(File, 0);
+            uint8_t Char = PeekFile(File, 0);
             if (IsDigit(Char))
             {
                 Number = (Number * 10) + (Char - '0');
@@ -379,13 +379,13 @@ ReadUnit(os_read_file *File, style_file_debug_info *Debug)
         {
             AdvanceFile(File, 1);
 
-            f64 C = 1.0 / 10.0;
+            double C = 1.0 / 10.0;
             while (IsValidFile(File))
             {
-                u8 Char = PeekFile(File, 0);
+                uint8_t Char = PeekFile(File, 0);
                 if (IsDigit(Char))
                 {
-                    Number = Number + (C * (f64)(Char - '0'));
+                    Number = Number + (C * (double)(Char - '0'));
                     C     *= 1.0f / 10.0f;
 
                     AdvanceFile(File, 1);
@@ -403,7 +403,7 @@ ReadUnit(os_read_file *File, style_file_debug_info *Debug)
 
             if (Number >= 0.f && Number <= 100.f)
             {
-                Result.Percent = (f32)Number;
+                Result.Percent = (float)Number;
                 AdvanceFile(File, 1);
             }
             else
@@ -414,14 +414,14 @@ ReadUnit(os_read_file *File, style_file_debug_info *Debug)
         else
         {
             Result.Type    = UIUnit_Float32;
-            Result.Float32 = (f32)Number;
+            Result.Float32 = (float)Number;
         }
     } else
     if (IsAlpha(PeekFile(File, 0)))
     {
         byte_string Identifier = ReadIdentifier(File);
 
-        Result.Type = (UIUnit_Type)FindEnumFromStyleTable(Identifier, StyleUnitKeywordTable, ArrayCount(StyleUnitKeywordTable));
+        Result.Type = (UIUnit_Type)FindEnumFromStyleTable(Identifier, StyleUnitKeywordTable, VOID_ARRAYCOUNT(StyleUnitKeywordTable));
         if(Result.Type == UIUnit_None)
         {
             ReportStyleFileError(Debug, error_message("Found invalid identifier in file."));
@@ -434,7 +434,7 @@ ReadUnit(os_read_file *File, style_file_debug_info *Debug)
     return Result;
 }
 
-internal style_vector
+static style_vector
 ReadVector(os_read_file *File, style_file_debug_info *Debug)
 {
     style_vector Result = {};
@@ -450,7 +450,7 @@ ReadVector(os_read_file *File, style_file_debug_info *Debug)
 
             SkipWhiteSpaces(File);
 
-            u8 Character = PeekFile(File, 0);
+            uint8_t Character = PeekFile(File, 0);
             if (Character == ',')
             {
                 AdvanceFile(File, 1);
@@ -471,7 +471,7 @@ ReadVector(os_read_file *File, style_file_debug_info *Debug)
     return Result;
 }
 
-internal tokenized_style_file
+static tokenized_style_file
 TokenizeStyleFile(os_read_file File, memory_arena *Arena, style_file_debug_info *Debug)
 {
     tokenized_style_file Result = {};
@@ -482,9 +482,9 @@ TokenizeStyleFile(os_read_file File, memory_arena *Arena, style_file_debug_info 
     {
         SkipWhiteSpaces(&File);
 
-        u8  Char   = PeekFile(&File, 0);
-        u64 AtLine = Debug->CurrentLineInFile;
-        u64 AtByte = File.At;
+        uint8_t  Char   = PeekFile(&File, 0);
+        uint64_t AtLine = Debug->CurrentLineInFile;
+        uint64_t AtByte = File.At;
 
         if (IsAlpha(Char))
         {
@@ -493,7 +493,7 @@ TokenizeStyleFile(os_read_file File, memory_arena *Arena, style_file_debug_info 
             {
                 style_token *Token = 0;
 
-                u32 TokenType = FindEnumFromStyleTable(Identifier, StyleKeywordTable, ArrayCount(StyleKeywordTable));
+                uint32_t TokenType = FindEnumFromStyleTable(Identifier, StyleKeywordTable, VOID_ARRAYCOUNT(StyleKeywordTable));
                 if(TokenType != InvalidStyleTableResult)
                 {
                     Token = EmitStyleToken(&Result.Buffer, (StyleToken_Type)TokenType, AtLine, AtByte);
@@ -533,7 +533,7 @@ TokenizeStyleFile(os_read_file File, memory_arena *Arena, style_file_debug_info 
 
         if (IsNewLine(Char))
         {
-            u8 Next = PeekFile(&File, 1);
+            uint8_t Next = PeekFile(&File, 1);
             if (Char == '\r' && Next == '\n')
             {
                 AdvanceFile(&File, 2);
@@ -640,71 +640,71 @@ TokenizeStyleFile(os_read_file File, memory_arena *Arena, style_file_debug_info 
 
 typedef struct style_var_hash
 {
-    u64 Value;
+    uint64_t Value;
 } style_var_hash;
 
 typedef struct style_var_entry
 {
     style_var_hash Hash;
-    u32            NextWithSameHash;
+    uint32_t            NextWithSameHash;
 
-    b32          ValueIsParsed;
+    bool          ValueIsParsed;
     style_token *ValueToken;
 } style_var_entry;
 
 typedef struct style_var_table_params
 {
-    u32 HashCount;
-    u32 EntryCount;
+    uint32_t HashCount;
+    uint32_t EntryCount;
 } style_var_table_params;
 
 typedef struct style_var_table
 {
-    u32 HashMask;
-    u32 HashCount;
-    u32 EntryCount;
+    uint32_t HashMask;
+    uint32_t HashCount;
+    uint32_t EntryCount;
 
-    u32             *HashTable;
+    uint32_t             *HashTable;
     style_var_entry *Entries;
 } style_var_table;
 
 typedef struct style_variable
 {
-    b32          IsValid;
+    bool          IsValid;
     byte_string  Name;
-    u32          LineInFile;
+    uint32_t          LineInFile;
     style_token *ValueToken;
 } style_variable;
 
-internal style_var_entry *
-GetStyleVarEntry(u32 Index, style_var_table *Table)
+static style_var_entry *
+GetStyleVarEntry(uint32_t Index, style_var_table *Table)
 {
-    Assert(Index < Table->EntryCount);
+    VOID_ASSERT(Index < Table->EntryCount);
 
     style_var_entry *Result = Table->Entries + Index;
     return Result;
 }
 
-internal style_var_entry *
+static style_var_entry *
 GetStyleVarSentinel(style_var_table *Table)
 {
     style_var_entry *Result = Table->Entries;
     return Result;
 }
 
-internal style_var_table *
+static style_var_table *
 PlaceStyleVarTableInMemory(style_var_table_params Params, void *Memory)
 {
-    Assert(Params.EntryCount > 0);
-    Assert(Params.HashCount > 0);
-    Assert(IsPowerOfTwo(Params.HashCount));
+    VOID_ASSERT(Params.EntryCount > 0);
+    VOID_ASSERT(Params.HashCount > 0);
+    VOID_ASSERT(VOID_ISPOWEROFTWO(Params.HashCount));
 
     style_var_table *Result = 0;
 
     if (Memory)
     {
         Result = (style_var_table *)Memory;
-        Result->HashTable = (u32 *)(Result + 1);
+        Result->HashTable = (uint32_t *)(Result + 1);
         Result->Entries = (style_var_entry *)(Result->HashTable + Params.HashCount);
 
         Result->HashMask = Params.HashCount - 1;
@@ -713,7 +713,7 @@ PlaceStyleVarTableInMemory(style_var_table_params Params, void *Memory)
 
         MemorySet(Result->HashTable, 0, Result->HashCount * sizeof(Result->HashTable[0]));
 
-        for (u32 Idx = 0; Idx < Params.EntryCount; Idx++)
+        for (uint32_t Idx = 0; Idx < Params.EntryCount; Idx++)
         {
             style_var_entry *Entry = GetStyleVarEntry(Idx, Result);
             if ((Idx + 1) < Params.EntryCount)
@@ -732,7 +732,7 @@ PlaceStyleVarTableInMemory(style_var_table_params Params, void *Memory)
     return Result;
 }
 
-internal u32
+static uint32_t
 PopFreeStyleVarEntry(style_var_table *Table)
 {
     style_var_entry *Sentinel = GetStyleVarSentinel(Table);
@@ -742,7 +742,7 @@ PopFreeStyleVarEntry(style_var_table *Table)
         return 0;
     }
 
-    u32              Result = Sentinel->NextWithSameHash;
+    uint32_t              Result = Sentinel->NextWithSameHash;
     style_var_entry *Entry = GetStyleVarEntry(Result, Table);
 
     Sentinel->NextWithSameHash = Entry->NextWithSameHash;
@@ -751,11 +751,11 @@ PopFreeStyleVarEntry(style_var_table *Table)
     return Result;
 }
 
-internal style_var_entry *
+static style_var_entry *
 FindStyleVarEntry(style_var_hash Hash, style_var_table *Table)
 {
-    u32 HashSlot = Hash.Value & Table->HashMask;
-    u32 EntryIndex = Table->HashTable[HashSlot];
+    uint32_t HashSlot = Hash.Value & Table->HashMask;
+    uint32_t EntryIndex = Table->HashTable[HashSlot];
 
     style_var_entry *Result = 0;
     while (EntryIndex)
@@ -786,24 +786,24 @@ FindStyleVarEntry(style_var_hash Hash, style_var_table *Table)
     return Result;
 }
 
-internal style_var_hash
+static style_var_hash
 HashStyleVar(byte_string Name)
 {
     style_var_hash Result = { HashByteString(Name) };
     return Result;
 }
 
-internal size_t
+static size_t
 GetStyleVarTableFootprint(style_var_table_params Params)
 {
-    size_t HashSize = Params.HashCount * sizeof(u32);
+    size_t HashSize = Params.HashCount * sizeof(uint32_t);
     size_t EntrySize = Params.EntryCount * sizeof(style_var_entry);
     size_t Result = sizeof(style_var_table) + HashSize + EntrySize;
 
     return Result;
 }
 
-internal style_variable
+static style_variable
 ParseStyleVariable(style_token_buffer *Buffer, style_file_debug_info *Debug)
 {
     style_variable Variable = { 0 };
@@ -852,7 +852,7 @@ ParseStyleVariable(style_token_buffer *Buffer, style_file_debug_info *Debug)
 
 //-----------------------------------------------------------------------------------
 
-internal StyleState_Type
+static StyleState_Type
 ParseStyleState(style_token_buffer *Buffer, style_file_debug_info *Debug)
 {
     StyleState_Type Result = StyleState_None;
@@ -865,7 +865,7 @@ ParseStyleState(style_token_buffer *Buffer, style_file_debug_info *Debug)
     style_token *Name = ConsumeStyleToken(Buffer, StyleToken_Identifier, byte_string_literal("Expected Default OR Hover OR Focus after using @"), Debug);
     if(Name)
     {
-        u32 Enum = FindEnumFromStyleTable(Name->Identifier, StyleStateTable, ArrayCount(StyleStateTable));
+        uint32_t Enum = FindEnumFromStyleTable(Name->Identifier, StyleStateTable, VOID_ARRAYCOUNT(StyleStateTable));
         if(Enum != InvalidStyleTableResult)
         {
             Result = (StyleState_Type)Enum;
@@ -885,7 +885,7 @@ ParseStyleState(style_token_buffer *Buffer, style_file_debug_info *Debug)
 // Value must abide to the rules specific to that attribute.
 // Attributes are stored inside style blocks. See Style Blocks for more information.
 
-internal style_property
+static style_property
 ConvertToStyleProperty(style_token *Value, StyleProperty_Type PropType, style_file_debug_info *Debug)
 {
     style_property Result = {};
@@ -943,7 +943,7 @@ ConvertToStyleProperty(style_token *Value, StyleProperty_Type PropType, style_fi
         }
         else
         {
-            Assert(!"Not Possible");
+            VOID_ASSERT(!"Not Possible");
         }
     } break;
 
@@ -979,10 +979,10 @@ ConvertToStyleProperty(style_token *Value, StyleProperty_Type PropType, style_fi
         }
 
         vec4_unit V = Value->Vector.V;
-        if (V.X.Type != UIUnit_Float32 || !IsInRangeF32(0.f, 255.f, V.X.Float32) ||
-            V.Y.Type != UIUnit_Float32 || !IsInRangeF32(0.f, 255.f, V.Y.Float32) ||
-            V.Z.Type != UIUnit_Float32 || !IsInRangeF32(0.f, 255.f, V.Z.Float32) ||
-            V.W.Type != UIUnit_Float32 || !IsInRangeF32(0.f, 255.f, V.W.Float32))
+        if (V.X.Type != UIUnit_Float32 || !IsInRangefloat(0.f, 255.f, V.X.Float32) ||
+            V.Y.Type != UIUnit_Float32 || !IsInRangefloat(0.f, 255.f, V.Y.Float32) ||
+            V.Z.Type != UIUnit_Float32 || !IsInRangefloat(0.f, 255.f, V.Z.Float32) ||
+            V.W.Type != UIUnit_Float32 || !IsInRangefloat(0.f, 255.f, V.W.Float32))
         {
             ErrorMessage = byte_string_literal("Color values must be floats in range [0, 255]");
             break;
@@ -1038,42 +1038,42 @@ ConvertToStyleProperty(style_token *Value, StyleProperty_Type PropType, style_fi
             break;
         }
 
-        read_only style_parser_table_entry *Table     = 0;
-        u32                                 TableSize = 0;
+        const style_parser_table_entry *Table     = 0;
+        uint32_t                                 TableSize = 0;
 
         if(PropType == StyleProperty_Display)
         {
             Table     = StyleDisplayTable;
-            TableSize = ArrayCount(StyleDisplayTable);
+            TableSize = VOID_ARRAYCOUNT(StyleDisplayTable);
         } else
         if(PropType == StyleProperty_SelfAlign)
         {
             Table     = SelfAlignTable;
-            TableSize = ArrayCount(SelfAlignTable);
+            TableSize = VOID_ARRAYCOUNT(SelfAlignTable);
         } else
         if(PropType == StyleProperty_XTextAlign || PropType == StyleProperty_YTextAlign)
         {
             Table     = TextAlignTable;
-            TableSize = ArrayCount(TextAlignTable);
+            TableSize = VOID_ARRAYCOUNT(TextAlignTable);
         } else
         if(PropType == StyleProperty_AlignItems)
         {
             Table     = AlignItemsTable;
-            TableSize = ArrayCount(AlignItemsTable);
+            TableSize = VOID_ARRAYCOUNT(AlignItemsTable);
         } else
         if(PropType == StyleProperty_FlexDirection)
         {
             Table     = FlexDirectionTable;
-            TableSize = ArrayCount(FlexDirectionTable);
+            TableSize = VOID_ARRAYCOUNT(FlexDirectionTable);
         } else
         if(PropType == StyleProperty_JustifyContent)
         {
             Table     = JustifyContentTable;
-            TableSize = ArrayCount(JustifyContentTable);
+            TableSize = VOID_ARRAYCOUNT(JustifyContentTable);
         }
 
-        Assert(Table);
-        Assert(TableSize);
+        VOID_ASSERT(Table);
+        VOID_ASSERT(TableSize);
 
         Result.Enum = FindEnumFromStyleTable(Value->Identifier, Table, TableSize);
         if(Result.Enum == InvalidStyleTableResult)
@@ -1085,7 +1085,7 @@ ConvertToStyleProperty(style_token *Value, StyleProperty_Type PropType, style_fi
 
     default:
     {
-        Assert(!"Forgot to handle property type");
+        VOID_ASSERT(!"Forgot to handle property type");
     } break;
 
     }
@@ -1099,7 +1099,7 @@ ConvertToStyleProperty(style_token *Value, StyleProperty_Type PropType, style_fi
     return Result;
 }
 
-internal style_property
+static style_property
 ParseStyleProperty(style_token_buffer *Buffer, style_var_table *VarTable, style_file_debug_info *Debug)
 {
     style_property Property = {};
@@ -1107,7 +1107,7 @@ ParseStyleProperty(style_token_buffer *Buffer, style_var_table *VarTable, style_
     style_token *Name = ConsumeStyleToken(Buffer, StyleToken_Identifier, byte_string_literal("Expected an attribute name."), Debug);
     if(Name)
     {
-        u32 PropertyType = FindEnumFromStyleTable(Name->Identifier, StylePropertyTable, ArrayCount(StylePropertyTable));
+        uint32_t PropertyType = FindEnumFromStyleTable(Name->Identifier, StylePropertyTable, VOID_ARRAYCOUNT(StylePropertyTable));
         if(PropertyType == InvalidStyleTableResult)
         {
             ReportStyleFileError(Debug, error_message("Invalid attribute name"));
@@ -1148,7 +1148,7 @@ ParseStyleProperty(style_token_buffer *Buffer, style_var_table *VarTable, style_
         return Property;
     }
 
-    Assert(Value);
+    VOID_ASSERT(Value);
     Property = ConvertToStyleProperty(Value, Property.Type, Debug);
 
     return Property;
@@ -1177,14 +1177,14 @@ typedef enum ParseBlock_State
 
 typedef struct style_block
 {
-    u32            PropsCount;
+    uint32_t            PropsCount;
     style_property Props[StyleState_Count][StyleProperty_Count];
 } style_block;
 
 // BUG:
 // These look bugged.
 
-internal void
+static void
 SynchronizeToNextEffect(style_token_buffer *Buffer)
 {
     while(!MatchStyleToken(Buffer, StyleToken_AtSymbol) && !MatchStyleToken(Buffer, StyleToken_CloseBrace) && !MatchStyleToken(Buffer, StyleToken_EndOfFile))
@@ -1193,7 +1193,7 @@ SynchronizeToNextEffect(style_token_buffer *Buffer)
     }
 }
 
-internal void
+static void
 SynchronizeToNextProperty(style_token_buffer *Buffer)
 {
     while(!MatchStyleToken(Buffer, StyleToken_SemiColon) && !MatchStyleToken(Buffer, StyleToken_CloseBrace) && !MatchStyleToken(Buffer, StyleToken_EndOfFile))
@@ -1208,7 +1208,7 @@ SynchronizeToNextProperty(style_token_buffer *Buffer)
     }
 }
 
-internal style_block
+static style_block
 ParseStyleBlock(style_token_buffer *Buffer, style_var_table *VarTable, style_file_debug_info *Debug)
 {
     style_block Result = {};
@@ -1278,7 +1278,7 @@ ParseStyleBlock(style_token_buffer *Buffer, style_var_table *VarTable, style_fil
 
         default:
         {
-            Assert(!"Invalid Parser State");
+            VOID_ASSERT(!"Invalid Parser State");
         } break;
 
         }
@@ -1292,11 +1292,11 @@ ParseStyleBlock(style_token_buffer *Buffer, style_var_table *VarTable, style_fil
 
 typedef struct style_header
 {
-    b32         HadError;
+    bool         HadError;
     byte_string StyleName;
 } style_header;
 
-internal style_header
+static style_header
 ParseStyleHeader(style_token_buffer *Buffer, style_file_debug_info *Debug)
 {
     style_header Header = {};
@@ -1327,17 +1327,17 @@ typedef struct style
     style_block  Block;
 } style;
 
-internal b32
+static bool
 IsPropertySet(ui_cached_style *Style, StyleState_Type State, StyleProperty_Type Property)
 {
-    b32 Result = Style->Properties[State][Property].IsSet;
+    bool Result = Style->Properties[State][Property].IsSet;
     return Result;
 }
 
-internal void
+static void
 CacheStyle(style *ParsedStyle, ui_style_registry *Registry, style_file_debug_info *Debug)
 {
-    Assert(Registry->StylesCount < Registry->StylesCapacity);
+    VOID_ASSERT(Registry->StylesCount < Registry->StylesCapacity);
 
     ui_cached_style *CachedStyle = Registry->Styles + Registry->StylesCount;
     style_header    *Header      = &ParsedStyle->Header;
@@ -1364,7 +1364,7 @@ CacheStyle(style *ParsedStyle, ui_style_registry *Registry, style_file_debug_inf
             if(IsPropertySet(CachedStyle, State, StyleProperty_FontSize))
             {
                 style_property *Props = GetCachedProperties(CachedStyle->CachedIndex, StyleState_Default, Registry);
-                f32 Size = UIGetFontSize(Props);
+                float Size = UIGetFontSize(Props);
 
                 ui_font *Font = UIQueryFont(Name, Size);
                 if(!Font)
@@ -1377,10 +1377,10 @@ CacheStyle(style *ParsedStyle, ui_style_registry *Registry, style_file_debug_inf
         }
     }
 
-    Useless(Header); // NOTE: Useless at the moment. Unsure where I wanna go with this.
+    VOID_UNUSED(Header); // NOTE: VOID_UNUSED at the moment. Unsure where I wanna go with this.
 }
 
-internal ui_style_registry *
+static ui_style_registry *
 ParseStyleFile(tokenized_style_file *File, memory_arena *RoutineArena, memory_arena *OutputArena, style_file_debug_info *Debug)
 {
     ui_style_registry *Result = PushStruct(OutputArena, ui_style_registry);
@@ -1398,7 +1398,7 @@ ParseStyleFile(tokenized_style_file *File, memory_arena *RoutineArena, memory_ar
             Params.HashCount  = StyleParser_VarHashEntryPerFile;
 
             size_t Footprint      = GetStyleVarTableFootprint(Params);
-            u8    *VarTableMemory = PushArray(RoutineArena, u8, Footprint);
+            uint8_t    *VarTableMemory = PushArray(RoutineArena, uint8_t, Footprint);
 
             VarTable = PlaceStyleVarTableInMemory(Params, VarTableMemory);
         }
@@ -1451,7 +1451,7 @@ ParseStyleFile(tokenized_style_file *File, memory_arena *RoutineArena, memory_ar
 // ----------------------------------------------------------------------------------
 // Public API Implementation
 
-internal ui_style_registry *
+static ui_style_registry *
 CreateStyleRegistry(byte_string FileName, memory_arena *OutputArena)
 {
     ui_style_registry *Result = 0;
@@ -1478,7 +1478,7 @@ CreateStyleRegistry(byte_string FileName, memory_arena *OutputArena)
         return Result;
     }
 
-    u64 FileSize = OSFileSize(FileHandle);
+    uint64_t FileSize = OSFileSize(FileHandle);
     if(FileSize > StyleParser_MaximumFileSize)
     {
         return Result;

@@ -4,46 +4,46 @@
 typedef struct d3d11_format
 {
     DXGI_FORMAT Native;
-    u32         BytesPerPixel;
+    uint32_t         BytesPerPixel;
 } d3d11_format;
 
-internal d3d11_renderer *
+static d3d11_renderer *
 D3D11GetRenderer(render_handle HRenderer)
 {
-    d3d11_renderer *Result = (d3d11_renderer *)HRenderer.u64[0];
+    d3d11_renderer *Result = (d3d11_renderer *)HRenderer.uint64_t[0];
     return Result;
 }
 
-internal ID3D11Texture2D *
+static ID3D11Texture2D *
 D3D11GetTexture2D(render_handle Handle)
 {
-    ID3D11Texture2D *Result = (ID3D11Texture2D *)Handle.u64[0];
+    ID3D11Texture2D *Result = (ID3D11Texture2D *)Handle.uint64_t[0];
     return Result;
 }
 
-internal ID3D11ShaderResourceView *
+static ID3D11ShaderResourceView *
 D3D11GetShaderView(render_handle Handle)
 {
-    ID3D11ShaderResourceView *Result = (ID3D11ShaderResourceView *)Handle.u64[0];
+    ID3D11ShaderResourceView *Result = (ID3D11ShaderResourceView *)Handle.uint64_t[0];
     return Result;
 }
 
-internal ID3D11Buffer *
-D3D11GetVertexBuffer(u64 Size, d3d11_renderer *Renderer)
+static ID3D11Buffer *
+D3D11GetVertexBuffer(uint64_t Size, d3d11_renderer *Renderer)
 {
     ID3D11Buffer *Result = Renderer->VBuffer64KB;
 
-    if(Size > Kilobyte(64))
+    if(Size > VOID_KILOBYTE(64))
     {
     }
 
     return Result;
 }
 
-internal void
+static void
 D3D11Release(d3d11_renderer *Renderer)
 {
-    Assert(Renderer);
+    VOID_ASSERT(Renderer);
 
     if (Renderer->Device)
     {
@@ -70,7 +70,7 @@ D3D11Release(d3d11_renderer *Renderer)
     }
 }
 
-internal d3d11_format
+static d3d11_format
 D3D11GetFormat(RenderTexture_Type Type)
 {
     d3d11_format Result = {};
@@ -85,14 +85,14 @@ D3D11GetFormat(RenderTexture_Type Type)
 
         default:
         {
-            Assert(!"Invalid Format Type");
+            VOID_ASSERT(!"Invalid Format Type");
         } break;
     }
 
     return Result;
 }
 
-internal D3D11_TEXTURE_ADDRESS_MODE
+static D3D11_TEXTURE_ADDRESS_MODE
 D3D11GetTextureAddressMode(RenderTexture_Wrap Type)
 {
     D3D11_TEXTURE_ADDRESS_MODE Result = D3D11_TEXTURE_ADDRESS_CLAMP;
@@ -109,8 +109,8 @@ D3D11GetTextureAddressMode(RenderTexture_Wrap Type)
 
 // [PER-RENDERER API]
 
-internal render_handle
-InitializeRenderer(void *HWindow, vec2_i32 Resolution, memory_arena *Arena)
+static render_handle
+InitializeRenderer(void *HWindow, vec2_int Resolution, memory_arena *Arena)
 {
     render_handle   Result   = { 0 };
     d3d11_renderer *Renderer = PushArray(Arena, d3d11_renderer, 1); 
@@ -202,7 +202,7 @@ InitializeRenderer(void *HWindow, vec2_i32 Resolution, memory_arena *Arena)
     // Default Buffers
     {
         D3D11_BUFFER_DESC Desc = {};
-        Desc.ByteWidth      = Kilobyte(64);
+        Desc.ByteWidth      = VOID_KILOBYTE(64);
         Desc.Usage          = D3D11_USAGE_DYNAMIC;
         Desc.BindFlags      = D3D11_BIND_VERTEX_BUFFER;
         Desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
@@ -236,7 +236,7 @@ InitializeRenderer(void *HWindow, vec2_i32 Resolution, memory_arena *Arena)
             }
 
             void *ByteCode = VShaderSrcBlob->GetBufferPointer();
-            u64   ByteSize = VShaderSrcBlob->GetBufferSize();
+            uint64_t   ByteSize = VShaderSrcBlob->GetBufferSize();
             Error = Device->CreateVertexShader(ByteCode, ByteSize, 0, &VShader);
             if(FAILED(Error))
             {
@@ -268,7 +268,7 @@ InitializeRenderer(void *HWindow, vec2_i32 Resolution, memory_arena *Arena)
             }
 
             void *ByteCode = PShaderSrcBlob->GetBufferPointer();
-            u64   ByteSize = PShaderSrcBlob->GetBufferSize();
+            uint64_t   ByteSize = PShaderSrcBlob->GetBufferSize();
             Error = Device->CreatePixelShader(ByteCode, ByteSize, 0, &PShader);
             if (FAILED(Error))
             {
@@ -358,12 +358,12 @@ InitializeRenderer(void *HWindow, vec2_i32 Resolution, memory_arena *Arena)
         Renderer->LastResolution = Resolution;
     }
 
-    Result.u64[0] = (u64)Renderer;
+    Result.uint64_t[0] = (uint64_t)Renderer;
     return Result;
 }
 
-internal void 
-SubmitRenderCommands(render_handle HRenderer, vec2_i32 Resolution, render_pass_list *RenderPassList)
+static void 
+SubmitRenderCommands(render_handle HRenderer, vec2_int Resolution, render_pass_list *RenderPassList)
 {
     d3d11_renderer *Renderer = D3D11GetRenderer(HRenderer);
 
@@ -377,7 +377,7 @@ SubmitRenderCommands(render_handle HRenderer, vec2_i32 Resolution, render_pass_l
     IDXGISwapChain1        *SwapChain     = Renderer->SwapChain;
 
     // Update State
-    vec2_i32 CurrentResolution = Renderer->LastResolution;
+    vec2_int CurrentResolution = Renderer->LastResolution;
     {
         if (!(Resolution == CurrentResolution))
         {
@@ -405,7 +405,7 @@ SubmitRenderCommands(render_handle HRenderer, vec2_i32 Resolution, render_pass_l
             render_pass_params_ui Params = Pass.Params.UI.Params;
 
             // Rasterizer
-            D3D11_VIEWPORT Viewport = { 0.0f, 0.0f, (f32)Resolution.X, (f32)Resolution.Y, 0.0f, 1.0f };
+            D3D11_VIEWPORT Viewport = { 0.0f, 0.0f, (float)Resolution.X, (float)Resolution.Y, 0.0f, 1.0f };
             DeviceContext->RSSetState(Renderer->RasterSt[RenderPass_UI]);
             DeviceContext->RSSetViewports(1, &Viewport);
 
@@ -420,11 +420,11 @@ SubmitRenderCommands(render_handle HRenderer, vec2_i32 Resolution, render_pass_l
                     D3D11_MAPPED_SUBRESOURCE Resource = { 0 };
                     DeviceContext->Map((ID3D11Resource *)VBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);
 
-                    u8 *WritePointer = static_cast<u8*>(Resource.pData);
-                    u64 WriteOffset  = 0;
+                    uint8_t *WritePointer = static_cast<uint8_t*>(Resource.pData);
+                    uint64_t WriteOffset  = 0;
                     for (render_batch_node *Batch = BatchList.First; Batch != 0; Batch = Batch->Next)
                     {
-                        u64 WriteSize = Batch->Value.ByteCount;
+                        uint64_t WriteSize = Batch->Value.ByteCount;
                         MemoryCopy(WritePointer + WriteOffset, Batch->Value.Memory, WriteSize);
                         WriteOffset += WriteSize;
                     }
@@ -436,10 +436,10 @@ SubmitRenderCommands(render_handle HRenderer, vec2_i32 Resolution, render_pass_l
                 ID3D11Buffer *UniformBuffer = Renderer->UBuffers[RenderPass_UI];
                 {
                     d3d11_rect_uniform_buffer Uniform = {};
-                    Uniform.Transform[0]        = Vec4F32(NodeParams.Transform.c0r0, NodeParams.Transform.c0r1, NodeParams.Transform.c0r2, 0);
-                    Uniform.Transform[1]        = Vec4F32(NodeParams.Transform.c1r0, NodeParams.Transform.c1r1, NodeParams.Transform.c1r2, 0);
-                    Uniform.Transform[2]        = Vec4F32(NodeParams.Transform.c2r0, NodeParams.Transform.c2r1, NodeParams.Transform.c2r2, 0);
-                    Uniform.ViewportSizeInPixel = vec2_f32((f32)Resolution.X, (f32)Resolution.Y);
+                    Uniform.Transform[0]        = Vec4float(NodeParams.Transform.c0r0, NodeParams.Transform.c0r1, NodeParams.Transform.c0r2, 0);
+                    Uniform.Transform[1]        = Vec4float(NodeParams.Transform.c1r0, NodeParams.Transform.c1r1, NodeParams.Transform.c1r2, 0);
+                    Uniform.Transform[2]        = Vec4float(NodeParams.Transform.c2r0, NodeParams.Transform.c2r1, NodeParams.Transform.c2r2, 0);
+                    Uniform.ViewportSizeInPixel = vec2_float((float)Resolution.X, (float)Resolution.Y);
                     Uniform.AtlasSizeInPixel    = NodeParams.TextureSize;
 
                     D3D11_MAPPED_SUBRESOURCE Resource = {};
@@ -459,8 +459,8 @@ SubmitRenderCommands(render_handle HRenderer, vec2_i32 Resolution, render_pass_l
                 DeviceContext->OMSetBlendState(Renderer->DefaultBlendState, 0, 0xFFFFFFFF);
 
                 // IA
-                u32 Stride = (u32)BatchList.BytesPerInstance;
-                u32 Offset = 0;
+                uint32_t Stride = (uint32_t)BatchList.BytesPerInstance;
+                uint32_t Offset = 0;
                 DeviceContext->IASetVertexBuffers(0, 1, &VBuffer, &Stride, &Offset);
                 DeviceContext->IASetInputLayout(ILayout);
                 DeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
@@ -474,7 +474,7 @@ SubmitRenderCommands(render_handle HRenderer, vec2_i32 Resolution, render_pass_l
 
                 // Scissor
                 {
-                    rect_f32   Clip = NodeParams.Clip;
+                    rect_float   Clip = NodeParams.Clip;
                     D3D11_RECT Rect = {};
 
                     if (Clip.Left == 0 && Clip.Top == 0 && Clip.Right == 0 && Clip.Bottom == 0)
@@ -503,7 +503,7 @@ SubmitRenderCommands(render_handle HRenderer, vec2_i32 Resolution, render_pass_l
                 }
 
                 // Draw
-                u32 InstanceCount = (u32)(BatchList.ByteCount / BatchList.BytesPerInstance);
+                uint32_t InstanceCount = (uint32_t)(BatchList.ByteCount / BatchList.BytesPerInstance);
                 DeviceContext->DrawInstanced(4, InstanceCount, 0, 0);
             }
         } break;
@@ -528,17 +528,17 @@ SubmitRenderCommands(render_handle HRenderer, vec2_i32 Resolution, render_pass_l
 // -----------------------------------------------------------------------------------
 // Glyph Public Implementation
 
-internal b32
+static bool
 IsValidGPUFontContext(gpu_font_context *Context)
 {
-    b32 Result = (Context) && (Context->GlyphCache) && (Context->GlyphCacheView) && (Context->GlyphTransfer) && (Context->GlyphTransferView) && (Context->GlyphTransferSurface);
+    bool Result = (Context) && (Context->GlyphCache) && (Context->GlyphCacheView) && (Context->GlyphTransfer) && (Context->GlyphTransferView) && (Context->GlyphTransferSurface);
     return Result;
 }
 
-internal b32
-CreateGlyphCache(render_handle HRenderer, vec2_f32 TextureSize, gpu_font_context *FontContext)
+static bool
+CreateGlyphCache(render_handle HRenderer, vec2_float TextureSize, gpu_font_context *FontContext)
 {
-    b32 Result  = 0;
+    bool Result  = 0;
 
     if (IsValidRenderHandle(HRenderer))
     {
@@ -565,7 +565,7 @@ CreateGlyphCache(render_handle HRenderer, vec2_f32 TextureSize, gpu_font_context
     return Result;
 }
 
-internal void
+static void
 ReleaseGlyphCache(gpu_font_context *FontContext)
 {
     if (FontContext)
@@ -584,10 +584,10 @@ ReleaseGlyphCache(gpu_font_context *FontContext)
     }
 }
 
-internal b32
-CreateGlyphTransfer(render_handle HRenderer, vec2_f32 TextureSize, gpu_font_context *FontContext)
+static bool
+CreateGlyphTransfer(render_handle HRenderer, vec2_float TextureSize, gpu_font_context *FontContext)
 {
-    b32 Result  = 0;
+    bool Result  = 0;
 
     if (IsValidRenderHandle(HRenderer))
     {
@@ -618,7 +618,7 @@ CreateGlyphTransfer(render_handle HRenderer, vec2_f32 TextureSize, gpu_font_cont
     return Result;
 }
 
-internal void
+static void
 ReleaseGlyphTransfer(gpu_font_context *FontContext)
 {
     if (FontContext)
@@ -643,8 +643,8 @@ ReleaseGlyphTransfer(gpu_font_context *FontContext)
     }
 }
 
-internal void
-TransferGlyph(rect_f32 Rect, render_handle HRenderer, gpu_font_context *FontContext)
+static void
+TransferGlyph(rect_float Rect, render_handle HRenderer, gpu_font_context *FontContext)
 {
     if (IsValidRenderHandle(HRenderer) && IsValidGPUFontContext(FontContext))
     {
@@ -667,23 +667,23 @@ TransferGlyph(rect_f32 Rect, render_handle HRenderer, gpu_font_context *FontCont
 // -----------------------------------------------------------------------------------
 // Texture Private Implementation
 
-internal b32
+static bool
 D3D11IsValidTexture(render_texture RenderTexture)
 {
-    b32 Result = IsValidRenderHandle(RenderTexture.Texture) && IsValidRenderHandle(RenderTexture.View) && !RenderTexture.Size.IsEmpty();
+    bool Result = IsValidRenderHandle(RenderTexture.Texture) && IsValidRenderHandle(RenderTexture.View) && !RenderTexture.Size.IsEmpty();
     return Result;
 }
 
 // -----------------------------------------------------------------------------------
 // Texture Public Implementation
 
-internal render_texture
+static render_texture
 CreateRenderTexture(render_texture_params Params)
 {
-    Assert(Params.Width > 0 && Params.Height > 0);
+    VOID_ASSERT(Params.Width > 0 && Params.Height > 0);
 
     d3d11_renderer *Backend = D3D11GetRenderer(RenderState.Renderer);
-    Assert(Backend);
+    VOID_ASSERT(Backend);
 
     d3d11_format Format = D3D11GetFormat(Params.Type);
 
@@ -714,7 +714,7 @@ CreateRenderTexture(render_texture_params Params)
 
     ID3D11Texture2D *Texture = nullptr;
     HRESULT HR = Backend->Device->CreateTexture2D(&TextureDesc, InitDataPointer, &Texture);
-    Assert(SUCCEEDED(HR));
+    VOID_ASSERT(SUCCEEDED(HR));
 
     D3D11_SHADER_RESOURCE_VIEW_DESC ViewDesc = {};
     ViewDesc.Format                    = Format.Native;
@@ -724,7 +724,7 @@ CreateRenderTexture(render_texture_params Params)
 
     ID3D11ShaderResourceView *View = nullptr;
     HR = Backend->Device->CreateShaderResourceView((ID3D11Resource*)Texture, &ViewDesc, &View);
-    Assert(SUCCEEDED(HR));
+    VOID_ASSERT(SUCCEEDED(HR));
 
     if(Params.GenerateMipmaps && Params.InitialData)
     {
@@ -732,18 +732,18 @@ CreateRenderTexture(render_texture_params Params)
     }
 
     render_texture Result = {};
-    Result.Texture = RenderHandle((u64)Texture);
-    Result.View    = RenderHandle((u64)View);
-    Result.Size    = vec2_f32(Params.Width, Params.Height);
+    Result.Texture = RenderHandle((uint64_t)Texture);
+    Result.View    = RenderHandle((uint64_t)View);
+    Result.Size    = vec2_float(Params.Width, Params.Height);
 
     return Result;
 }
 
-internal void
-CopyIntoRenderTexture(render_texture RenderTexture, rect_f32 Source, u8 *Pixels, u32 Pitch)
+static void
+CopyIntoRenderTexture(render_texture RenderTexture, rect_float Source, uint8_t *Pixels, uint32_t Pitch)
 {
-    Assert(D3D11IsValidTexture(RenderTexture));
-    Assert(Pixels);
+    VOID_ASSERT(D3D11IsValidTexture(RenderTexture));
+    VOID_ASSERT(Pixels);
 
     D3D11_BOX Box =
     {
@@ -756,10 +756,10 @@ CopyIntoRenderTexture(render_texture RenderTexture, rect_f32 Source, u8 *Pixels,
     };
 
     d3d11_renderer *Renderer = D3D11GetRenderer(RenderState.Renderer);
-    Assert(Renderer);
+    VOID_ASSERT(Renderer);
 
     ID3D11Texture2D *Texture = D3D11GetTexture2D(RenderTexture.Texture);
-    Assert(Texture);
+    VOID_ASSERT(Texture);
 
     Renderer->DeviceContext->UpdateSubresource((ID3D11Resource *)Texture, 0, &Box, Pixels, Pitch, 0);
 }

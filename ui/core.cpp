@@ -4,28 +4,28 @@
 // -----------------------------------------------------------------------------------
 // UI Context Private Implementation
 
-internal ui_pipeline *
+static ui_pipeline *
 GetCurrentPipeline(void)
 {
     ui_pipeline *Pipeline = UIState.CurrentPipeline;
     return Pipeline;
 }
 
-internal ui_subtree *
+static ui_subtree *
 GetCurrentSubtree(void)
 {
     ui_pipeline *Pipeline = GetCurrentPipeline();
-    Assert(Pipeline);
+    VOID_ASSERT(Pipeline);
 
     ui_subtree *Subtree = Pipeline->CurrentSubtree;
     return Subtree;
 }
 
-internal ui_subtree *
+static ui_subtree *
 FindSubtree(ui_node Node)
 {
     ui_pipeline *Pipeline = GetCurrentPipeline();
-    Assert(Pipeline);
+    VOID_ASSERT(Pipeline);
 
     ui_subtree *Result = 0;
 
@@ -51,48 +51,48 @@ FindSubtree(ui_node Node)
 
 typedef struct ui_node_id_hash
 {
-    u64 Value;
+    uint64_t Value;
 } ui_node_id_hash;
 
 typedef struct ui_node_id_entry
 {
     ui_node_id_hash Hash;
-    u32             NodeIndex;
+    uint32_t             NodeIndex;
 } ui_node_id_entry;
 
 typedef struct ui_node_table
 {
-    u8               *MetaData;
+    uint8_t               *MetaData;
     ui_node_id_entry *Buckets;
 
-    u64 GroupSize;
-    u64 GroupCount;
+    uint64_t GroupSize;
+    uint64_t GroupCount;
 
-    u64 HashMask;
+    uint64_t HashMask;
 } ui_node_table;
 
-internal b32
+static bool
 IsValidNodeIdTable(ui_node_table *Table)
 {
-    b32 Result = (Table && Table->MetaData && Table->Buckets && Table->GroupCount);
+    bool Result = (Table && Table->MetaData && Table->Buckets && Table->GroupCount);
     return Result;
 }
 
-internal u32
+static uint32_t
 GetNodeIdGroupIndexFromHash(ui_node_id_hash Hash, ui_node_table *Table)
 {
-    u32 Result = Hash.Value & Table->HashMask;
+    uint32_t Result = Hash.Value & Table->HashMask;
     return Result;
 }
 
-internal u8
+static uint8_t
 GetNodeIdTagFromHash(ui_node_id_hash Hash)
 {
-    u8 Result = Hash.Value & NodeIdTable_TagMask;
+    uint8_t Result = Hash.Value & NodeIdTable_TagMask;
     return Result;
 }
 
-internal ui_node_id_hash
+static ui_node_id_hash
 ComputeNodeIdHash(byte_string Id)
 {
     // WARN: Again, unsure if this hash is strong enough since hash-collisions
@@ -102,16 +102,16 @@ ComputeNodeIdHash(byte_string Id)
     return Result;
 }
 
-internal ui_node_id_entry *
+static ui_node_id_entry *
 FindNodeIdEntry(ui_node_id_hash Hash, ui_node_table *Table)
 {
-    u32 ProbeCount = 0;
-    u32 GroupIndex = GetNodeIdGroupIndexFromHash(Hash, Table);
+    uint32_t ProbeCount = 0;
+    uint32_t GroupIndex = GetNodeIdGroupIndexFromHash(Hash, Table);
 
     while(1)
     {
-        u8 *Meta = Table->MetaData + (GroupIndex * Table->GroupSize);
-        u8  Tag  = GetNodeIdTagFromHash(Hash);
+        uint8_t *Meta = Table->MetaData + (GroupIndex * Table->GroupSize);
+        uint8_t  Tag  = GetNodeIdTagFromHash(Hash);
 
         __m128i MetaVector = _mm_loadu_si128((__m128i *)Meta);
         __m128i TagVector  = _mm_set1_epi8(Tag);
@@ -119,11 +119,11 @@ FindNodeIdEntry(ui_node_id_hash Hash, ui_node_table *Table)
         // Uses a 6 bit tags to search a matching tag thorugh the meta-data
         // using vectors of bytes instead of comparing full hashes directly.
 
-        i32 TagMask = _mm_movemask_epi8(_mm_cmpeq_epi8(MetaVector, TagVector));
+        int TagMask = _mm_movemask_epi8(_mm_cmpeq_epi8(MetaVector, TagVector));
         while(TagMask)
         {
-            u32 Lane  = FindFirstBit(TagMask);
-            u32 Index = Lane + (GroupIndex * Table->GroupSize);
+            uint32_t Lane  = FindFirstBit(TagMask);
+            uint32_t Index = Lane + (GroupIndex * Table->GroupSize);
 
             ui_node_id_entry *Entry = Table->Buckets + Index;
             if(Hash.Value == Entry->Hash.Value)
@@ -140,7 +140,7 @@ FindNodeIdEntry(ui_node_id_hash Hash, ui_node_table *Table)
         // have been found.
 
         __m128i EmptyVector = _mm_set1_epi8(NodeIdTable_EmptyMask);
-        i32     EmptyMask   = _mm_movemask_epi8(_mm_cmpeq_epi8(MetaVector, EmptyVector));
+        int     EmptyMask   = _mm_movemask_epi8(_mm_cmpeq_epi8(MetaVector, EmptyVector));
 
         if(!EmptyMask)
         {
@@ -156,27 +156,27 @@ FindNodeIdEntry(ui_node_id_hash Hash, ui_node_table *Table)
     return 0;
 }
 
-internal void
-InsertNodeId(ui_node_id_hash Hash, u32 NodeIndex, ui_node_table *Table)
+static void
+InsertNodeId(ui_node_id_hash Hash, uint32_t NodeIndex, ui_node_table *Table)
 {
-    u32 ProbeCount = 0;
-    u32 GroupIndex = GetNodeIdGroupIndexFromHash(Hash, Table);
+    uint32_t ProbeCount = 0;
+    uint32_t GroupIndex = GetNodeIdGroupIndexFromHash(Hash, Table);
 
     while(1)
     {
-        u8     *Meta       = Table->MetaData + (GroupIndex * Table->GroupSize);
+        uint8_t     *Meta       = Table->MetaData + (GroupIndex * Table->GroupSize);
         __m128i MetaVector = _mm_loadu_si128((__m128i *)Meta);
 
         // First check for empty entries (never-used), if one is found insert it and
         // set the meta-data to the tag (which will clear all state bits)
 
         __m128i EmptyVector = _mm_set1_epi8(NodeIdTable_EmptyMask);
-        i32     EmptyMask   = _mm_movemask_epi8(_mm_cmpeq_epi8(MetaVector, EmptyVector));
+        int     EmptyMask   = _mm_movemask_epi8(_mm_cmpeq_epi8(MetaVector, EmptyVector));
 
         if(EmptyMask)
         {
-            u32 Lane  = FindFirstBit(EmptyMask);
-            u32 Index = Lane + (GroupIndex * Table->GroupSize);
+            uint32_t Lane  = FindFirstBit(EmptyMask);
+            uint32_t Index = Lane + (GroupIndex * Table->GroupSize);
 
             ui_node_id_entry *Entry = Table->Buckets + Index;
             Entry->Hash      = Hash;
@@ -191,12 +191,12 @@ InsertNodeId(ui_node_id_hash Hash, u32 NodeIndex, ui_node_table *Table)
         // set the meta-data to the tag which will clear all state bits
 
         __m128i DeadVector = _mm_set1_epi8(NodeIdTable_DeadMask);
-        i32     DeadMask   = _mm_movemask_epi8(_mm_cmpeq_epi8(MetaVector, DeadVector));
+        int     DeadMask   = _mm_movemask_epi8(_mm_cmpeq_epi8(MetaVector, DeadVector));
 
         if(DeadMask)
         {
-            u32 Lane  = FindFirstBit(DeadMask);
-            u32 Index = Lane + (GroupIndex * Table->GroupSize);
+            uint32_t Lane  = FindFirstBit(DeadMask);
+            uint32_t Index = Lane + (GroupIndex * Table->GroupSize);
 
             ui_node_id_entry *Entry = Table->Buckets + Index;
             Entry->Hash      = Hash;
@@ -212,8 +212,8 @@ InsertNodeId(ui_node_id_hash Hash, u32 NodeIndex, ui_node_table *Table)
     }
 }
 
-internal void
-SetNodeId(byte_string Id, u32 NodeIndex, ui_node_table *Table)
+static void
+SetNodeId(byte_string Id, uint32_t NodeIndex, ui_node_table *Table)
 {
     if(!IsValidNodeIdTable(Table))
     {
@@ -235,31 +235,31 @@ SetNodeId(byte_string Id, u32 NodeIndex, ui_node_table *Table)
     }
 }
 
-internal u64
+static uint64_t
 GetNodeIdTableFootprint(ui_node_table_params Params)
 {
-    u64 GroupTotal = Params.GroupSize * Params.GroupCount;
+    uint64_t GroupTotal = Params.GroupSize * Params.GroupCount;
 
-    u64 MetaDataSize = GroupTotal * sizeof(u8);
-    u64 BucketsSize  = GroupTotal * sizeof(ui_node_id_entry);
-    u64 Result       = sizeof(ui_node_table) + MetaDataSize + BucketsSize;
+    uint64_t MetaDataSize = GroupTotal * sizeof(uint8_t);
+    uint64_t BucketsSize  = GroupTotal * sizeof(ui_node_id_entry);
+    uint64_t Result       = sizeof(ui_node_table) + MetaDataSize + BucketsSize;
 
     return Result;
 }
 
-internal ui_node_table *
+static ui_node_table *
 PlaceNodeIdTableInMemory(ui_node_table_params Params, void *Memory)
 {
-    Assert(Params.GroupSize == 16);
-    Assert(Params.GroupCount > 0 && IsPowerOfTwo(Params.GroupCount));
+    VOID_ASSERT(Params.GroupSize == 16);
+    VOID_ASSERT(Params.GroupCount > 0 && VOID_ISPOWEROFTWO(Params.GroupCount));
 
     ui_node_table *Result = 0;
 
     if(Memory)
     {
-        u64 GroupTotal = Params.GroupSize * Params.GroupCount;
+        uint64_t GroupTotal = Params.GroupSize * Params.GroupCount;
 
-        u8 *              MetaData = (u8 *)Memory;
+        uint8_t *              MetaData = (uint8_t *)Memory;
         ui_node_id_entry *Entries  = (ui_node_id_entry *)(MetaData + GroupTotal);
 
         Result = (ui_node_table *)(Entries + GroupTotal);
@@ -269,7 +269,7 @@ PlaceNodeIdTableInMemory(ui_node_table_params Params, void *Memory)
         Result->GroupCount = Params.GroupCount;
         Result->HashMask   = Params.GroupCount - 1;
 
-        for(u32 Idx = 0; Idx < GroupTotal; ++Idx)
+        for(uint32_t Idx = 0; Idx < GroupTotal; ++Idx)
         {
             Result->MetaData[Idx] = NodeIdTable_EmptyMask;
         }
@@ -278,7 +278,7 @@ PlaceNodeIdTableInMemory(ui_node_table_params Params, void *Memory)
     return Result;
 }
 
-internal ui_node *
+static ui_node *
 UIFindNodeById(byte_string Id, ui_node_table *Table)
 {
     ui_node *Result = 0;
@@ -293,7 +293,7 @@ UIFindNodeById(byte_string Id, ui_node_table *Table)
             // BUG:
             // Does not set subtree ID. But is it needed really?
 
-            Result = UICreateNode(NoFlag, 1);
+            Result = UICreateNode(0, 1);
             Result->CanUse = 1;
             Result->IndexInTree = Entry->NodeIndex;
         }
@@ -313,45 +313,45 @@ UIFindNodeById(byte_string Id, ui_node_table *Table)
 
 // ----------------------------------------------------------------------------
 
-internal ui_color
-UIColor(f32 R, f32 G, f32 B, f32 A)
+static ui_color
+UIColor(float R, float G, float B, float A)
 {
     ui_color Result = { R, G, B, A };
     return Result;
 }
 
-internal ui_spacing
-UISpacing(f32 Horizontal, f32 Vertical)
+static ui_spacing
+UISpacing(float Horizontal, float Vertical)
 {
     ui_spacing Result = { Horizontal, Vertical };
     return Result;
 }
 
-internal ui_padding
-UIPadding(f32 Left, f32 Top, f32 Right, f32 Bot)
+static ui_padding
+UIPadding(float Left, float Top, float Right, float Bot)
 {
     ui_padding Result = { Left, Top, Right, Bot };
     return Result;
 }
 
-internal ui_corner_radius
-UICornerRadius(f32 TopLeft, f32 TopRight, f32 BotLeft, f32 BotRight)
+static ui_corner_radius
+UICornerRadius(float TopLeft, float TopRight, float BotLeft, float BotRight)
 {
     ui_corner_radius Result = { TopLeft, TopRight, BotLeft, BotRight };
     return Result;
 }
 
-internal vec2_unit
+static vec2_unit
 Vec2Unit(ui_unit U0, ui_unit U1)
 {
     vec2_unit Result = { .X = U0, .Y = U1 };
     return Result;
 }
 
-internal b32
+static bool
 IsNormalizedColor(ui_color Color)
 {
-    b32 Result = (Color.R >= 0.f && Color.R <= 1.f) &&
+    bool Result = (Color.R >= 0.f && Color.R <= 1.f) &&
                  (Color.G >= 0.f && Color.G <= 1.f) &&
                  (Color.B >= 0.f && Color.B <= 1.f) &&
                  (Color.A >= 0.f && Color.A <= 1.f);
@@ -364,19 +364,19 @@ IsNormalizedColor(ui_color Color)
 
 typedef struct ui_resource_allocator
 {
-    u64 AllocatedCount;
-    u64 AllocatedBytes;
+    uint64_t AllocatedCount;
+    uint64_t AllocatedBytes;
 } ui_resource_allocator;
 
 typedef struct ui_resource_entry
 {
     ui_resource_key Key;
 
-    u32 NextWithSameHashSlot;
-    u32 NextLRU;
-    u32 PrevLRU;
+    uint32_t NextWithSameHashSlot;
+    uint32_t NextLRU;
+    uint32_t PrevLRU;
 
-    UIResource_Type ResourceType; // NOTE: Useless?
+    UIResource_Type ResourceType; // NOTE: VOID_UNUSED?
     void           *Memory;
 } ui_resource_entry;
 
@@ -385,52 +385,52 @@ typedef struct ui_resource_table
     ui_resource_stats     Stats;
     ui_resource_allocator Allocator;
 
-    u32 HashMask;
-    u32 HashSlotCount;
-    u32 EntryCount;
+    uint32_t HashMask;
+    uint32_t HashSlotCount;
+    uint32_t EntryCount;
 
-    u32               *HashTable;
+    uint32_t               *HashTable;
     ui_resource_entry *Entries;
 } ui_resource_table;
 
-internal ui_resource_entry *
+static ui_resource_entry *
 GetResourceSentinel(ui_resource_table *Table)
 {
     ui_resource_entry *Result = Table->Entries;
     return Result;
 }
 
-internal u32 *
+static uint32_t *
 GetResourceSlotPointer(ui_resource_key Key, ui_resource_table *Table)
 {
-    u32 HashIndex = _mm_cvtsi128_si32(Key.Value);
-    u32 HashSlot  = (HashIndex & Table->HashMask);
+    uint32_t HashIndex = _mm_cvtsi128_si32(Key.Value);
+    uint32_t HashSlot  = (HashIndex & Table->HashMask);
 
-    Assert(HashSlot < Table->HashSlotCount);
+    VOID_ASSERT(HashSlot < Table->HashSlotCount);
 
-    u32 *Result = &Table->HashTable[HashSlot];
+    uint32_t *Result = &Table->HashTable[HashSlot];
     return Result;
 }
 
-internal ui_resource_entry *
-GetResourceEntry(u32 Index, ui_resource_table *Table)
+static ui_resource_entry *
+GetResourceEntry(uint32_t Index, ui_resource_table *Table)
 {
-    Assert(Index < Table->EntryCount);
+    VOID_ASSERT(Index < Table->EntryCount);
 
     ui_resource_entry *Result = Table->Entries + Index;
     return Result;
 }
 
-internal b32
+static bool
 ResourceKeyAreEqual(ui_resource_key A, ui_resource_key B)
 {
     __m128i Compare = _mm_cmpeq_epi32(A.Value, B.Value);
-    b32     Result  = (_mm_movemask_epi8(Compare) == 0xffff);
+    bool     Result  = (_mm_movemask_epi8(Compare) == 0xffff);
 
     return Result;
 }
 
-internal u32
+static uint32_t
 PopFreeResourceEntry(ui_resource_table *Table)
 {
     ui_resource_entry *Sentinel = GetResourceSentinel(Table);
@@ -441,10 +441,10 @@ PopFreeResourceEntry(ui_resource_table *Table)
 
     if(!Sentinel->NextWithSameHashSlot)
     {
-        Assert(!"Not Implemented");
+        VOID_ASSERT(!"Not Implemented");
     }
 
-    u32 Result = Sentinel->NextWithSameHashSlot;
+    uint32_t Result = Sentinel->NextWithSameHashSlot;
 
     ui_resource_entry *Entry = GetResourceEntry(Result, Table);
     Sentinel->NextWithSameHashSlot = Entry->NextWithSameHashSlot;
@@ -453,23 +453,23 @@ PopFreeResourceEntry(ui_resource_table *Table)
     return Result;
 }
 
-internal UIResource_Type
+static UIResource_Type
 GetResourceTypeFromKey(ui_resource_key Key)
 {
-    u64             High = _mm_extract_epi64(Key.Value, 1);
+    uint64_t             High = _mm_extract_epi64(Key.Value, 1);
     UIResource_Type Type = (UIResource_Type)(High >> 32);
     return Type;
 }
 
-internal void *
-AllocateUIResource(u64 Size, ui_resource_allocator *Allocator)
+static void *
+AllocateUIResource(uint64_t Size, ui_resource_allocator *Allocator)
 {
     void *Result = OSReserveMemory(Size);
 
     if(Result)
     {
-        b32 Committed = OSCommitMemory(Result, Size);
-        Assert(Committed);
+        bool Committed = OSCommitMemory(Result, Size);
+        VOID_ASSERT(Committed);
 
         Allocator->AllocatedCount += 1;
         Allocator->AllocatedBytes += Size;
@@ -481,28 +481,28 @@ AllocateUIResource(u64 Size, ui_resource_allocator *Allocator)
 // ----------------------------------------------------------------------------------
 // UI Resource Cache Public API
 
-internal u64
+static uint64_t
 GetResourceTableFootprint(ui_resource_table_params Params)
 {
-    u64 HashTableSize  = Params.HashSlotCount  * sizeof(u32);
-    u64 EntryArraySize = Params.EntryCount * sizeof(ui_resource_entry);
-    u64 Result         = sizeof(ui_resource_table) + HashTableSize + EntryArraySize;
+    uint64_t HashTableSize  = Params.HashSlotCount  * sizeof(uint32_t);
+    uint64_t EntryArraySize = Params.EntryCount * sizeof(ui_resource_entry);
+    uint64_t Result         = sizeof(ui_resource_table) + HashTableSize + EntryArraySize;
 
     return Result;
 }
 
-internal ui_resource_table *
+static ui_resource_table *
 PlaceResourceTableInMemory(ui_resource_table_params Params, void *Memory)
 {
-    Assert(Params.EntryCount);
-    Assert(Params.HashSlotCount);
-    Assert(IsPowerOfTwo(Params.HashSlotCount));
+    VOID_ASSERT(Params.EntryCount);
+    VOID_ASSERT(Params.HashSlotCount);
+    VOID_ASSERT(VOID_ISPOWEROFTWO(Params.HashSlotCount));
 
     ui_resource_table *Result = 0;
 
     if(Memory)
     {
-        u32               *HashTable = (u32 *)Memory;
+        uint32_t               *HashTable = (uint32_t *)Memory;
         ui_resource_entry *Entries   = (ui_resource_entry *)(HashTable + Params.HashSlotCount);
 
         Result = (ui_resource_table *)(Entries + Params.EntryCount);
@@ -512,7 +512,7 @@ PlaceResourceTableInMemory(ui_resource_table_params Params, void *Memory)
         Result->HashSlotCount = Params.HashSlotCount;
         Result->HashMask      = Params.HashSlotCount - 1;
 
-        for(u32 Idx = 0; Idx < Params.EntryCount; ++Idx)
+        for(uint32_t Idx = 0; Idx < Params.EntryCount; ++Idx)
         {
             ui_resource_entry *Entry = GetResourceEntry(Idx, Result);
             if((Idx + 1) < Params.EntryCount)
@@ -532,33 +532,33 @@ PlaceResourceTableInMemory(ui_resource_table_params Params, void *Memory)
     return Result;
 }
 
-internal ui_resource_key
-MakeResourceKey(UIResource_Type Type, u32 NodeIndex, ui_subtree *Subtree)
+static ui_resource_key
+MakeResourceKey(UIResource_Type Type, uint32_t NodeIndex, ui_subtree *Subtree)
 {
-    u64 Low  = (u64)Subtree;
-    u64 High = ((u64)Type << 32) | NodeIndex;
+    uint64_t Low  = (uint64_t)Subtree;
+    uint64_t High = ((uint64_t)Type << 32) | NodeIndex;
 
     ui_resource_key Key = {.Value = _mm_set_epi64x(High, Low)};
     return Key;
 }
 
-internal ui_resource_key
+static ui_resource_key
 MakeGlobalResourceKey(UIResource_Type Type, byte_string Name)
 {
-    u64 Low  = HashByteString(Name);
-    u64 High = ((u64)Type << 32);
+    uint64_t Low  = HashByteString(Name);
+    uint64_t High = ((uint64_t)Type << 32);
 
     ui_resource_key Key = {.Value = _mm_set_epi64x(High, Low)};
     return Key;
 }
 
-internal ui_resource_state
+static ui_resource_state
 FindResourceByKey(ui_resource_key Key, ui_resource_table *Table)
 {
     ui_resource_entry *FoundEntry = 0;
 
-    u32 *Slot       = GetResourceSlotPointer(Key, Table);
-    u32  EntryIndex = Slot[0];
+    uint32_t *Slot       = GetResourceSlotPointer(Key, Table);
+    uint32_t  EntryIndex = Slot[0];
 
     while(EntryIndex)
     {
@@ -595,7 +595,7 @@ FindResourceByKey(ui_resource_key Key, ui_resource_table *Table)
         // Hash[X] -> (Index) -> (Index) -> (Index)
 
         EntryIndex = PopFreeResourceEntry(Table);
-        Assert(EntryIndex);
+        VOID_ASSERT(EntryIndex);
 
         FoundEntry = GetResourceEntry(EntryIndex, Table);
         FoundEntry->NextWithSameHashSlot = Slot[0];
@@ -630,11 +630,11 @@ FindResourceByKey(ui_resource_key Key, ui_resource_table *Table)
 // NOTE:
 // The type can always be inferred from the key.
 
-internal void
-UpdateResourceTable(u32 Id, ui_resource_key Key, void *Memory, ui_resource_table *Table)
+static void
+UpdateResourceTable(uint32_t Id, ui_resource_key Key, void *Memory, ui_resource_table *Table)
 {
     ui_resource_entry *Entry = GetResourceEntry(Id, Table);
-    Assert(Entry);
+    VOID_ASSERT(Entry);
 
     if(Entry->Memory && Entry->Memory != Memory)
     {
@@ -646,76 +646,76 @@ UpdateResourceTable(u32 Id, ui_resource_key Key, void *Memory, ui_resource_table
     Entry->ResourceType = GetResourceTypeFromKey(Key);
 }
 
-internal void *
-QueryNodeResource(u32 NodeIndex, ui_subtree *Subtree, UIResource_Type Type, ui_resource_table *Table)
+static void *
+QueryNodeResource(uint32_t NodeIndex, ui_subtree *Subtree, UIResource_Type Type, ui_resource_table *Table)
 {
     ui_resource_key   Key   = MakeResourceKey(Type, NodeIndex, Subtree);
     ui_resource_state State = FindResourceByKey(Key, Table);
 
-    Assert(State.Resource && State.ResourceType == Type);
+    VOID_ASSERT(State.Resource && State.ResourceType == Type);
 
     void *Result = State.Resource;
     return Result;
 }
 
-internal void *
+static void *
 QueryGlobalResource(byte_string Name, UIResource_Type Type, ui_resource_table *Table)
 {
     ui_resource_key   Key   = MakeGlobalResourceKey(Type, Name);
     ui_resource_state State = FindResourceByKey(Key, Table);
 
-    Assert(State.Resource && State.ResourceType == Type);
+    VOID_ASSERT(State.Resource && State.ResourceType == Type);
 
     void *Result = State.Resource;
     return Result;
 }
 
 // ------------------------------------------------------------
-// UI Image Processing Internal Implementation
+// UI Image Processing internal Implementation
 
 typedef struct ui_image
 {
-    rect_f32    Source;
+    rect_float    Source;
     byte_string GroupName;
 } ui_image;
 
 typedef struct ui_loaded_image
 {
-    rect_f32 Source;
-    b32      IsLoaded;
+    rect_float Source;
+    bool      IsLoaded;
 } ui_loaded_image;
 
 typedef struct ui_image_group
 {
-    vec2_f32       Size;
+    vec2_float       Size;
     render_texture RenderTexture;
     stbrp_context  Allocator;
     stbrp_node    *AllocatorNodes;
 } ui_image_group;
 
-internal u64
-GetImageGroupFootprint(f32 Width)
+static uint64_t
+GetImageGroupFootprint(float Width)
 {
-    u64 NodeSize = Width * sizeof(stbrp_node);
-    u64 Result   = NodeSize + sizeof(ui_image_group);
+    uint64_t NodeSize = Width * sizeof(stbrp_node);
+    uint64_t Result   = NodeSize + sizeof(ui_image_group);
     return Result;
 }
 
 // ------------------------------------------------------------
 // UI Image Processing Public Implementation
 
-internal void
-UICreateImageGroup(byte_string Name, i32 Width, i32 Height)
+static void
+UICreateImageGroup(byte_string Name, int Width, int Height)
 {
-    Assert(Width  > 0);
-    Assert(Height > 0);
+    VOID_ASSERT(Width  > 0);
+    VOID_ASSERT(Height > 0);
 
     ui_resource_key   Key   = MakeGlobalResourceKey(UIResource_ImageGroup, Name);
     ui_resource_state State = FindResourceByKey(Key, UIState.ResourceTable);
 
-    Assert(!State.Resource);
+    VOID_ASSERT(!State.Resource);
 
-    u64   Size   = GetImageGroupFootprint(Width);
+    uint64_t   Size   = GetImageGroupFootprint(Width);
     void *Memory = AllocateUIResource(Size, &UIState.ResourceTable->Allocator);
 
     if(Memory)
@@ -730,7 +730,7 @@ UICreateImageGroup(byte_string Name, i32 Width, i32 Height)
         stbrp_node *AllocatorNodes = (stbrp_node *)Memory;
 
         ui_image_group *Group = (ui_image_group *)(AllocatorNodes + Width);
-        Group->Size           = vec2_f32(Width, Height);
+        Group->Size           = vec2_float(Width, Height);
         Group->RenderTexture  = CreateRenderTexture(Texture);
         Group->AllocatorNodes = AllocatorNodes;
 
@@ -740,30 +740,30 @@ UICreateImageGroup(byte_string Name, i32 Width, i32 Height)
     }
 }
 
-internal ui_loaded_image
+static ui_loaded_image
 LoadImageInGroup(byte_string GroupName, byte_string Path)
 {
     ui_loaded_image Result = {};
 
     ui_image_group *Group = (ui_image_group *)QueryGlobalResource(GroupName, UIResource_ImageGroup, UIState.ResourceTable);
-    Assert(Group);
+    VOID_ASSERT(Group);
 
-    i32 Width, Height, Channels;
-    u8 *Pixels = stbi_load((char *)Path.String, &Width, &Height, &Channels, 4);
+    int Width, Height, Channels;
+    uint8_t *Pixels = stbi_load((char *)Path.String, &Width, &Height, &Channels, 4);
 
     if(Pixels)
     {
         stbrp_rect Rect = {};
-        Rect.w = (u16)(Width);
-        Rect.h = (u16)(Height);
+        Rect.w = (uint16_t)(Width);
+        Rect.h = (uint16_t)(Height);
 
-        Assert(Rect.w == Width);
-        Assert(Rect.h == Height);
+        VOID_ASSERT(Rect.w == Width);
+        VOID_ASSERT(Rect.h == Height);
         stbrp_pack_rects(&Group->Allocator, &Rect, 1);
 
         if(Rect.was_packed)
         {
-            Result.Source   = rect_f32::FromXYWH(Rect.x, Rect.y, Rect.w, Rect.h);
+            Result.Source   = rect_float::FromXYWH(Rect.x, Rect.y, Rect.w, Rect.h);
             Result.IsLoaded = 1;
 
             CopyIntoRenderTexture(Group->RenderTexture, Result.Source, Pixels, Width * Channels);
@@ -786,7 +786,7 @@ LoadImageInGroup(byte_string GroupName, byte_string Path)
 // -------------------------------------------------------------
 // UI Node Private Implementation
 
-internal ui_subtree *
+static ui_subtree *
 GetSubtreeForNode(ui_node *Node)
 {
     ui_subtree *Result = GetCurrentSubtree();
@@ -795,7 +795,7 @@ GetSubtreeForNode(ui_node *Node)
         Result = FindSubtree(*Node);
     }
 
-    Assert(Result);
+    VOID_ASSERT(Result);
     return Result;
 }
 
@@ -812,26 +812,26 @@ GetSubtreeForNode(ui_node *Node)
 void                                               \
 ui_node::Set##Name(Type Value)                     \
 {                                                  \
-    Assert(this->CanUse);                          \
+    VOID_ASSERT(this->CanUse);                          \
     ui_subtree *Subtree = GetSubtreeForNode(this); \
-    Assert(Subtree);                               \
+    VOID_ASSERT(Subtree);                               \
     SetFunc(this->IndexInTree, Value, Subtree);    \
 }
 UI_NODE_SETTERS(DEFINE_UI_NODE_SETTER)
 #undef DEFINE_UI_NODE_SETTER
 
-void ui_node::SetStyle(u32 StyleIndex)
+void ui_node::SetStyle(uint32_t StyleIndex)
 {
-    Assert(this->CanUse);
+    VOID_ASSERT(this->CanUse);
 
     ui_subtree *Subtree = GetSubtreeForNode(this);
-    Assert(Subtree);
+    VOID_ASSERT(Subtree);
 
     // NOTE:
     // Looks weird..
 
     ui_node_style *Style = GetNodeStyle(this->IndexInTree, Subtree);
-    Assert(Style);
+    VOID_ASSERT(Style);
 
     Style->CachedStyleIndex = StyleIndex;
     Style->IsLastVersion    = 0;
@@ -839,15 +839,15 @@ void ui_node::SetStyle(u32 StyleIndex)
     SetNodeStyle(this->IndexInTree, StyleIndex, Subtree);
 }
 
-ui_node * ui_node::FindChild(u32 Index)
+ui_node * ui_node::FindChild(uint32_t Index)
 {
-    Assert(this->CanUse);
+    VOID_ASSERT(this->CanUse);
 
     ui_node    *Result  = 0;
     ui_subtree *Subtree = GetSubtreeForNode(this);
-    Assert(Subtree);
+    VOID_ASSERT(Subtree);
 
-    u32 NodeIndex = UITreeFindChild(this->IndexInTree, Index, Subtree);
+    uint32_t NodeIndex = UITreeFindChild(this->IndexInTree, Index, Subtree);
     if(NodeIndex != InvalidLayoutNodeIndex)
     {
         Result = 0; // TODO: Alloc.
@@ -858,36 +858,36 @@ ui_node * ui_node::FindChild(u32 Index)
 
 void ui_node::AppendChild(ui_node *Child)
 {
-    Assert(this->CanUse);
+    VOID_ASSERT(this->CanUse);
 
     ui_subtree *Subtree = GetSubtreeForNode(this);
-    Assert(Subtree);
+    VOID_ASSERT(Subtree);
 
     UITreeAppendChild(this->IndexInTree, Child->IndexInTree, Subtree);
 }
 
-void ui_node::ReserveChildren(u32 Amount)
+void ui_node::ReserveChildren(uint32_t Amount)
 {
-    Assert(this->CanUse);
+    VOID_ASSERT(this->CanUse);
 
     ui_subtree *Subtree = GetSubtreeForNode(this);
-    Assert(Subtree);
+    VOID_ASSERT(Subtree);
 
     UITreeReserve(this->IndexInTree, Amount, Subtree);
 }
 
 void ui_node::ClearTextInput(void)
 {
-    Assert(this->CanUse);
+    VOID_ASSERT(this->CanUse);
 
     ui_subtree *Subtree = GetSubtreeForNode(this);
-    Assert(Subtree);
+    VOID_ASSERT(Subtree);
 
     ui_text       *Text      = (ui_text *)      QueryNodeResource(this->IndexInTree, Subtree, UIResource_Text     , UIState.ResourceTable);
     ui_text_input *TextInput = (ui_text_input *)QueryNodeResource(this->IndexInTree, Subtree, UIResource_TextInput, UIState.ResourceTable);
 
-    Assert(Text);
-    Assert(TextInput);
+    VOID_ASSERT(Text);
+    VOID_ASSERT(TextInput);
 
     UITextClear_(Text);
     UITextInputClear_(TextInput);
@@ -895,10 +895,10 @@ void ui_node::ClearTextInput(void)
 
 void ui_node::SetText(byte_string Text)
 {
-    Assert(this->CanUse);
+    VOID_ASSERT(this->CanUse);
 
     ui_subtree *Subtree = GetSubtreeForNode(this);
-    Assert(Subtree);
+    VOID_ASSERT(Subtree);
 
     ui_resource_table *Table = UIState.ResourceTable;
 
@@ -911,14 +911,14 @@ void ui_node::SetText(byte_string Text)
 
     if(!State.Resource)
     {
-        u64   Size   = GetUITextFootprint(Text.Size);
+        uint64_t   Size   = GetUITextFootprint(Text.Size);
         void *Memory = AllocateUIResource(Size, &UIState.ResourceTable->Allocator);
 
         ui_node_style *Style = GetNodeStyle(this->IndexInTree, Subtree);
         ui_font       *Font  = UIGetFont(Style->Properties[StyleState_Default]);
 
         ui_text *UIText = PlaceUITextInMemory(Text, Text.Size, Font, Memory);
-        Assert(UIText);
+        VOID_ASSERT(UIText);
 
         UpdateResourceTable(State.Id, Key, UIText, Table);
         SetLayoutNodeFlags(this->IndexInTree, UILayoutNode_HasText, Subtree);
@@ -928,26 +928,26 @@ void ui_node::SetText(byte_string Text)
         // NOTE:
         // This is not an error, but let's not implement it for now.
 
-        Assert(!"Not Implemented");
+        VOID_ASSERT(!"Not Implemented");
     }
 }
 
-void ui_node::SetTextInput(u8 *Buffer, u64 BufferSize)
+void ui_node::SetTextInput(uint8_t *Buffer, uint64_t BufferSize)
 {
-    Assert(this->CanUse);
+    VOID_ASSERT(this->CanUse);
 
     ui_subtree *Subtree = GetSubtreeForNode(this);
-    Assert(Subtree);
+    VOID_ASSERT(Subtree);
 
     ui_resource_key   Key   = MakeResourceKey(UIResource_TextInput, this->IndexInTree, Subtree);
     ui_resource_state State = FindResourceByKey(Key, UIState.ResourceTable);
 
-    u64   Size   = sizeof(ui_text_input);
+    uint64_t   Size   = sizeof(ui_text_input);
     void *Memory = AllocateUIResource(Size, &UIState.ResourceTable->Allocator);
 
     ui_text_input *TextInput = (ui_text_input *)Memory;
     TextInput->UserBuffer    = ByteString(Buffer, BufferSize);
-    TextInput->InternalCount = strlen((char *)Buffer);
+    TextInput->internalCount = strlen((char *)Buffer);
 
     UpdateResourceTable(State.Id, Key, TextInput, UIState.ResourceTable);
 
@@ -961,17 +961,17 @@ void ui_node::SetTextInput(u8 *Buffer, u64 BufferSize)
     this->SetText(ByteString(Buffer, BufferSize));
 }
 
-void ui_node::SetScroll(f32 ScrollSpeed, UIAxis_Type Axis)
+void ui_node::SetScroll(float ScrollSpeed, UIAxis_Type Axis)
 {
-    Assert(this->CanUse);
+    VOID_ASSERT(this->CanUse);
 
     ui_subtree *Subtree = GetSubtreeForNode(this);
-    Assert(Subtree);
+    VOID_ASSERT(Subtree);
 
     ui_resource_key   Key   = MakeResourceKey(UIResource_ScrollRegion, this->IndexInTree, Subtree);
     ui_resource_state State = FindResourceByKey(Key, UIState.ResourceTable);
 
-    u64   Size   = GetScrollRegionFootprint();
+    uint64_t   Size   = GetScrollRegionFootprint();
     void *Memory = AllocateUIResource(Size, &UIState.ResourceTable->Allocator);
 
     scroll_region_params Params =
@@ -993,19 +993,19 @@ void ui_node::SetScroll(f32 ScrollSpeed, UIAxis_Type Axis)
 }
 
 // NOTE:
-// Then we at least need to specify that group names must be static strings.
+// Then we at least need to specify that group names must be internal strings.
 
 void ui_node::SetImage(byte_string Path, byte_string Group)
 {
-    Assert(this->CanUse);
+    VOID_ASSERT(this->CanUse);
 
     ui_subtree *Subtree = GetSubtreeForNode(this);
-    Assert(Subtree);
+    VOID_ASSERT(Subtree);
 
     ui_loaded_image Image = LoadImageInGroup(Group, Path);
     if(Image.IsLoaded)
     {
-        u64   Size   = sizeof(ui_image);
+        uint64_t   Size   = sizeof(ui_image);
         void *Memory = AllocateUIResource(Size, &UIState.ResourceTable->Allocator);
 
         if(Memory)
@@ -1029,29 +1029,29 @@ void ui_node::SetImage(byte_string Path, byte_string Group)
 
 void ui_node::ListenOnKey(ui_text_input_onkey Callback, void *UserData)
 {
-    Assert(this->CanUse);
+    VOID_ASSERT(this->CanUse);
 
     ui_subtree *Subtree = GetSubtreeForNode(this);
-    Assert(Subtree);
+    VOID_ASSERT(Subtree);
 
     // NOTE:
     // For now these callbacks are limited to text inputs. Unsure if I want to expose
     // them more generally. It's also not clear that it's limited to text input.
 
     ui_text_input *TextInput = (ui_text_input *)QueryNodeResource(this->IndexInTree, Subtree, UIResource_TextInput, UIState.ResourceTable);
-    Assert(TextInput);
+    VOID_ASSERT(TextInput);
 
     TextInput->OnKey         = Callback;
     TextInput->OnKeyUserData = UserData;
 }
 
-void ui_node::DebugBox(bit_field Flag, b32 Draw)
+void ui_node::DebugBox(uint32_t Flag, bool Draw)
 {
-    Assert(this->CanUse);
-    Assert(Flag == UILayoutNode_DebugOuterBox || Flag == UILayoutNode_DebugInnerBox|| Flag == UILayoutNode_DebugContentBox);
+    VOID_ASSERT(this->CanUse);
+    VOID_ASSERT(Flag == UILayoutNode_DebugOuterBox || Flag == UILayoutNode_DebugInnerBox|| Flag == UILayoutNode_DebugContentBox);
 
     ui_subtree *Subtree = GetCurrentSubtree();
-    Assert(Subtree);
+    VOID_ASSERT(Subtree);
 
     if(Draw)
     {
@@ -1065,21 +1065,21 @@ void ui_node::DebugBox(bit_field Flag, b32 Draw)
 
 void ui_node::SetId(byte_string Id, ui_node_table *Table)
 {
-    Assert(this->CanUse);
-    Assert(IsValidByteString(Id));
-    Assert(Table);
+    VOID_ASSERT(this->CanUse);
+    VOID_ASSERT(IsValidByteString(Id));
+    VOID_ASSERT(Table);
 
     ui_pipeline *Pipeline = GetCurrentPipeline();
-    Assert(Pipeline);
+    VOID_ASSERT(Pipeline);
 
     SetNodeId(Id, this->IndexInTree, Table);
 }
 
-internal ui_node *
-UICreateNode(bit_field Flags, b32 IsFrameNode)
+static ui_node *
+UICreateNode(uint32_t Flags, bool IsFrameNode)
 {
     ui_subtree *Subtree = GetCurrentSubtree();
-    Assert(Subtree);
+    VOID_ASSERT(Subtree);
 
     ui_node *Node = PushStruct(Subtree->Transient, ui_node);
 
@@ -1094,49 +1094,49 @@ UICreateNode(bit_field Flags, b32 IsFrameNode)
 }
 
 // ----------------------------------------------------------------------------------
-// Context Internal Implementation
+// Context internal Implementation
 
-internal u64
-GetSubtreeStaticFootprint(u64 NodeCount)
+static uint64_t
+GetSubtreeinternalFootprint(uint64_t NodeCount)
 {
-    u64 TreeSize  = GetLayoutTreeFootprint(NodeCount);
-    u64 StyleSize = NodeCount * sizeof(ui_node_style);
-    u64 Result    = sizeof(ui_subtree) + TreeSize + StyleSize;
+    uint64_t TreeSize  = GetLayoutTreeFootprint(NodeCount);
+    uint64_t StyleSize = NodeCount * sizeof(ui_node_style);
+    uint64_t Result    = sizeof(ui_subtree) + TreeSize + StyleSize;
 
     return Result;
 }
 
-internal b32
+static bool
 IsValidHoveredNode(ui_hovered_node *Node)
 {
-    Assert(Node);
+    VOID_ASSERT(Node);
 
-    b32 Result = (Node->Subtree && Node->Index < Node->Subtree->NodeCount);
+    bool Result = (Node->Subtree && Node->Index < Node->Subtree->NodeCount);
     return Result;
 }
 
-internal void
+static void
 ClearHoveredNode(ui_hovered_node *Node)
 {
-    Assert(Node);
+    VOID_ASSERT(Node);
 
     Node->Index   = 0;
     Node->Subtree = 0;
 }
 
-internal b32
+static bool
 IsValidFocusedNode(ui_focused_node *Node)
 {
-    Assert(Node);
+    VOID_ASSERT(Node);
 
-    b32 Result = (Node->Subtree && Node->Index < Node->Subtree->NodeCount);
+    bool Result = (Node->Subtree && Node->Index < Node->Subtree->NodeCount);
     return Result;
 }
 
-internal void
+static void
 ClearFocusedNode(ui_focused_node *Node)
 {
-    Assert(Node);
+    VOID_ASSERT(Node);
 
     Node->Index       = 0;
     Node->Subtree     = 0;
@@ -1147,12 +1147,12 @@ ClearFocusedNode(ui_focused_node *Node)
 // ----------------------------------------------------------------------------------
 // Context Public API Implementation
 
-internal void
-UIBeginFrame(vec2_i32 WindowSize)
+static void
+UIBeginFrame(vec2_int WindowSize)
 {
-    b32      MouseReleased = OSIsMouseReleased(OSMouseButton_Left);
-    b32      MouseClicked  = OSIsMouseClicked(OSMouseButton_Left);
-    vec2_f32 MousePosition = OSGetMousePosition();
+    bool      MouseReleased = OSIsMouseReleased(OSMouseButton_Left);
+    bool      MouseClicked  = OSIsMouseClicked(OSMouseButton_Left);
+    vec2_float MousePosition = OSGetMousePosition();
 
     ui_focused_node Focused = UIState.Focused;
     if(IsValidFocusedNode(&Focused))
@@ -1170,41 +1170,41 @@ UIBeginFrame(vec2_i32 WindowSize)
     UIState.WindowSize = WindowSize;
 }
 
-internal void
+static void
 UIEndFrame(void)
 {
     ClearHoveredNode(&UIState.Hovered);
 }
 
-internal void
-UISetNodeHover(u32 NodeIndex, ui_subtree *Subtree)
+static void
+UISetNodeHover(uint32_t NodeIndex, ui_subtree *Subtree)
 {
-    Assert(!IsValidHoveredNode(&UIState.Hovered));
+    VOID_ASSERT(!IsValidHoveredNode(&UIState.Hovered));
 
     UIState.Hovered.Index   = NodeIndex;
     UIState.Hovered.Subtree = Subtree;
 }
 
-internal b32
+static bool
 UIHasNodeHover(void)
 {
-    b32 Result = IsValidHoveredNode(&UIState.Hovered);
+    bool Result = IsValidHoveredNode(&UIState.Hovered);
     return Result;
 }
 
-internal ui_hovered_node
+static ui_hovered_node
 UIGetNodeHover(void)
 {
-    Assert(IsValidHoveredNode(&UIState.Hovered));
+    VOID_ASSERT(IsValidHoveredNode(&UIState.Hovered));
 
     ui_hovered_node Result = UIState.Hovered;
     return Result;
 }
 
-internal void
-UISetNodeFocus(u32 NodeIndex, ui_subtree *Subtree, b32 IsTextInput, UIIntent_Type Intent)
+static void
+UISetNodeFocus(uint32_t NodeIndex, ui_subtree *Subtree, bool IsTextInput, UIIntent_Type Intent)
 {
-    Assert(!IsValidFocusedNode(&UIState.Focused));
+    VOID_ASSERT(!IsValidFocusedNode(&UIState.Focused));
 
     UIState.Focused.Index       = NodeIndex;
     UIState.Focused.Subtree     = Subtree;
@@ -1212,32 +1212,32 @@ UISetNodeFocus(u32 NodeIndex, ui_subtree *Subtree, b32 IsTextInput, UIIntent_Typ
     UIState.Focused.Intent      = Intent;
 }
 
-internal b32
+static bool
 UIHasNodeFocus(void)
 {
-    b32 Result = IsValidFocusedNode(&UIState.Focused);
+    bool Result = IsValidFocusedNode(&UIState.Focused);
     return Result;
 }
 
-internal ui_focused_node
+static ui_focused_node
 UIGetNodeFocus(void)
 {
-    Assert(IsValidFocusedNode(&UIState.Focused));
+    VOID_ASSERT(IsValidFocusedNode(&UIState.Focused));
 
     ui_focused_node Result = UIState.Focused;
     return Result;
 }
 
-internal void
+static void
 UIBeginSubtree(ui_subtree_params Params)
 {
     if(Params.CreateNew)
     {
-        Assert(Params.NodeCount && "Cannot create a subtree with 0 nodes.");
+        VOID_ASSERT(Params.NodeCount && "Cannot create a subtree with 0 nodes.");
 
         memory_arena *Persistent = 0;
         {
-            u64 Footprint = GetSubtreeStaticFootprint(Params.NodeCount);
+            uint64_t Footprint = GetSubtreeinternalFootprint(Params.NodeCount);
 
             memory_arena_params Params = {};
             Params.AllocatedFromFile = __FILE__;
@@ -1253,8 +1253,8 @@ UIBeginSubtree(ui_subtree_params Params)
             memory_arena_params Params = {};
             Params.AllocatedFromFile = __FILE__;
             Params.AllocatedFromLine = __LINE__;
-            Params.ReserveSize       = Kilobyte(32);
-            Params.CommitSize        = Kilobyte(16);
+            Params.ReserveSize       = VOID_KILOBYTE(32);
+            Params.CommitSize        = VOID_KILOBYTE(16);
 
             Transient = AllocateArena(Params);
         }
@@ -1272,8 +1272,8 @@ UIBeginSubtree(ui_subtree_params Params)
 
             ui_layout_tree *Tree = 0;
             {
-                u64   Footprint = GetLayoutTreeFootprint(Params.NodeCount);
-                void *Memory    = PushArray(Subtree->Persistent, u8, Footprint);
+                uint64_t   Footprint = GetLayoutTreeFootprint(Params.NodeCount);
+                void *Memory    = PushArray(Subtree->Persistent, uint8_t, Footprint);
 
                 Tree = PlaceLayoutTreeInMemory(Params.NodeCount, Memory);
             }
@@ -1283,7 +1283,7 @@ UIBeginSubtree(ui_subtree_params Params)
             // What the fuck is this? Not great.
 
             ui_pipeline *Pipeline = GetCurrentPipeline();
-            Assert(Pipeline);
+            VOID_ASSERT(Pipeline);
             ui_subtree_list *SubtreeList = &Pipeline->Subtrees;
             AppendToLinkedList(SubtreeList, SubtreeNode, SubtreeList->Count);
             Pipeline->CurrentSubtree = Subtree;
@@ -1295,48 +1295,48 @@ UIBeginSubtree(ui_subtree_params Params)
     }
 }
 
-internal void
+static void
 UIEndSubtree(ui_subtree_params Params)
 {
-    Useless(Params);
+    VOID_UNUSED(Params);
 
     ui_pipeline *Pipeline = GetCurrentPipeline();
-    Assert(Pipeline);
+    VOID_ASSERT(Pipeline);
 }
 
-internal ui_pipeline *
+static ui_pipeline *
 GetFreeUIPipeline(void)
 {
     ui_pipeline_buffer *Buffer = &UIState.Pipelines;
-    Assert(Buffer);
-    Assert(Buffer->Count < Buffer->Size); // NOTE: Wrong ui_config.h!
+    VOID_ASSERT(Buffer);
+    VOID_ASSERT(Buffer->Count < Buffer->Size); // NOTE: Wrong ui_config.h!
 
     ui_pipeline *Result = Buffer->Values + Buffer->Count++;
 
     return Result;
 }
 
-internal ui_pipeline *
+static ui_pipeline *
 UICreatePipeline(ui_pipeline_params Params)
 {
     ui_state    *State  = &UIState;
     ui_pipeline *Result = GetFreeUIPipeline();
-    Assert(Result);
+    VOID_ASSERT(Result);
 
-    // Static Data
+    // internal Data
     {
         memory_arena_params ArenaParams = { 0 };
         ArenaParams.AllocatedFromFile = __FILE__;
         ArenaParams.AllocatedFromLine = __LINE__;
-        ArenaParams.ReserveSize       = Megabyte(1);
-        ArenaParams.CommitSize        = Kilobyte(1);
+        ArenaParams.ReserveSize       = VOID_MEGABYTE(1);
+        ArenaParams.CommitSize        = VOID_KILOBYTE(1);
 
-        Result->StaticArena = AllocateArena(ArenaParams);
+        Result->internalArena = AllocateArena(ArenaParams);
     }
 
     // Registry - Maybe just return a buffer?
     {
-        Result->Registry = CreateStyleRegistry(Params.ThemeFile, Result->StaticArena);
+        Result->Registry = CreateStyleRegistry(Params.ThemeFile, Result->internalArena);
     }
 
     State->CurrentPipeline = Result;
@@ -1347,10 +1347,10 @@ UICreatePipeline(ui_pipeline_params Params)
 // NOTE:
 // Perhaps we do not need this?
 
-internal void
+static void
 UIBeginAllSubtrees(ui_pipeline *Pipeline)
 {
-    Assert(Pipeline);
+    VOID_ASSERT(Pipeline);
 
     ui_subtree_list *List  = &Pipeline->Subtrees;
     IterateLinkedList(List, ui_subtree_node *, Node)
@@ -1365,10 +1365,10 @@ UIBeginAllSubtrees(ui_pipeline *Pipeline)
     UIState.CurrentPipeline = Pipeline;
 }
 
-internal void
+static void
 UIExecuteAllSubtrees(ui_pipeline *Pipeline)
 {
-    Assert(Pipeline);
+    VOID_ASSERT(Pipeline);
 
     ui_subtree_list *List = &Pipeline->Subtrees;
     IterateLinkedList(List, ui_subtree_node *, Node)

@@ -6,6 +6,11 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "third_party/stb_image.h"
 
+#define XXH_NO_STREAM
+#define XXH_STATIC_LINKING_ONLY
+#define XXH_IMPLEMENTATION
+#include "third_party/xxhash.h"
+
 // [Headers]
 
 #include "base/base_inc.h"

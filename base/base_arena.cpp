@@ -1,8 +1,8 @@
-internal memory_arena *
+static memory_arena *
 AllocateArena(memory_arena_params Params)
 {
-    u64 ReserveSize = AlignPow2(Params.ReserveSize, OSGetSystemInfo()->PageSize);
-    u64 CommitSize  = AlignPow2(Params.CommitSize , OSGetSystemInfo()->PageSize);
+    uint64_t ReserveSize = AlignPow2(Params.ReserveSize, OSGetSystemInfo()->PageSize);
+    uint64_t CommitSize  = AlignPow2(Params.CommitSize , OSGetSystemInfo()->PageSize);
 
     if (CommitSize > ReserveSize)
     {
@@ -10,7 +10,7 @@ AllocateArena(memory_arena_params Params)
     }
 
     void *HeapBase     = OSReserveMemory(ReserveSize);
-    b32   CommitResult = OSCommitMemory(HeapBase, CommitSize);
+    bool   CommitResult = OSCommitMemory(HeapBase, CommitSize);
     if(!HeapBase || !CommitResult)
     {
     }
@@ -29,7 +29,7 @@ AllocateArena(memory_arena_params Params)
     return Arena;
 }
 
-internal void
+static void
 ReleaseArena(memory_arena *Arena)
 {
     memory_arena *Prev = 0;
@@ -40,19 +40,19 @@ ReleaseArena(memory_arena *Arena)
     }
 }
 
-internal void *
-PushArena(memory_arena *Arena, u64 Size, u64 Alignment)
+static void *
+PushArena(memory_arena *Arena, uint64_t Size, uint64_t Alignment)
 {
     memory_arena *Active       = Arena->Current;
-    u64           PrePosition  = AlignPow2(Active->Position, Alignment);
-    u64           PostPosition = PrePosition + Size;
+    uint64_t           PrePosition  = AlignPow2(Active->Position, Alignment);
+    uint64_t           PostPosition = PrePosition + Size;
 
     if(Active->Reserved < PostPosition)
     {
         memory_arena *New = 0;
 
-        u64 ReserveSize = Active->ReserveSize;
-        u64 CommitSize  = Active->CommitSize;
+        uint64_t ReserveSize = Active->ReserveSize;
+        uint64_t CommitSize  = Active->CommitSize;
         if(Size + sizeof(memory_arena) > ReserveSize)
         {
             ReserveSize = AlignPow2(Size + sizeof(memory_arena), Alignment);
@@ -78,14 +78,14 @@ PushArena(memory_arena *Arena, u64 Size, u64 Alignment)
 
     if(Active->Committed < PostPosition)
     {
-        u64 CommitPostAligned = PostPosition;
+        uint64_t CommitPostAligned = PostPosition;
         AlignMultiple(CommitPostAligned, Active->CommitSize);
 
-        u64 CommitPostClamped = ClampTop(CommitPostAligned, Active->Reserved);
-        u64 CommitSize        = CommitPostClamped - Active->Committed;
-        u8 *CommitPointer     = (u8*)Active + Active->Committed;
+        uint64_t CommitPostClamped = ClampTop(CommitPostAligned, Active->Reserved);
+        uint64_t CommitSize        = CommitPostClamped - Active->Committed;
+        uint8_t *CommitPointer     = (uint8_t*)Active + Active->Committed;
 
-        b32 CommitResult = OSCommitMemory(CommitPointer, CommitSize);
+        bool CommitResult = OSCommitMemory(CommitPointer, CommitSize);
         if(!CommitResult)
         {
         }
@@ -96,25 +96,25 @@ PushArena(memory_arena *Arena, u64 Size, u64 Alignment)
     void *Result = 0;
     if(Active->Committed >= PostPosition)
     {
-        Result          = (u8*)Active + PrePosition;
+        Result          = (uint8_t*)Active + PrePosition;
         Active->Position = PostPosition;
     }
 
     return Result;
 }
 
-internal void
+static void
 ClearArena(memory_arena *Arena)
 {
     PopArenaTo(Arena, 0);
     MemorySet((Arena + 1), 0, (Arena->Committed - Arena->Position));
 }
 
-internal void
-PopArenaTo(memory_arena *Arena, u64 Position)
+static void
+PopArenaTo(memory_arena *Arena, uint64_t Position)
 {
     memory_arena *Active    = Arena->Current;
-    u64           PoppedPos = ClampBot(sizeof(memory_arena), Position);
+    uint64_t           PoppedPos = ClampBot(sizeof(memory_arena), Position);
 
     for(memory_arena *Prev = 0; Active->BasePosition >= PoppedPos; Active = Prev)
     {
@@ -126,11 +126,11 @@ PopArenaTo(memory_arena *Arena, u64 Position)
     Arena->Current->Position = PoppedPos - Arena->Current->BasePosition;
 }
 
-internal void
-PopArena(memory_arena *Arena, u64 Amount)
+static void
+PopArena(memory_arena *Arena, uint64_t Amount)
 {
-    u64 OldPosition = GetArenaPosition(Arena);
-    u64 NewPosition = OldPosition;
+    uint64_t OldPosition = GetArenaPosition(Arena);
+    uint64_t NewPosition = OldPosition;
 
     if (Amount < OldPosition)
     {
@@ -140,16 +140,16 @@ PopArena(memory_arena *Arena, u64 Amount)
     PopArenaTo(Arena, NewPosition);
 }
 
-internal u64
+static uint64_t
 GetArenaPosition(memory_arena *Arena)
 {
     memory_arena *Active = Arena->Current;
 
-    u64 Result = Active->BasePosition + Active->Position;
+    uint64_t Result = Active->BasePosition + Active->Position;
     return Result;
 }
 
-internal memory_region 
+static memory_region 
 EnterMemoryRegion(memory_arena *Arena)
 {
     memory_region Result;
@@ -159,7 +159,7 @@ EnterMemoryRegion(memory_arena *Arena)
     return Result;
 }
 
-internal void
+static void
 LeaveMemoryRegion(memory_region Region)
 {
     PopArenaTo(Region.Arena, Region.Position);

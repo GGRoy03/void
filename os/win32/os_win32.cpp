@@ -2,7 +2,7 @@
 
 constexpr auto MakeWin32InputTable()
 {
-    std::array<u32, 256> Table = {};
+    std::array<uint32_t, 256> Table = {};
     Table[0x41] = OSInputKey_A;
     Table[0x42] = OSInputKey_B;
     Table[0x43] = OSInputKey_C;
@@ -59,18 +59,18 @@ constexpr auto MakeWin32InputTable()
 
 constexpr auto Win32InputTable = MakeWin32InputTable();
 
-internal os_win32_state OSWin32State;
+static os_win32_state OSWin32State;
 
-// [Internal Implementation]
+// [static Implementation]
 
-internal HANDLE
+static HANDLE
 OSWin32GetNativeHandle(os_handle Handle)
 {
-    HANDLE Result = (HANDLE)Handle.u64[0];
+    HANDLE Result = (HANDLE)Handle.uint64_t[0];
     return Result;
 }
 
-internal LRESULT CALLBACK
+static LRESULT CALLBACK
 OSWin32WindowProc(HWND Handle, UINT Message, WPARAM WParam, LPARAM LParam)
 {
     os_inputs *Inputs = &OSWin32State.Inputs;
@@ -80,22 +80,22 @@ OSWin32WindowProc(HWND Handle, UINT Message, WPARAM WParam, LPARAM LParam)
 
     case WM_MOUSEMOVE:
     {
-        i32 MouseX = GET_X_LPARAM(LParam);
-        i32 MouseY = GET_Y_LPARAM(LParam);
+        int MouseX = GET_X_LPARAM(LParam);
+        int MouseY = GET_Y_LPARAM(LParam);
 
-        Inputs->MouseDelta.X += (f32)(MouseX - Inputs->MousePosition.X);
-        Inputs->MouseDelta.Y += (f32)(MouseY - Inputs->MousePosition.Y);
+        Inputs->MouseDelta.X += (float)(MouseX - Inputs->MousePosition.X);
+        Inputs->MouseDelta.Y += (float)(MouseY - Inputs->MousePosition.Y);
 
-        Inputs->MousePosition.X = (f32)MouseX;
-        Inputs->MousePosition.Y = (f32)MouseY;
+        Inputs->MousePosition.X = (float)MouseX;
+        Inputs->MousePosition.Y = (float)MouseY;
     } break;
 
     case WM_MOUSEWHEEL:
     {
-        i32 Delta = GET_WHEEL_DELTA_WPARAM(WParam) / 10;
+        int Delta = GET_WHEEL_DELTA_WPARAM(WParam) / 10;
 
-        f32 Notches = Delta / (f32)WHEEL_DELTA;
-        f32 Lines   = Notches * Inputs->WheelScrollLine;
+        float Notches = Delta / (float)WHEEL_DELTA;
+        float Lines   = Notches * Inputs->WheelScrollLine;
 
         Inputs->ScrollDeltaInLines += Lines;
     } break;
@@ -105,11 +105,11 @@ OSWin32WindowProc(HWND Handle, UINT Message, WPARAM WParam, LPARAM LParam)
     case WM_SYSKEYDOWN:
     case WM_SYSKEYUP:
     {
-        u32 VKCode   = (u32)WParam;
-        u32 KeyIndex = Win32InputTable[VKCode];
+        uint32_t VKCode   = (uint32_t)WParam;
+        uint32_t KeyIndex = Win32InputTable[VKCode];
 
-        b32 WasDown = ((LParam & ((size_t)1 << 30)) != 0);
-        b32 IsDown  = ((LParam & ((size_t)1 << 31)) == 0);
+        bool WasDown = ((LParam & ((size_t)1 << 30)) != 0);
+        bool IsDown  = ((LParam & ((size_t)1 << 31)) == 0);
 
         if (WasDown != IsDown && VKCode < OS_KeyboardButtonCount)
         {
@@ -131,14 +131,14 @@ OSWin32WindowProc(HWND Handle, UINT Message, WPARAM WParam, LPARAM LParam)
     case WM_CHAR:
     {
         WCHAR       WideChar = (WCHAR)WParam;
-        wide_string String   = WideString((u16 *)&WideChar, 1);
+        wide_string String   = WideString((uint16_t *)&WideChar, 1);
 
         memory_region Local = EnterMemoryRegion(OSWin32State.Arena);
 
         byte_string New = WideStringToByteString(String, Local.Arena);
 
-        u8 *Start = Inputs->UTF8Buffer.UTF8 + Inputs->UTF8Buffer.Count;
-        u8 *End   = Inputs->UTF8Buffer.UTF8 + Inputs->UTF8Buffer.Size;
+        uint8_t *Start = Inputs->UTF8Buffer.UTF8 + Inputs->UTF8Buffer.Count;
+        uint8_t *End   = Inputs->UTF8Buffer.UTF8 + Inputs->UTF8Buffer.Size;
 
         if(IsValidByteString(New) && (Start + New.Size < End))
         {
@@ -186,8 +186,8 @@ OSWin32WindowProc(HWND Handle, UINT Message, WPARAM WParam, LPARAM LParam)
     return DefWindowProc(Handle, Message, WParam, LParam);
 }
 
-internal HWND
-OSWin32InitializeWindow(vec2_i32 Size, i32 ShowCommand)
+static HWND
+OSWin32InitializeWindow(vec2_int Size, int ShowCommand)
 {
     WNDCLASSEX WindowClass = { 0 };
     WindowClass.cbSize        = sizeof(WNDCLASSEX);
@@ -216,7 +216,7 @@ OSWin32InitializeWindow(vec2_i32 Size, i32 ShowCommand)
     return Handle;
 }
 
-internal os_system_info
+static os_system_info
 OSWin32QuerySystemInfo(void)
 {
     SYSTEM_INFO SystemInfo = {};
@@ -229,10 +229,10 @@ OSWin32QuerySystemInfo(void)
     return Result;
 }
 
-internal vec2_i32
+static vec2_int
 OSWin32GetClientSize(HWND HWindow)
 {
-    vec2_i32 Result = vec2_i32(0, 0);
+    vec2_int Result = vec2_int(0, 0);
 
     if(HWindow != INVALID_HANDLE_VALUE)
     {
@@ -246,12 +246,12 @@ OSWin32GetClientSize(HWND HWindow)
     return Result;
 }
 
-internal i32 WINAPI
-wWinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPWSTR CmdLine, i32 ShowCmd)
+static int WINAPI
+wWinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPWSTR CmdLine, int ShowCmd)
 {
-    Useless(PrevInstance);
-    Useless(CmdLine);
-    Useless(Instance);
+    VOID_UNUSED(PrevInstance);
+    VOID_UNUSED(CmdLine);
+    VOID_UNUSED(Instance);
 
     if(AllocConsole())
     {
@@ -268,30 +268,30 @@ wWinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPWSTR CmdLine, i32 ShowCmd
         {
             ArenaParams.AllocatedFromFile = __FILE__;
             ArenaParams.AllocatedFromLine = __LINE__;
-            ArenaParams.ReserveSize       = Megabyte(1);
-            ArenaParams.CommitSize        = Kilobyte(64);
+            ArenaParams.ReserveSize       = VOID_MEGABYTE(1);
+            ArenaParams.CommitSize        = VOID_KILOBYTE(64);
         }
 
-        OSWin32State.HWindow    = OSWin32InitializeWindow(vec2_i32(1920,1080), ShowCmd);
+        OSWin32State.HWindow    = OSWin32InitializeWindow(vec2_int(1920,1080), ShowCmd);
         OSWin32State.SystemInfo = OSWin32QuerySystemInfo();
         OSWin32State.Arena      = AllocateArena(ArenaParams);
 
         OSWin32State.Inputs.ButtonBuffer.Size = 128;
-        OSWin32State.Inputs.UTF8Buffer.Size   = Kilobyte(1);
+        OSWin32State.Inputs.UTF8Buffer.Size   = VOID_KILOBYTE(1);
 
         OSWin32InitializeDWriteFactory(&OSWin32State.DWriteFactory);
     }
 
     // UI State
     {
-        // Static Data
+        // internal Data
         {
             memory_arena_params Params = { 0 };
             {
                 Params.AllocatedFromFile = __FILE__;
                 Params.AllocatedFromLine = __LINE__;
-                Params.ReserveSize       = Megabyte(1);
-                Params.CommitSize        = Kilobyte(64);
+                Params.ReserveSize       = VOID_MEGABYTE(1);
+                Params.CommitSize        = VOID_KILOBYTE(64);
             }
 
             UIState.StaticData       = AllocateArena(Params);
@@ -307,8 +307,8 @@ wWinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPWSTR CmdLine, i32 ShowCmd
                 Params.HashSlotCount = 512;
                 Params.EntryCount    = 2048;
 
-                u64 Footprint = GetResourceTableFootprint(Params);
-                Memory = PushArray(UIState.StaticData, u8, Footprint);
+                uint64_t Footprint = GetResourceTableFootprint(Params);
+                Memory = PushArray(UIState.StaticData, uint8_t, Footprint);
             }
             UIState.ResourceTable = PlaceResourceTableInMemory(Params, Memory);
         }
@@ -320,16 +320,16 @@ wWinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPWSTR CmdLine, i32 ShowCmd
     // Render State
     {
         HWND     HWindow    = OSWin32State.HWindow;
-        vec2_i32 ClientSize = OSWin32GetClientSize(HWindow);
+        vec2_int ClientSize = OSWin32GetClientSize(HWindow);
 
         RenderState.Renderer = InitializeRenderer(HWindow, ClientSize, OSWin32State.Arena);
     }
 
     BeginProfile();
-    u32 PrintProfilingFrame      = 0;
-    u32 PrintProfilingFrameDelta = 1000;
+    uint32_t PrintProfilingFrame      = 0;
+    uint32_t PrintProfilingFrameDelta = 1000;
 
-    b32 IsRunning = 1;
+    bool IsRunning = 1;
     while(IsRunning)
     {
         OSClearInputs(&OSWin32State.Inputs);
@@ -347,7 +347,7 @@ wWinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPWSTR CmdLine, i32 ShowCmd
             DispatchMessage(&Message);
         }
 
-        vec2_i32 ClientSize = OSWin32GetClientSize(OSWin32State.HWindow);
+        vec2_int ClientSize = OSWin32GetClientSize(OSWin32State.HWindow);
 
         {
             TimeBlock("UI Logic");
@@ -392,17 +392,17 @@ wWinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPWSTR CmdLine, i32 ShowCmd
 
 // [Per-OS API Memory Implementation]
 
-internal void * 
-OSReserveMemory(u64 Size)
+static void * 
+OSReserveMemory(uint64_t Size)
 {
     void *Result = VirtualAlloc(0, Size, MEM_RESERVE, PAGE_READWRITE);
     return Result;
 }
 
-internal b32 
-OSCommitMemory(void *Pointer, u64 Size)
+static bool 
+OSCommitMemory(void *Pointer, uint64_t Size)
 {
-    b32 Result = 0;
+    bool Result = 0;
     if(Pointer)
     {
         Result = (VirtualAlloc(Pointer, Size, MEM_COMMIT, PAGE_READWRITE) != 0);
@@ -410,7 +410,7 @@ OSCommitMemory(void *Pointer, u64 Size)
     return Result;
 }
 
-internal void
+static void
 OSRelease(void *Memory)
 {
     VirtualFree(Memory, 0, MEM_RELEASE);
@@ -418,24 +418,24 @@ OSRelease(void *Memory)
 
 // [File Implementation - OS Specific]
 
-internal os_handle
+static os_handle
 OSFindFile(byte_string Path)
 {
     os_handle Handle = {0};
 
     if (Path.String)
     {
-        Handle.u64[0] = (u64) CreateFileA((LPCSTR)Path.String, GENERIC_READ, FILE_SHARE_READ, NULL,
+        Handle.uint64_t[0] = (uint64_t) CreateFileA((LPCSTR)Path.String, GENERIC_READ, FILE_SHARE_READ, NULL,
                                           OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     }
 
     return Handle;
 }
 
-internal u64
+static uint64_t
 OSFileSize(os_handle Handle)
 {
-    u64 Result = 0;
+    uint64_t Result = 0;
 
     if (OSIsValidHandle(Handle))
     {
@@ -443,7 +443,7 @@ OSFileSize(os_handle Handle)
         if (FileHandle)
         {
             LARGE_INTEGER NativeResult = {};
-            b32 Success = GetFileSizeEx(FileHandle, &NativeResult);
+            bool Success = GetFileSizeEx(FileHandle, &NativeResult);
             if (Success)
             {
                 Result = NativeResult.QuadPart;
@@ -457,11 +457,11 @@ OSFileSize(os_handle Handle)
     return Result;
 }
 
-internal os_read_file
+static os_read_file
 OSReadFile(os_handle Handle, memory_arena *Arena)
 {
     os_read_file Result     = {};
-    HANDLE       FileHandle = (HANDLE)Handle.u64[0];
+    HANDLE       FileHandle = (HANDLE)Handle.uint64_t[0];
 
     if (FileHandle != INVALID_HANDLE_VALUE)
     {
@@ -470,13 +470,13 @@ OSReadFile(os_handle Handle, memory_arena *Arena)
         {
             DWORD Unused       = 0;
             BOOL  Success      = 1;
-            u64   FileSize     = FileSizeWin32.QuadPart;
-            u64   ToRead       = FileSize;
-            u32   ReadSize     = Kilobyte(16);
-            u8   *WritePointer = 0;
+            uint64_t   FileSize     = FileSizeWin32.QuadPart;
+            uint64_t   ToRead       = FileSize;
+            uint32_t   ReadSize     = VOID_KILOBYTE(16);
+            uint8_t   *WritePointer = 0;
 
             Result.Content.Size   = FileSize;
-            Result.Content.String = (u8 *)PushArena(Arena, FileSize, AlignOf(u8));
+            Result.Content.String = (uint8_t *)PushArena(Arena, FileSize, AlignOf(uint8_t));
 
             while (Success && ToRead > ReadSize)
             {
@@ -489,7 +489,7 @@ OSReadFile(os_handle Handle, memory_arena *Arena)
             if (Success)
             {
                 WritePointer     = Result.Content.String + (FileSize - ToRead);
-                Result.FullyRead = (b32)ReadFile(FileHandle, WritePointer, (u32)ToRead, &Unused, NULL);
+                Result.FullyRead = (bool)ReadFile(FileHandle, WritePointer, (uint32_t)ToRead, &Unused, NULL);
             }
         }
 
@@ -498,7 +498,7 @@ OSReadFile(os_handle Handle, memory_arena *Arena)
     return Result;
 }
 
-internal void
+static void
 OSReleaseFile(os_handle Handle)
 {
     HANDLE FileHandle = OSWin32GetNativeHandle(Handle);
@@ -510,10 +510,10 @@ OSReleaseFile(os_handle Handle)
 
 // [Windowing]
 
-internal void
+static void
 OSSetCursor(OSCursor_Type Type)
 {
-    Assert(Type >= OSCursor_Default && Type <= OSCursor_GrabHand);
+    VOID_ASSERT(Type >= OSCursor_Default && Type <= OSCursor_GrabHand);
 
     HCURSOR Cursor = 0;
 
@@ -539,21 +539,21 @@ OSSetCursor(OSCursor_Type Type)
 
 // [Agnostic Queries]
 
-internal os_system_info *
+static os_system_info *
 OSGetSystemInfo(void)
 {
     os_system_info *Result = &OSWin32State.SystemInfo;
     return Result;
 }
 
-internal os_inputs *
+static os_inputs *
 OSGetInputs(void)
 {
     os_inputs *Result = &OSWin32State.Inputs;
     return Result;
 }
 
-internal os_button_playback *
+static os_button_playback *
 OSGetButtonPlayback(void)
 {
     os_inputs          *Inputs = &OSWin32State.Inputs;
@@ -561,7 +561,7 @@ OSGetButtonPlayback(void)
     return Result;
 }
 
-internal os_utf8_playback *
+static os_utf8_playback *
 OSGetTextPlayback(void)
 {
     os_inputs        *Inputs = &OSWin32State.Inputs;
@@ -569,7 +569,7 @@ OSGetTextPlayback(void)
     return Result;
 }
 
-internal u64
+static uint64_t
 OSReadTimer(void)
 {
     LARGE_INTEGER Value;
@@ -577,7 +577,7 @@ OSReadTimer(void)
     return Value.QuadPart;
 }
 
-internal u64
+static uint64_t
 OSGetTimerFrequency(void)
 {
     LARGE_INTEGER Freq;

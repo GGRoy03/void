@@ -1,15 +1,15 @@
 // NOTE:
 // Makes me think that we can unify flags initialization with functions.
 
-internal ui_node *
-UIWindow(u32 StyleIndex)
+static ui_node *
+UIWindow(uint32_t StyleIndex)
 {
-    bit_field Flags = 0;
+    uint32_t Flags = 0;
     {
-        SetFlag(Flags, UILayoutNode_IsDraggable);
-        SetFlag(Flags, UILayoutNode_IsResizable);
-        SetFlag(Flags, UILayoutNode_IsParent);
-        SetFlag(Flags, UILayoutNode_HasClip);
+        VOID_SETBIT(Flags, UILayoutNode_IsDraggable);
+        VOID_SETBIT(Flags, UILayoutNode_IsResizable);
+        VOID_SETBIT(Flags, UILayoutNode_IsParent);
+        VOID_SETBIT(Flags, UILayoutNode_HasClip);
     }
 
     ui_node *Node = UICreateNode(Flags, 0);
@@ -22,13 +22,13 @@ UIWindow(u32 StyleIndex)
     return Node;
 }
 
-internal ui_node *
-UIScrollableContent(f32 ScrollSpeed, UIAxis_Type Axis, u32 Style)
+static ui_node *
+UIScrollableContent(float ScrollSpeed, UIAxis_Type Axis, uint32_t Style)
 {
-    bit_field Flags = 0;
+    uint32_t Flags = 0;
     {
-        SetFlag(Flags, UILayoutNode_IsParent);
-        SetFlag(Flags, UILayoutNode_HasClip);
+        VOID_SETBIT(Flags, UILayoutNode_IsParent);
+        VOID_SETBIT(Flags, UILayoutNode_HasClip);
     }
 
     ui_node *Node = UICreateNode(Flags, 0);
@@ -42,10 +42,10 @@ UIScrollableContent(f32 ScrollSpeed, UIAxis_Type Axis, u32 Style)
     return Node;
 }
 
-internal ui_node *
-UILabel(byte_string Text, u32 Style)
+static ui_node *
+UILabel(byte_string Text, uint32_t Style)
 {
-    ui_node *Node = UICreateNode(NoFlag, 0);
+    ui_node *Node = UICreateNode(0, 0);
 
     if(Node && Node->CanUse)
     {
@@ -56,10 +56,10 @@ UILabel(byte_string Text, u32 Style)
     return Node;
 }
 
-internal ui_node *
-UITextInput(u8 *Buffer, u64 BufferSize, u32 Style)
+static ui_node *
+UITextInput(uint8_t *Buffer, uint64_t BufferSize, uint32_t Style)
 {
-    ui_node *Node = UICreateNode(NoFlag, 0);
+    ui_node *Node = UICreateNode(0, 0);
 
     if(Node && Node->CanUse)
     {
@@ -70,10 +70,10 @@ UITextInput(u8 *Buffer, u64 BufferSize, u32 Style)
     return Node;
 }
 
-internal ui_node *
-UIImage(byte_string Path, byte_string Group, u32 Style)
+static ui_node *
+UIImage(byte_string Path, byte_string Group, uint32_t Style)
 {
-    ui_node *Node = UICreateNode(NoFlag, 0);
+    ui_node *Node = UICreateNode(0, 0);
 
     if(Node && Node->CanUse)
     {

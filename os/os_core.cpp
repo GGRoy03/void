@@ -1,29 +1,29 @@
 // -----------------------------------------------------------------------------------
 // Inputs Private Implementation
 
-internal b32
+static bool
 IsButtonStateClicked(os_button_state *State)
 {
-    b32 Result = (State->EndedDown && State->HalfTransitionCount > 0);
+    bool Result = (State->EndedDown && State->HalfTransitionCount > 0);
     return Result;
 }
 
-internal b32
+static bool
 IsKeyClicked(OSInputKey_Type Key)
 {
-    Assert(Key > OSInputKey_None && Key < OSInputKey_Count);
+    VOID_ASSERT(Key > OSInputKey_None && Key < OSInputKey_Count);
 
     os_inputs *Inputs = OSGetInputs();
-    Assert(Inputs);
+    VOID_ASSERT(Inputs);
 
-    b32 Result = IsButtonStateClicked(&Inputs->KeyboardButtons[Key]);
+    bool Result = IsButtonStateClicked(&Inputs->KeyboardButtons[Key]);
     return Result;
 }
 
 // [Inputs]
 
-internal void 
-ProcessInputMessage(os_button_state *NewState, b32 IsDown)
+static void 
+ProcessInputMessage(os_button_state *NewState, bool IsDown)
 {
     if(NewState->EndedDown != IsDown)
     {
@@ -32,75 +32,75 @@ ProcessInputMessage(os_button_state *NewState, b32 IsDown)
     }
 }
 
-internal vec2_f32
+static vec2_float
 OSGetMousePosition(void)
 {
     os_inputs *Inputs = OSGetInputs();
-    vec2_f32   Result = Inputs->MousePosition;
+    vec2_float   Result = Inputs->MousePosition;
 
     return Result;
 }
 
-internal vec2_f32
+static vec2_float
 OSGetMouseDelta(void)
 {
     os_inputs *Inputs = OSGetInputs();
-    vec2_f32   Result = Inputs->MouseDelta;
+    vec2_float   Result = Inputs->MouseDelta;
 
     return Result;
 }
 
-internal f32
+static float
 OSGetScrollDelta(void)
 {
     os_inputs *Inputs = OSGetInputs();
-    f32        Result = Inputs->ScrollDeltaInLines;
+    float        Result = Inputs->ScrollDeltaInLines;
 
     return Result;
 }
 
-internal b32
+static bool
 OSIsMouseClicked(OSMouseButton_Type Button)
 {
     os_inputs       *Inputs = OSGetInputs();
     os_button_state *State  = &Inputs->MouseButtons[Button];
-    b32              Result = (State->EndedDown && State->HalfTransitionCount > 0);
+    bool              Result = (State->EndedDown && State->HalfTransitionCount > 0);
 
     return Result;
 }
 
-internal b32
+static bool
 OSIsMouseHeld(OSMouseButton_Type Button)
 {
     os_inputs       *Inputs = OSGetInputs();
     os_button_state *State  = &Inputs->MouseButtons[Button];
-    b32              Result = (State->EndedDown && State->HalfTransitionCount == 0);
+    bool              Result = (State->EndedDown && State->HalfTransitionCount == 0);
 
     return Result;
 }
 
-internal b32 
+static bool 
 OSIsMouseReleased(OSMouseButton_Type Button)
 {
     os_inputs       *Inputs = OSGetInputs();
     os_button_state *State  = &Inputs->MouseButtons[Button];
-    b32              Result = (!State->EndedDown && State->HalfTransitionCount > 0);
+    bool              Result = (!State->EndedDown && State->HalfTransitionCount > 0);
 
     return Result;
 }
 
-internal void
+static void
 OSClearInputs(os_inputs *Inputs)
 {
     Inputs->ScrollDeltaInLines = 0.f;
-    Inputs->MouseDelta         = vec2_f32(0.f, 0.f);
+    Inputs->MouseDelta         = vec2_float(0.f, 0.f);
 
-    for (u32 Idx = 0; Idx < OS_KeyboardButtonCount; Idx++)
+    for (uint32_t Idx = 0; Idx < OS_KeyboardButtonCount; Idx++)
     {
         Inputs->KeyboardButtons[Idx].HalfTransitionCount = 0;
     }
 
-    for (u32 Idx = 0; Idx < OS_MouseButtonCount; Idx++)
+    for (uint32_t Idx = 0; Idx < OS_MouseButtonCount; Idx++)
     {
         Inputs->MouseButtons[Idx].HalfTransitionCount = 0;
     }
@@ -111,14 +111,14 @@ OSClearInputs(os_inputs *Inputs)
 
 // [Agnostic File API]
 
-internal b32 
+static bool 
 IsValidFile(os_read_file *File)
 {
-    b32 Result = File->At < File->Content.Size;
+    bool Result = File->At < File->Content.Size;
     return Result;
 }
 
-internal void 
+static void 
 SkipWhiteSpaces(os_read_file *File)
 {
     while(IsValidFile(File) && IsWhiteSpace(PeekFile(File, 0)))
@@ -127,17 +127,17 @@ SkipWhiteSpaces(os_read_file *File)
     }
 }
 
-internal u8 *
+static uint8_t *
 PeekFilePointer(os_read_file *File)
 {
-    u8 *Result = &File->Content.String[File->At];
+    uint8_t *Result = &File->Content.String[File->At];
     return Result;
 }
 
-internal u8
-PeekFile(os_read_file *File, i32 Offset)
+static uint8_t
+PeekFile(os_read_file *File, int Offset)
 {
-    u8 Result = 0;
+    uint8_t Result = 0;
 
     if (File->At + Offset < File->Content.Size)
     {
@@ -147,17 +147,17 @@ PeekFile(os_read_file *File, i32 Offset)
     return Result;
 }
 
-internal void
-AdvanceFile(os_read_file *File, u32 Count)
+static void
+AdvanceFile(os_read_file *File, uint32_t Count)
 {
     File->At += Count;
 }
 
 // [Misc]
 
-internal b32
+static bool
 OSIsValidHandle(os_handle Handle)
 {
-    b32 Result = (Handle.u64[0] != 0);
+    bool Result = (Handle.uint64_t[0] != 0);
     return Result;
 }

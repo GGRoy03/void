@@ -1,17 +1,17 @@
 #include <d2d1.h>
 #include <dwrite.h>
 
-internal b32
+static bool
 IsValidOSFontContext(os_font_context *Context)
 {
-    b32 Result = (Context) && (Context->TextFormat) && (Context->FontFace) && (Context->RenderTarget) && (Context->FillBrush);
+    bool Result = (Context) && (Context->TextFormat) && (Context->FontFace) && (Context->RenderTarget) && (Context->FillBrush);
     return Result;
 }
 
-internal b32
-AcquireDirectWrite(byte_string FontName, f32 FontSize, IDWriteFactory *Factory, IDWriteTextFormat **OutTextFormat, IDWriteFontFace **OutFontFace)
+static bool
+AcquireDirectWrite(byte_string FontName, float FontSize, IDWriteFactory *Factory, IDWriteTextFormat **OutTextFormat, IDWriteFontFace **OutFontFace)
 {
-    b32 Result = 0;
+    bool Result = 0;
 
     memory_region Local = EnterMemoryRegion(OSWin32State.Arena);
     wide_string   Name  = ByteStringToWideString(Local.Arena, FontName);
@@ -72,10 +72,10 @@ AcquireDirectWrite(byte_string FontName, f32 FontSize, IDWriteFactory *Factory, 
     return Result;
 }
 
-internal b32
+static bool
 AcquireDirect2D(IDXGISurface *TransferSurface, ID2D1RenderTarget **OutRenderTarget, ID2D1SolidColorBrush **OutColorBrush)
 {
-    b32 Result = 0;
+    bool Result = 0;
 
     ID2D1Factory        *D2DFactory = 0;
     D2D1_FACTORY_OPTIONS Options    = { D2D1_DEBUG_LEVEL_ERROR };
@@ -102,12 +102,12 @@ AcquireDirect2D(IDXGISurface *TransferSurface, ID2D1RenderTarget **OutRenderTarg
     return Result;
 }
 
-internal b32
-OSAcquireFontContext(byte_string FontName, f32 FontSize, gpu_font_context *GPUContext, os_font_context *OSContext)
+static bool
+OSAcquireFontContext(byte_string FontName, float FontSize, gpu_font_context *GPUContext, os_font_context *OSContext)
 {
-    b32 Result = 0;
+    bool Result = 0;
 
-    IDWriteFactory     *Factory       = OSWin32State.DWriteFactory; Assert(Factory);
+    IDWriteFactory     *Factory       = OSWin32State.DWriteFactory; VOID_ASSERT(Factory);
     IDWriteTextFormat **OutTextFormat = &OSContext->TextFormat;
     IDWriteFontFace   **OutFontFace   = &OSContext->FontFace;
 
@@ -124,7 +124,7 @@ OSAcquireFontContext(byte_string FontName, f32 FontSize, gpu_font_context *GPUCo
     return Result;
 }
 
-internal void
+static void
 OSReleaseFontContext(os_font_context *Context)
 {
     if(Context)
@@ -155,16 +155,16 @@ OSReleaseFontContext(os_font_context *Context)
     }
 }
 
-internal os_glyph_info
-OSGetGlyphInfo(byte_string UTF8, f32 FontSize, os_font_context *Context)
+static os_glyph_info
+OSGetGlyphInfo(byte_string UTF8, float FontSize, os_font_context *Context)
 {
-    Assert(UTF8.String);
-    Assert(UTF8.Size);
-    Assert(Context);
+    VOID_ASSERT(UTF8.String);
+    VOID_ASSERT(UTF8.Size);
+    VOID_ASSERT(Context);
 
     os_glyph_info   Result  = {};
-    IDWriteFactory *Factory = OSWin32State.DWriteFactory; Assert(Factory);
-    memory_arena   *Arena   = OSWin32State.Arena;         Assert(Arena);
+    IDWriteFactory *Factory = OSWin32State.DWriteFactory; VOID_ASSERT(Factory);
+    memory_arena   *Arena   = OSWin32State.Arena;         VOID_ASSERT(Arena);
 
     memory_region Local = EnterMemoryRegion(Arena);
 
@@ -197,8 +197,8 @@ OSGetGlyphInfo(byte_string UTF8, f32 FontSize, os_font_context *Context)
         DWRITE_TEXT_METRICS Metrics = {0};
         TextLayout->GetMetrics(&Metrics);
 
-        u16 GlyphIndex = 0;
-        u32 CodePoint  = DecodedUTF8.Codepoint;
+        uint16_t GlyphIndex = 0;
+        uint32_t CodePoint  = DecodedUTF8.Codepoint;
 
         if(SUCCEEDED(Context->FontFace->GetGlyphIndicesA(&CodePoint, 1, &GlyphIndex)))
         {
@@ -208,11 +208,11 @@ OSGetGlyphInfo(byte_string UTF8, f32 FontSize, os_font_context *Context)
                 DWRITE_FONT_METRICS FontMetrics;
                 Context->FontFace->GetMetrics(&FontMetrics);
 
-                Result.AdvanceX = (f32)(GlyphMetrics.advanceWidth * (FontSize / (f32)FontMetrics.designUnitsPerEm) + 0.5f);
-                Result.Size.X   = (u16)(Metrics.width  + 0.5f);
-                Result.Size.Y   = (u16)(Metrics.height + 0.5f);
-                Result.Offset.X = (f32)(Metrics.left);
-                Result.Offset.Y = (f32)(Metrics.top);
+                Result.AdvanceX = (float)(GlyphMetrics.advanceWidth * (FontSize / (float)FontMetrics.designUnitsPerEm) + 0.5f);
+                Result.Size.X   = (uint16_t)(Metrics.width  + 0.5f);
+                Result.Size.Y   = (uint16_t)(Metrics.height + 0.5f);
+                Result.Offset.X = (float)(Metrics.left);
+                Result.Offset.Y = (float)(Metrics.top);
 
                 if(Result.Size.X == 0)
                 {
@@ -229,10 +229,10 @@ OSGetGlyphInfo(byte_string UTF8, f32 FontSize, os_font_context *Context)
     return Result;
 }
 
-internal b32
-OSRasterizeGlyph(byte_string UTF8, rect_f32 Rect, os_font_context *Context)
+static bool
+OSRasterizeGlyph(byte_string UTF8, rect_float Rect, os_font_context *Context)
 {
-    b32 Result = 0;
+    bool Result = 0;
 
     if(!IsValidOSFontContext(Context))
     {
@@ -279,24 +279,24 @@ OSRasterizeGlyph(byte_string UTF8, rect_f32 Rect, os_font_context *Context)
     return Result;
 }
 
-internal f32
-OSGetLineHeight(f32 FontSize, os_font_context *FontContext)
+static float
+OSGetLineHeight(float FontSize, os_font_context *FontContext)
 {
-    f32 Result = 0;
+    float Result = 0;
 
     if(IsValidOSFontContext(FontContext))
     {
         DWRITE_FONT_METRICS FontMetrics = {};
         FontContext->FontFace->GetMetrics(&FontMetrics);
 
-        f32 Scale  = FontSize / (f32)FontMetrics.designUnitsPerEm;
-        Result = (f32)(FontMetrics.ascent + FontMetrics.descent + FontMetrics.lineGap) * Scale;
+        float Scale  = FontSize / (float)FontMetrics.designUnitsPerEm;
+        Result = (float)(FontMetrics.ascent + FontMetrics.descent + FontMetrics.lineGap) * Scale;
     }
 
     return Result;
 }
 
-internal void
+static void
 OSWin32InitializeDWriteFactory(IDWriteFactory **OutFactory)
 {
     DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory), (IUnknown **)OutFactory);

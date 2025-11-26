@@ -1,19 +1,19 @@
 //-------------------------------------------------------------------------------------
-// @Internal: Style Helpers
+// @internal: Style Helpers
 
-internal u32
-ResolveCachedIndex(u32 Index)
+static uint32_t
+ResolveCachedIndex(uint32_t Index)
 {
-    Assert(Index);
+    VOID_ASSERT(Index);
 
-    u32 Result = Index - 1;
+    uint32_t Result = Index - 1;
     return Result;
 }
 
-internal ui_cached_style *
-GetCachedStyle(u32 Index, ui_style_registry *Registry)
+static ui_cached_style *
+GetCachedStyle(uint32_t Index, ui_style_registry *Registry)
 {
-    Assert(Registry);
+    VOID_ASSERT(Registry);
 
     ui_cached_style *Result = 0;
 
@@ -25,15 +25,15 @@ GetCachedStyle(u32 Index, ui_style_registry *Registry)
     return Result;
 }
 
-internal style_property *
-GetCachedProperties(u32 StyleIndex, StyleState_Type State, ui_style_registry *Registry)
+static style_property *
+GetCachedProperties(uint32_t StyleIndex, StyleState_Type State, ui_style_registry *Registry)
 {
-    Assert(StyleIndex);
-    Assert(StyleIndex <= Registry->StylesCount);
+    VOID_ASSERT(StyleIndex);
+    VOID_ASSERT(StyleIndex <= Registry->StylesCount);
 
     style_property  *Result = 0;
 
-    u32              ResolvedIndex = ResolveCachedIndex(StyleIndex);
+    uint32_t              ResolvedIndex = ResolveCachedIndex(StyleIndex);
     ui_cached_style *Cached        = GetCachedStyle(ResolvedIndex, Registry);
 
     if(Cached)
@@ -47,25 +47,25 @@ GetCachedProperties(u32 StyleIndex, StyleState_Type State, ui_style_registry *Re
 // ------------------------------------------------------------------------------------
 // Style Manipulation Public API
 
-internal void
-SetNodeStyleState(StyleState_Type State, u32 NodeIndex, ui_subtree *Subtree)
+static void
+SetNodeStyleState(StyleState_Type State, uint32_t NodeIndex, ui_subtree *Subtree)
 {
-    Assert(Subtree);
+    VOID_ASSERT(Subtree);
 
     ui_node_style *Style = GetNodeStyle(NodeIndex, Subtree);
-    Assert(Style);
+    VOID_ASSERT(Style);
 
     Style->State = State;
 }
 
-internal void
-SetNodeStyle(u32 NodeIndex, u32 StyleIndex, ui_subtree *Subtree)
+static void
+SetNodeStyle(uint32_t NodeIndex, uint32_t StyleIndex, ui_subtree *Subtree)
 {
     ui_node_style *Style = GetNodeStyle(NodeIndex, Subtree);
-    Assert(Style);
+    VOID_ASSERT(Style);
 
     ui_pipeline *Pipeline = GetCurrentPipeline();
-    Assert(Pipeline);
+    VOID_ASSERT(Pipeline);
 
     style_property *Cached[StyleState_Count] = {0};
     Cached[StyleState_Default] = GetCachedProperties(Style->CachedStyleIndex, StyleState_Default, Pipeline->Registry);
@@ -74,7 +74,7 @@ SetNodeStyle(u32 NodeIndex, u32 StyleIndex, ui_subtree *Subtree)
 
     ForEachEnum(StyleState_Type, StyleState_Count, State)
     {
-        Assert(Cached[State]);
+        VOID_ASSERT(Cached[State]);
 
         ForEachEnum(StyleProperty_Type, StyleProperty_Count, Prop)
         {
@@ -88,16 +88,16 @@ SetNodeStyle(u32 NodeIndex, u32 StyleIndex, ui_subtree *Subtree)
     Style->CachedStyleIndex = StyleIndex;
 }
 
-internal style_property *
-GetPaintProperties(u32 NodeIndex, b32 ClearState, ui_subtree *Subtree)
+static style_property *
+GetPaintProperties(uint32_t NodeIndex, bool ClearState, ui_subtree *Subtree)
 {
-    Assert(Subtree);
+    VOID_ASSERT(Subtree);
 
     ui_node_style *Style = GetNodeStyle(NodeIndex, Subtree);
-    Assert(Style);
+    VOID_ASSERT(Style);
 
     style_property *Result = PushArray(Subtree->Transient, style_property, StyleProperty_Count);
-    Assert(Result);
+    VOID_ASSERT(Result);
 
     ForEachEnum(StyleProperty_Type, StyleProperty_Count, Prop)
     {
@@ -119,10 +119,10 @@ GetPaintProperties(u32 NodeIndex, b32 ClearState, ui_subtree *Subtree)
     return Result;
 }
 
-internal ui_node_style *
-GetNodeStyle(u32 Index, ui_subtree *Subtree)
+static ui_node_style *
+GetNodeStyle(uint32_t Index, ui_subtree *Subtree)
 {
-    Assert(Subtree);
+    VOID_ASSERT(Subtree);
 
     ui_node_style *Result = 0;
 
@@ -136,9 +136,9 @@ GetNodeStyle(u32 Index, ui_subtree *Subtree)
 
 // [Helpers]
 
-internal b32
+static bool
 IsVisibleColor(ui_color Color)
 {
-    b32 Result = (Color.A > 0.f);
+    bool Result = (Color.A > 0.f);
     return Result;
 }

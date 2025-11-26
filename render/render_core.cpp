@@ -1,29 +1,29 @@
 // [Handles]
 
-internal render_handle
-RenderHandle(u64 Handle)
+static render_handle
+RenderHandle(uint64_t Handle)
 {
     render_handle Result = { Handle };
     return Result;
 }
 
-internal b32
+static bool
 IsValidRenderHandle(render_handle Handle)
 {
-    b32 Result = (Handle.u64[0] != 0);
+    bool Result = (Handle.uint64_t[0] != 0);
     return Result;
 }
 
-internal b32 
+static bool 
 RenderHandleMatches(render_handle H1, render_handle H2)
 {
-    b32 Result = (H1.u64[0] == H2.u64[0]);
+    bool Result = (H1.uint64_t[0] == H2.uint64_t[0]);
     return Result;
 }
 
 // [Batches]
 
-internal void *
+static void *
 PushDataInBatchList(memory_arena *Arena, render_batch_list *BatchList)
 {
     void *Result = 0;
@@ -33,8 +33,8 @@ PushDataInBatchList(memory_arena *Arena, render_batch_list *BatchList)
     {
         Node = PushArray(Arena, render_batch_node, 1);
         Node->Value.ByteCount    = 0;
-        Node->Value.ByteCapacity = Kilobyte(5); // WARN: This works, but would be better if we could infer it?
-        Node->Value.Memory       = PushArrayNoZero(Arena, u8, Node->Value.ByteCapacity);
+        Node->Value.ByteCapacity = VOID_KILOBYTE(5); // WARN: This works, but would be better if we could infer it?
+        Node->Value.Memory       = PushArrayNoZero(Arena, uint8_t, Node->Value.ByteCapacity);
 
         if (!BatchList->Last)
         {
@@ -58,7 +58,7 @@ PushDataInBatchList(memory_arena *Arena, render_batch_list *BatchList)
     return Result;
 }
 
-internal render_pass *
+static render_pass *
 GetRenderPass(memory_arena *Arena,  RenderPass_Type Type)
 {
     render_pass_list *List   = &RenderState.PassList;
@@ -85,7 +85,7 @@ GetRenderPass(memory_arena *Arena,  RenderPass_Type Type)
     return &Result->Value;
 }
 
-internal b32
+static bool
 CanMergeRectGroupParams(rect_group_params *Old, rect_group_params *New)
 {
     // If the old value had some texture and it is not the same, then we can't merge.
@@ -101,7 +101,7 @@ CanMergeRectGroupParams(rect_group_params *Old, rect_group_params *New)
     }
 
     // If the clip is different, then we can't merge.
-    if(MemoryCompare(&Old->Clip, &New->Clip, sizeof(rect_f32)) != 0)
+    if(MemoryCompare(&Old->Clip, &New->Clip, sizeof(rect_float)) != 0)
     {
         return 0;
     }

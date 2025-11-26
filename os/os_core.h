@@ -4,6 +4,11 @@ using namespace void_math;
 
 // [Constants]
 
+typedef struct os_handle
+{
+    uint64_t uint64_t[1];
+} os_handle;
+
 #define OS_KeyboardButtonCount 256
 #define OS_MouseButtonCount 5
 #define OS_MAX_PATH 256
@@ -54,42 +59,42 @@ typedef struct ui_style_registry ui_style_registry;
 
 typedef struct os_system_info
 {
-    u32 PageSize;
-    u32 ProcessorCount;
+    uint32_t PageSize;
+    uint32_t ProcessorCount;
 } os_system_info;
 
 typedef struct os_button_state
 {
-    b32 EndedDown;
-    u32 HalfTransitionCount;
+    bool EndedDown;
+    uint32_t HalfTransitionCount;
 } os_button_state;
 
 typedef struct os_button_action
 {
-    b32 IsPressed;
-    u32 Keycode;
+    bool IsPressed;
+    uint32_t Keycode;
 } os_button_action;
 
 typedef struct os_button_playback
 {
     os_button_action Actions[256];
-    u32              Count;
-    u32              Size;
+    uint32_t              Count;
+    uint32_t              Size;
 } os_button_playback;
 
 typedef struct os_utf8_playback
 {
-    u8  UTF8[1024];
-    u32 Count;
-    u32 Size;
+    uint8_t  UTF8[1024];
+    uint32_t Count;
+    uint32_t Size;
 } os_utf8_playback;
 
 typedef struct os_inputs
 {
-    b32             IsActiveFrame;
+    bool             IsActiveFrame;
     os_button_state KeyboardButtons[OS_KeyboardButtonCount];
-    vec2_f32        MousePosition;
-    vec2_f32        MouseDelta;
+    vec2_float        MousePosition;
+    vec2_float        MouseDelta;
     os_button_state MouseButtons[OS_MouseButtonCount];
 
     // Keyboard
@@ -97,70 +102,70 @@ typedef struct os_inputs
     os_utf8_playback   UTF8Buffer;
 
     // Mouse
-    f32 ScrollDeltaInLines;
-    i32 WheelScrollLine;
+    float ScrollDeltaInLines;
+    int WheelScrollLine;
 } os_inputs;
 
 typedef struct os_read_file
 {
     byte_string Content;
-    u64         At;
-    b32         FullyRead;
+    uint64_t         At;
+    bool         FullyRead;
 } os_read_file;
 
 typedef struct os_glyph_info
 {
-    vec2_i32 Size;
-    vec2_f32 Offset;
-    f32      AdvanceX;
+    vec2_int Size;
+    vec2_float Offset;
+    float      AdvanceX;
 } os_glyph_info;
 
 // [Inputs]
 
-internal void      ProcessInputMessage  (os_button_state *NewState, b32 IsDown);
-internal vec2_f32  OSGetMousePosition   (void);
-internal vec2_f32  OSGetMouseDelta      (void);
-internal f32       OSGetScrollDelta     (void);
-internal b32       OSIsMouseClicked     (OSMouseButton_Type Button);
-internal b32       OSIsMouseHeld        (OSMouseButton_Type Button);
-internal b32       OSIsMouseReleased    (OSMouseButton_Type Button);
-internal void      OSClearInputs        (os_inputs *Inputs);
+static void      ProcessInputMessage  (os_button_state *NewState, bool IsDown);
+static vec2_float  OSGetMousePosition   (void);
+static vec2_float  OSGetMouseDelta      (void);
+static float       OSGetScrollDelta     (void);
+static bool       OSIsMouseClicked     (OSMouseButton_Type Button);
+static bool       OSIsMouseHeld        (OSMouseButton_Type Button);
+static bool       OSIsMouseReleased    (OSMouseButton_Type Button);
+static void      OSClearInputs        (os_inputs *Inputs);
 
-internal os_button_playback * OSGetButtonPlayback  (void);
-internal os_utf8_playback   * OSGetTextPlayback    (void);
+static os_button_playback * OSGetButtonPlayback  (void);
+static os_utf8_playback   * OSGetTextPlayback    (void);
 
 // [Files]
 
-internal b32   IsValidFile      (os_read_file *File);
-internal void  SkipWhiteSpaces  (os_read_file *File);
-internal u8  * PeekFilePointer  (os_read_file *File);
-internal u8    PeekFile         (os_read_file *File, i32 Offset);
-internal void  AdvanceFile      (os_read_file *File, u32 Count);
+static bool   IsValidFile      (os_read_file *File);
+static void  SkipWhiteSpaces  (os_read_file *File);
+static uint8_t  * PeekFilePointer  (os_read_file *File);
+static uint8_t    PeekFile         (os_read_file *File, int Offset);
+static void  AdvanceFile      (os_read_file *File, uint32_t Count);
 
-internal os_handle    OSFindFile     (byte_string Path);
-internal u64          OSFileSize     (os_handle Handle);
-internal os_read_file OSReadFile     (os_handle Handle, memory_arena *Arena);
-internal void         OSReleaseFile  (os_handle Handle);
+static os_handle    OSFindFile     (byte_string Path);
+static uint64_t          OSFileSize     (os_handle Handle);
+static os_read_file OSReadFile     (os_handle Handle, memory_arena *Arena);
+static void         OSReleaseFile  (os_handle Handle);
 
 // [OS State]
 
-internal os_system_info * OSGetSystemInfo  (void);
-internal os_inputs      * OSGetInputs      (void);
+static os_system_info * OSGetSystemInfo  (void);
+static os_inputs      * OSGetInputs      (void);
 
 // [Memory]
 
-internal void *OSReserveMemory  (u64 Size);
-internal b32   OSCommitMemory   (void *Memory, u64 Size);
-internal void  OSRelease        (void *Memory);
+static void *OSReserveMemory  (uint64_t Size);
+static bool   OSCommitMemory   (void *Memory, uint64_t Size);
+static void  OSRelease        (void *Memory);
 
 // [Misc]
 
-internal void  OSAbort              (i32 ExitCode);
-internal b32   OSIsValidHandle      (os_handle Handle);
-internal void  OSSetCursor          (OSCursor_Type Type);
+static void  OSAbort              (int ExitCode);
+static bool   OSIsValidHandle      (os_handle Handle);
+static void  OSSetCursor          (OSCursor_Type Type);
 
-internal u64 OSReadTimer          (void);
-internal u64 OSGetTimerFrequency  (void);
+static uint64_t OSReadTimer          (void);
+static uint64_t OSGetTimerFrequency  (void);
 
 // Inputs:
 //   You may query input state using OSInputKey_Type.
@@ -224,7 +229,7 @@ typedef enum OSInputKey_Type
     OSInputKey_Count
 } OSInputKey_Type;
 
-internal b32 IsKeyClicked  (OSInputKey_Type Key);
+static bool IsKeyClicked  (OSInputKey_Type Key);
 
 // OSAcquireFontContext:
 //   Acquires the font context for a given font.
@@ -237,7 +242,7 @@ internal b32 IsKeyClicked  (OSInputKey_Type Key);
 typedef struct os_font_context os_font_context;
 typedef struct gpu_font_context gpu_font_context;
 
-b32  OSAcquireFontContext  (byte_string FontName, f32 FontSize, gpu_font_context *GPUContext, os_font_context *OSContext);
+bool  OSAcquireFontContext  (byte_string FontName, float FontSize, gpu_font_context *GPUContext, os_font_context *OSContext);
 void OSReleaseFontContext  (os_font_context *Context);
 
 // OSGetGlyphInfo:
@@ -253,6 +258,6 @@ void OSReleaseFontContext  (os_font_context *Context);
 // OSGetLineHeight:
 //   Queries the LineHeight from a fully intialized context. If result == 0, then the context or the font size is invalid.
 
-os_glyph_info  OSGetGlyphInfo    (byte_string UTF8, f32 FontSize, os_font_context *OSContext);
-b32            OSRasterizeGlyph  (byte_string UTF8, rect_f32 Rect, os_font_context *OSContext);
-f32            OSGetLineHeight   (f32 FontSize, os_font_context *FontContext);
+os_glyph_info  OSGetGlyphInfo    (byte_string UTF8, float FontSize, os_font_context *OSContext);
+bool            OSRasterizeGlyph  (byte_string UTF8, rect_float Rect, os_font_context *OSContext);
+float            OSGetLineHeight   (float FontSize, os_font_context *FontContext);

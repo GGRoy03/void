@@ -1,12 +1,12 @@
 // [PRODUCER API]
 
-internal void
+static void
 ConsolePushMessage(console_queue_node *Node, console_queue *Queue)
 {
     ConsolePushMessageList(Node, Node, Queue);
 }
 
-internal void
+static void
 ConsolePushMessageList(console_queue_node *First, console_queue_node *Last, console_queue *Queue)
 {
     atomic_store_explicit(&Last->Next, 0, std::memory_order_relaxed);
@@ -14,8 +14,8 @@ ConsolePushMessageList(console_queue_node *First, console_queue_node *Last, cons
     atomic_store_explicit(&Prev->Next, First, std::memory_order_release);
 }
 
-internal void
-ConsolePushMessageBatch(u64 NodeCount, console_queue_node *Nodes[], console_queue *Queue)
+static void
+ConsolePushMessageBatch(uint64_t NodeCount, console_queue_node *Nodes[], console_queue *Queue)
 {
     if(NodeCount == 0)
     {
@@ -25,7 +25,7 @@ ConsolePushMessageBatch(u64 NodeCount, console_queue_node *Nodes[], console_queu
     console_queue_node *First = Nodes[0];
     console_queue_node *Last  = Nodes[NodeCount - 1];
 
-    for(u64 Idx = 0; Idx < NodeCount; Idx++)
+    for(uint64_t Idx = 0; Idx < NodeCount; Idx++)
     {
         console_queue_node *Node = Nodes[Idx];
         atomic_store_explicit(&Node->Next, Nodes[Idx + 1], std::memory_order_relaxed);
@@ -36,7 +36,7 @@ ConsolePushMessageBatch(u64 NodeCount, console_queue_node *Nodes[], console_queu
 
 // [CONSUMER API]
 
-internal void
+static void
 InitializeConsoleMessageQueue(console_queue *Queue)
 {
     atomic_store_explicit(&Queue->Head         , &Queue->Sentinel, std::memory_order_relaxed);
@@ -44,7 +44,7 @@ InitializeConsoleMessageQueue(console_queue *Queue)
     atomic_store_explicit(&Queue->Sentinel.Next,                0, std::memory_order_relaxed);
 }
 
-internal void
+static void
 ConsoleMessageQueuePushFront(console_queue_node *Node, console_queue *Queue)
 {
     console_queue_node *Tail = atomic_load_explicit(&Queue->Tail, std::memory_order_relaxed);
@@ -52,18 +52,18 @@ ConsoleMessageQueuePushFront(console_queue_node *Node, console_queue *Queue)
     atomic_store_explicit(&Queue->Tail, Node, std::memory_order_relaxed);
 }
 
-internal b32
+static bool
 ConsoleMessageQueueIsEmpty(console_queue *Queue)
 {
     console_queue_node *Tail = atomic_load_explicit(&Queue->Tail, std::memory_order_relaxed); // Consumer Only Read/Write
     console_queue_node *Next = atomic_load_explicit(&Tail->Next , std::memory_order_acquire); // Written By Producer / Read By Consumer
     console_queue_node *Head = atomic_load_explicit(&Queue->Head, std::memory_order_acquire); // Written By Producer / Read By Consumer
 
-    b32 Result = (Tail == &Queue->Sentinel) && (Next == 0) && (Tail == Head);
+    bool Result = (Tail == &Queue->Sentinel) && (Next == 0) && (Tail == Head);
     return Result;
 }
 
-internal ConsoleMessagePoll_Result
+static ConsoleMessagePoll_Result
 PollConsoleMessageQueue(console_queue_node **OutNode, console_queue *Queue)
 {
     console_queue_node *Tail = atomic_load_explicit(&Queue->Tail, std::memory_order_relaxed); // Consumer Only Read/Write
@@ -131,7 +131,7 @@ PollConsoleMessageQueue(console_queue_node **OutNode, console_queue *Queue)
     return ConsoleMessagePoll_Retry;
 }
 
-internal console_queue_node *
+static console_queue_node *
 PopConsoleMessageQueue(console_queue *Queue)
 {
     console_queue_node       *Result = 0;
@@ -149,7 +149,7 @@ PopConsoleMessageQueue(console_queue *Queue)
     return Result;
 }
 
-internal void
+static void
 FreeConsoleMessageNode(console_queue_node *Node)
 {
     OSRelease(Node);
@@ -157,7 +157,7 @@ FreeConsoleMessageNode(console_queue_node *Node)
 
 // [NON-ATOMIC PRODUCER API]
 
-internal u64
+static uint64_t
 GetTimeStamp(void)
 {
     return 0;
@@ -168,11 +168,11 @@ GetTimeStamp(void)
 // not the best way. At least the behavior is simple and clear
 // producer allocates and consumer frees.
 
-internal void
+static void
 ConsoleWriteMessage(ConsoleMessage_Severity Severity, byte_string Message, console_queue *Queue)
 {
-    u64 MessageSize = Message.Size;
-    u64 Footprint   = sizeof(console_queue_node) + MessageSize;
+    uint64_t MessageSize = Message.Size;
+    uint64_t Footprint   = sizeof(console_queue_node) + MessageSize;
 
     console_queue_node *Node = (console_queue_node *)malloc(Footprint);
     if(Node)
@@ -187,7 +187,7 @@ ConsoleWriteMessage(ConsoleMessage_Severity Severity, byte_string Message, conso
     }
 }
 
-internal void
+static void
 FreeConsoleNode(console_queue_node *Node)
 {
     free(Node);

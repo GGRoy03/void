@@ -12,65 +12,65 @@ typedef enum StringMatch_Flag
 
 typedef struct byte_string
 {
-    u8 *String;
-    u64 Size;
+    uint8_t *String;
+    uint64_t Size;
 } byte_string;
 
 typedef struct wide_string
 {
-    u16 *String;
-    u64  Size;
+    uint16_t *String;
+    uint64_t  Size;
 } wide_string;
 
 typedef struct unicode_decode
 {
-    u32 Increment;
-    u32 Codepoint;
+    uint32_t Increment;
+    uint32_t Codepoint;
 } unicode_decode;
 
 // [API]
 
-#define str8_lit(String) ByteString((u8 *)String, sizeof(String) - 1)
+#define str8_lit(String) ByteString((uint8_t *)String, sizeof(String) - 1)
 
-#define byte_string_literal(String) ByteString((u8 *)String, sizeof(String) - 1)
-#define byte_string_compile(String) {(u8 *)String, sizeof(String) - 1}
+#define byte_string_literal(String) ByteString((uint8_t *)String, sizeof(String) - 1)
+#define byte_string_compile(String) {(uint8_t *)String, sizeof(String) - 1}
 
 // [Constructors]
 
-byte_string ByteString  (u8 *String, u64 Size);
-internal wide_string WideString  (u16 *String, u64 Size);
+byte_string ByteString  (uint8_t *String, uint64_t Size);
+static wide_string WideString  (uint16_t *String, uint64_t Size);
 
 // [String Utilities]
 
-internal b32         IsValidByteString   (byte_string Input);
-internal b32         IsAsciiString       (byte_string Input);
-internal b32         ByteStringMatches   (byte_string A, byte_string B, bit_field Flags);
-internal byte_string ByteStringCopy      (byte_string String, memory_arena *Arena);
-internal byte_string ByteStringAppend    (byte_string Target, byte_string Source, u64 At,memory_arena *Arena);
-internal void        ByteStringAppendTo  (byte_string Target, byte_string Source, u64 At);
+static bool         IsValidByteString   (byte_string Input);
+static bool         IsAsciiString       (byte_string Input);
+static bool         ByteStringMatches   (byte_string A, byte_string B, uint32_t Flags);
+static byte_string ByteStringCopy      (byte_string String, memory_arena *Arena);
+static byte_string ByteStringAppend    (byte_string Target, byte_string Source, uint64_t At,memory_arena *Arena);
+static void        ByteStringAppendTo  (byte_string Target, byte_string Source, uint64_t At);
 
-b32         IsValidWideString   (wide_string Input);
-internal b32         WideStringMatches   (wide_string A, wide_string B, bit_field Flags);
+bool         IsValidWideString   (wide_string Input);
+static bool         WideStringMatches   (wide_string A, wide_string B, uint32_t Flags);
 
 // [Character Utilities]
 
-internal b32 IsAlpha       (u8 Char);
-internal b32 IsDigit       (u8 Char);
-internal b32 IsWhiteSpace  (u8 Char);
-internal b32 IsNewLine     (u8 Char);
-internal u8  ToLowerChar   (u8 Char);
+static bool IsAlpha       (uint8_t Char);
+static bool IsDigit       (uint8_t Char);
+static bool IsWhiteSpace  (uint8_t Char);
+static bool IsNewLine     (uint8_t Char);
+static uint8_t  ToLowerChar   (uint8_t Char);
 
 // [Encoding/Decoding]
 
-unicode_decode DecodeByteString  (u8 *String, u64 Maximum);
+unicode_decode DecodeByteString  (uint8_t *String, uint64_t Maximum);
 
-internal u32 EncodeWideString    (u16 *WideString, u32 CodePoint);
+static uint32_t EncodeWideString    (uint16_t *WideString, uint32_t CodePoint);
 
 // [Conversion]
 
 wide_string ByteStringToWideString(memory_arena *Arena, byte_string Input);
-internal byte_string WideStringToByteString(wide_string Input, memory_arena *Arena);
+static byte_string WideStringToByteString(wide_string Input, memory_arena *Arena);
 
 // [Hashes]
 
-internal u64 HashByteString(byte_string Input);
+static uint64_t HashByteString(byte_string Input);

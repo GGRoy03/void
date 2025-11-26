@@ -2,22 +2,22 @@
 
 typedef struct typed_queue_params
 {
-    u64 QueueSize;
+    uint64_t QueueSize;
 } typed_queue_params;
 
 #define DEFINE_TYPED_QUEUE(Prefix, Name, Type)                       \
 typedef struct Name##_queue                                          \
 {                                                                    \
     Type *Data;                                                      \
-    u64   Head;                                                      \
-    u64   Tail;                                                      \
-    u64   Count;                                                     \
-    u64   Capacity;                                                  \
+    uint64_t   Head;                                                      \
+    uint64_t   Tail;                                                      \
+    uint64_t   Count;                                                     \
+    uint64_t   Capacity;                                                  \
 } Name##_queue;                                                      \
                                                                      \
-internal Name##_queue                                                \
+static Name##_queue                                                \
 Begin##Prefix##Queue(typed_queue_params Params, memory_arena *Arena) \
-{   Assert(Params.QueueSize > 0 && Arena);                           \
+{   VOID_ASSERT(Params.QueueSize > 0 && Arena);                           \
                                                                      \
     Name##_queue Result = {0};                                       \
     Result.Data     = PushArray(Arena, Type, Params.QueueSize);      \
@@ -29,7 +29,7 @@ Begin##Prefix##Queue(typed_queue_params Params, memory_arena *Arena) \
     return Result;                                                   \
 }                                                                    \
                                                                      \
-internal void                                                        \
+static void                                                        \
 Push##Prefix##Queue(Name##_queue *Q, Type Value)                     \
 {                                                                    \
     if(Q && Q->Count != Q->Capacity)                                 \
@@ -45,7 +45,7 @@ Push##Prefix##Queue(Name##_queue *Q, Type Value)                     \
     }                                                                \
 }                                                                    \
                                                                      \
-internal Type                                                        \
+static Type                                                        \
 Pop##Prefix##Queue(Name##_queue *Q)                                  \
 {                                                                    \
     Type Result = 0;                                                 \
@@ -65,10 +65,10 @@ Pop##Prefix##Queue(Name##_queue *Q)                                  \
     return Result;                                                   \
 }                                                                    \
                                                                      \
-internal b32                                                         \
+static bool                                                         \
 Is##Prefix##QueueEmpty(Name##_queue *Q)                              \
-{   Assert(Q);                                                       \
+{   VOID_ASSERT(Q);                                                       \
                                                                      \
-    b32 Result = Q->Count == 0;                                      \
+    bool Result = Q->Count == 0;                                      \
     return Result;                                                   \
 }

@@ -2,10 +2,10 @@
 
 typedef struct memory_arena_params
 {
-    u64         CommitSize;
-    u64         ReserveSize;
+    uint64_t         CommitSize;
+    uint64_t         ReserveSize;
     const char *AllocatedFromFile;
-    u32         AllocatedFromLine;
+    uint32_t         AllocatedFromLine;
 } memory_arena_params;
 
 typedef struct memory_arena memory_arena;
@@ -14,36 +14,36 @@ struct memory_arena
     memory_arena *Prev;
     memory_arena *Current;
 
-    u64 CommitSize;
-    u64 ReserveSize;
-    u64 Committed;
-    u64 Reserved;
+    uint64_t CommitSize;
+    uint64_t ReserveSize;
+    uint64_t Committed;
+    uint64_t Reserved;
 
-    u64 BasePosition;
-    u64 Position;
+    uint64_t BasePosition;
+    uint64_t Position;
 
     const char *AllocatedFromFile;
-    u32         AllocatedFromLine;
+    uint32_t         AllocatedFromLine;
 };
 
 typedef struct memory_region
 {
     memory_arena *Arena;
-    u64           Position;
+    uint64_t           Position;
 } memory_region;
 
-global u64 ArenaDefaultReserveSize = Megabyte(64);
-global u64 ArenaDefaultCommitSize  = Kilobyte(64);
+static uint64_t ArenaDefaultReserveSize = VOID_MEGABYTE(64);
+static uint64_t ArenaDefaultCommitSize  = VOID_KILOBYTE(64);
 
-internal memory_arena *AllocateArena  (memory_arena_params Params);
-internal void          ReleaseArena   (memory_arena *Arena);
+static memory_arena *AllocateArena  (memory_arena_params Params);
+static void          ReleaseArena   (memory_arena *Arena);
 
-internal void *PushArena   (memory_arena *Arena, u64 Size, u64 Align);
-internal void  ClearArena  (memory_arena *Arena);
-internal void  PopArenaTo  (memory_arena *Arena, u64 Position);
-internal void  PopArena    (memory_arena *Arena, u64 Amount);
+static void *PushArena   (memory_arena *Arena, uint64_t Size, uint64_t Align);
+static void  ClearArena  (memory_arena *Arena);
+static void  PopArenaTo  (memory_arena *Arena, uint64_t Position);
+static void  PopArena    (memory_arena *Arena, uint64_t Amount);
 
-internal u64 GetArenaPosition(memory_arena *Arena);
+static uint64_t GetArenaPosition(memory_arena *Arena);
 
 memory_region EnterMemoryRegion  (memory_arena *Arena);
 void          LeaveMemoryRegion  (memory_region Region);

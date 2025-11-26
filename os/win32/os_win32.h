@@ -12,7 +12,7 @@
 #pragma comment(lib, "dwrite")
 #pragma comment(lib, "d2d1")
 #pragma comment(lib, "shlwapi.lib")
-#pragma comment(lib, "Gdi32.lib")
+#pragma comment(lib, "GDI32.lib")
 
 typedef struct IDWriteFactory IDWriteFactory;
 typedef struct os_text_input os_text_input;
@@ -26,7 +26,7 @@ typedef struct os_win32_state
     os_system_info SystemInfo;
     os_inputs      Inputs;
 
-    // Internal (Queried by win32 specific code)
+    // internal (Queried by win32 specific code)
     IDWriteFactory *DWriteFactory;
     HWND            HWindow;
 } os_win32_state;

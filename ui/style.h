@@ -49,14 +49,14 @@ typedef enum StyleState_Type
 
 typedef struct style_property
 {
-    b32 IsSet;
-    b32 IsSetRuntime;
+    bool IsSet;
+    bool IsSetRuntime;
 
     StyleProperty_Type Type;
     union
     {
-        u32              Enum;
-        f32              Float32;
+        uint32_t              Enum;
+        float              Float32;
         vec2_unit        Vec2;
         ui_spacing       Spacing;
         ui_padding       Padding;
@@ -70,31 +70,31 @@ typedef struct style_property
 typedef struct ui_cached_style
 {
     style_property Properties[StyleState_Count][StyleProperty_Count];
-    u32            CachedIndex;
+    uint32_t            CachedIndex;
 } ui_cached_style;
 
 typedef struct ui_style_registry
 {
-    u32              StylesCount;
-    u32              StylesCapacity;
+    uint32_t              StylesCount;
+    uint32_t              StylesCapacity;
     ui_cached_style *Styles;
 } ui_style_registry;
 
 typedef struct ui_node_style
 {
-    b32             IsLastVersion;
-    u32             CachedStyleIndex;
+    bool             IsLastVersion;
+    uint32_t             CachedStyleIndex;
     StyleState_Type State;
     style_property  Properties[StyleState_Count][StyleProperty_Count];
 } ui_node_style;
 
 #define UI_PROPERTY_TABLE                                                                \
-    X(BorderWidth,    Float32,      f32,                   StyleProperty_BorderWidth)    \
-    X(Softness,       Float32,      f32,                   StyleProperty_Softness)       \
-    X(FontSize,       Float32,      f32,                   StyleProperty_FontSize)       \
-    X(FlexGrow,       Float32,      f32,                   StyleProperty_FlexGrow)       \
-    X(FlexShrink,     Float32,      f32,                   StyleProperty_FlexShrink)     \
-    X(CaretWidth,     Float32,      f32,                   StyleProperty_CaretWidth)     \
+    X(BorderWidth,    Float32,      float,                   StyleProperty_BorderWidth)    \
+    X(Softness,       Float32,      float,                   StyleProperty_Softness)       \
+    X(FontSize,       Float32,      float,                   StyleProperty_FontSize)       \
+    X(FlexGrow,       Float32,      float,                   StyleProperty_FlexGrow)       \
+    X(FlexShrink,     Float32,      float,                   StyleProperty_FlexShrink)     \
+    X(CaretWidth,     Float32,      float,                   StyleProperty_CaretWidth)     \
                                                                                          \
     X(CaretColor,     Color,        ui_color,              StyleProperty_CaretColor)     \
     X(Color,          Color,        ui_color,              StyleProperty_Color)          \
@@ -115,7 +115,7 @@ typedef struct ui_node_style
     X(YTextAlign,     Enum,         UIAlign_Type,          StyleProperty_YTextAlign)
 
 #define X(Name, Member, Type, Enum)                                         \
-internal Type UIGet##Name(style_property Properties[StyleProperty_Count])   \
+static Type UIGet##Name(style_property Properties[StyleProperty_Count])   \
 {                                                                           \
     return (Type)Properties[Enum].Member;                                   \
 }
@@ -128,25 +128,25 @@ UI_PROPERTY_TABLE
 // GetHoverStyle:
 //
 
-internal void             SetNodeStyleState    (StyleState_Type State, u32 NodeIndex, ui_subtree *Subtree);
-internal style_property * GetPaintProperties   (u32 NodeIndex, b32 ClearState, ui_subtree *Subtree);
-internal void             SetNodeStyle         (u32 NodeIndex, u32 Style, ui_subtree *Subtree);
-internal ui_node_style  * GetNodeStyle         (u32 NodeIndex, ui_subtree *Subtree);
-internal style_property * GetCachedProperties  (u32 StyleIndex, StyleState_Type State, ui_style_registry *Registry);
+static void             SetNodeStyleState    (StyleState_Type State, uint32_t NodeIndex, ui_subtree *Subtree);
+static style_property * GetPaintProperties   (uint32_t NodeIndex, bool ClearState, ui_subtree *Subtree);
+static void             SetNodeStyle         (uint32_t NodeIndex, uint32_t Style, ui_subtree *Subtree);
+static ui_node_style  * GetNodeStyle         (uint32_t NodeIndex, ui_subtree *Subtree);
+static style_property * GetCachedProperties  (uint32_t StyleIndex, StyleState_Type State, ui_style_registry *Registry);
 
 //  Override a style at runtine.
 
 #define UI_STYLE_SETTERS(X) \
     X(Size,      StyleProperty_Size,      Vec2,  vec2_unit) \
-    X(Display,   StyleProperty_Display,   Enum,  u32)       \
+    X(Display,   StyleProperty_Display,   Enum,  uint32_t)       \
     X(TextColor, StyleProperty_TextColor, Color, ui_color)  \
     X(Color    , StyleProperty_Color    , Color, ui_color)
 
 #define DEFINE_UI_STYLE_SETTER(Name, PropType, Field, ValueType)                          \
-internal void                                                                             \
-UISet##Name(u32 NodeIndex, ValueType Value, ui_subtree *Subtree)                          \
+static void                                                                             \
+UISet##Name(uint32_t NodeIndex, ValueType Value, ui_subtree *Subtree)                          \
 {                                                                                         \
-    Assert(Subtree);                                                                      \
+    VOID_ASSERT(Subtree);                                                                      \
     style_property Property = {.Type = PropType, .Field = (ValueType)Value};              \
                                                                                           \
     ui_node_style *NodeStyle = Subtree->ComputedStyles + NodeIndex;                       \
@@ -165,4 +165,4 @@ UI_STYLE_SETTERS(DEFINE_UI_STYLE_SETTER)
 
 // [Helpers]
 
-internal b32 IsVisibleColor  (ui_color Color);
+static bool IsVisibleColor  (ui_color Color);
