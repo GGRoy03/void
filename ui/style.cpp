@@ -76,7 +76,7 @@ SetNodeStyle(uint32_t NodeIndex, uint32_t StyleIndex, ui_subtree *Subtree)
     {
         VOID_ASSERT(Cached[State]);
 
-        ForEachEnum(StyleProperty_Type, StyleProperty_Count, Prop)
+        ForEachEnum(StyleProperty, StylePropertyCount, Prop)
         {
             if(!Style->Properties[State][Prop].IsSetRuntime)
             {
@@ -96,10 +96,10 @@ GetPaintProperties(uint32_t NodeIndex, bool ClearState, ui_subtree *Subtree)
     ui_node_style *Style = GetNodeStyle(NodeIndex, Subtree);
     VOID_ASSERT(Style);
 
-    style_property *Result = PushArray(Subtree->Transient, style_property, StyleProperty_Count);
+    style_property *Result = PushArray(Subtree->Transient, style_property, StylePropertyCount);
     VOID_ASSERT(Result);
 
-    ForEachEnum(StyleProperty_Type, StyleProperty_Count, Prop)
+    ForEachEnum(StyleProperty, StylePropertyCount, Prop)
     {
         if(Style->Properties[Style->State][Prop].IsSet)
         {
