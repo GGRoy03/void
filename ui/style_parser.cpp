@@ -56,32 +56,35 @@ static inline uint64_t HashMapEntry(uint8_t *String, size_t Size)
     return Hash;
 }
 
-#define STYLE_KEYWORD_MAP         \
-    X("style", StyleToken::Style) \
-    X("var"  , StyleToken::Var)   \
-
-#define STYLE_PROPERTY_MAP                         \
-    X("size"        , StyleProperty::Size)         \
-    X("color"       , StyleProperty::Color)        \
-    X("padding"     , StyleProperty::Padding)      \
-    X("spacing"     , StyleProperty::Spacing)      \
-    X("softness"    , StyleProperty::Softness)     \
-    X("borderwidth" , StyleProperty::BorderWidth)  \
-    X("bordercolor" , StyleProperty::BorderColor)  \
-    X("cornerradius", StyleProperty::CornerRadius) \
-                                                   \
-    X("font"        , StyleProperty::Font)         \
-    X("font-size"   , StyleProperty::FontSize)     \
-    X("text-align-x", StyleProperty::XTextAlign)   \
-    X("text-align-y", StyleProperty::YTextAlign)   \
-    X("text-color"  , StyleProperty::TextColor)    \
-    X("caret-color" , StyleProperty::CaretColor)   \
-    X("caret-width" , StyleProperty::CaretWidth)
-
-#define STYLE_STATE_MAP              \
-    X("default", StyleState_Default) \
-    X("hovered", StyleState_Hovered) \
-    X("focused", StyleState_Focused) \
+#define STYLE_KEYWORD_MAP                            \
+    X("style"        , StyleToken::Style)            \
+    X("var"          , StyleToken::Var)              \
+                                                     \
+    X("size"         , StyleProperty::Size)          \
+    X("min-size"     , StyleProperty::MinSize)       \
+    X("max-size"     , StyleProperty::MaxSize)       \
+    X("color"        , StyleProperty::Color)         \
+    X("padding"      , StyleProperty::Padding)       \
+    X("spacing"      , StyleProperty::Spacing)       \
+    X("softness"     , StyleProperty::Softness)      \
+    X("border-width" , StyleProperty::BorderWidth)   \
+    X("border-color" , StyleProperty::BorderColor)   \
+    X("corner-radius", StyleProperty::CornerRadius)  \
+    X("font"         , StyleProperty::Font)          \
+    X("font-size"    , StyleProperty::FontSize)      \
+    X("text-align-x" , StyleProperty::XTextAlign)    \
+    X("text-align-y" , StyleProperty::YTextAlign)    \
+    X("text-color"   , StyleProperty::TextColor)     \
+    X("caret-color"  , StyleProperty::CaretColor)    \
+    X("caret-width"  , StyleProperty::CaretWidth)    \
+                                                     \
+    X("start"        , Alignment::Start)             \
+    X("center"       , Alignment::Center)            \
+    X("end"          , Alignment::End)               \
+                                                     \
+    X("default"      , StyleState_Default)           \
+    X("hovered"      , StyleState_Hovered)           \
+    X("focused"      , StyleState_Focused)           \
 
 static uint32_t
 FindKeywordMapEntry(byte_string Name)
@@ -98,52 +101,6 @@ FindKeywordMapEntry(byte_string Name)
         } break;
 
         STYLE_KEYWORD_MAP
-    #undef X
-
-    default: break;
-    }
-
-    return INVALID_MAP_ENTRY;
-}
-
-static uint32_t
-FindPropertyMapEntry(byte_string Name)
-{
-    uint64_t Hash = HashMapEntry(Name.String, Name.Size);
-
-    switch (Hash)
-    {
-
-    #define X(Literal, Enum)                                                         \
-        case static_cast<uint64_t>(HashMapEntryCompile(Literal, sizeof(Literal)-1)): \
-        {                                                                            \
-            return static_cast<uint32_t>(Enum);                                      \
-        } break;
-
-        STYLE_PROPERTY_MAP
-    #undef X
-
-    default: break;
-    }
-
-    return INVALID_MAP_ENTRY;
-}
-
-static uint32_t
-FindStateMapEntry(byte_string Name)
-{
-    uint64_t Hash = HashMapEntry(Name.String, Name.Size);
-
-    switch (Hash)
-    {
-
-    #define X(Literal, Enum)                                                         \
-        case static_cast<uint64_t>(HashMapEntryCompile(Literal, sizeof(Literal)-1)): \
-        {                                                                            \
-            return static_cast<uint32_t>(Enum);                                      \
-        } break;
-
-        STYLE_STATE_MAP
     #undef X
 
     default: break;
@@ -231,7 +188,7 @@ struct token_buffer
 
     bool IsValid()
     {
-        bool Result = (this->Tokens) && (this->At < this->Count) && (this->Count < this->Size);
+        bool Result = (this->Tokens) && (this->At <= this->Count) && (this->Count < this->Size);
         return Result;
     }
 
@@ -842,6 +799,33 @@ CheckParsedColor(style_token *Token, file_debug_info &Debug)
     return Result;
 }
 
+static bool
+CheckParsedUnit(style_token *Token, UIUnit_Type ExpectedType, byte_string Error, file_debug_info &Debug)
+{
+    bool Result = (Token->Type == StyleToken::Unit && Token->Unit.Type == ExpectedType);
+
+    if(!Result)
+    {
+        ReportStyleFileError(Debug, ConsoleMessage_Error, Error, &UIState.Console);
+    }
+
+    return Result;
+}
+
+static ui_color
+ParsedVectorToColor(vec4_unit Vector)
+{
+    ui_color Result =
+    {
+        .R = Vector.X.Float32,
+        .G = Vector.Y.Float32,
+        .B = Vector.Z.Float32,
+        .A = Vector.W.Float32,
+    };
+
+    return Result;
+}
+
 static void
 ValidateProperty(style_token *Value, StyleProperty PropType, ui_cached_style *Style, file_debug_info &Debug)
 {
@@ -866,6 +850,14 @@ ValidateProperty(style_token *Value, StyleProperty PropType, ui_cached_style *St
             break;
         }
 
+        Style->Properties[0].Padding =
+        {
+            .Left  = Value->Vector.V.X.Float32,
+            .Top   = Value->Vector.V.Y.Float32,
+            .Right = Value->Vector.V.Z.Float32,
+            .Bot   = Value->Vector.V.W.Float32,
+        };
+
     } break;
 
     case StyleProperty::CornerRadius:
@@ -875,6 +867,14 @@ ValidateProperty(style_token *Value, StyleProperty PropType, ui_cached_style *St
             break;
         }
 
+        Style->Properties[0].CornerRadius =
+        {
+            .TL = Value->Vector.V.X.Float32,
+            .TR = Value->Vector.V.Y.Float32,
+            .BR = Value->Vector.V.Z.Float32,
+            .BL = Value->Vector.V.W.Float32,
+        };
+
     } break;
 
     case StyleProperty::Color:
@@ -883,6 +883,8 @@ ValidateProperty(style_token *Value, StyleProperty PropType, ui_cached_style *St
         {
             break;
         }
+
+        Style->Properties[0].Color = ParsedVectorToColor(Value->Vector.V);
     } break;
 
     case StyleProperty::BorderColor:
@@ -891,6 +893,8 @@ ValidateProperty(style_token *Value, StyleProperty PropType, ui_cached_style *St
         {
             break;
         }
+
+        Style->Properties[0].BorderColor = ParsedVectorToColor(Value->Vector.V);
     } break;
 
     case StyleProperty::TextColor:
@@ -899,6 +903,8 @@ ValidateProperty(style_token *Value, StyleProperty PropType, ui_cached_style *St
         {
             break;
         }
+
+        Style->Properties[0].TextColor = ParsedVectorToColor(Value->Vector.V);
     } break;
 
     case StyleProperty::CaretColor:
@@ -907,29 +913,78 @@ ValidateProperty(style_token *Value, StyleProperty PropType, ui_cached_style *St
         {
             break;
         }
+
+        Style->Properties[0].BorderColor = ParsedVectorToColor(Value->Vector.V);
     } break;
 
     case StyleProperty::Spacing:
+    {
+        if (!CheckParsedUnit(Value, UIUnit_Float32, str8_lit(""), Debug))
+        {
+            break;
+        }
+
+        Style->Properties[0].Spacing = Value->Unit.Float32;
+    } break;
+
     case StyleProperty::BorderWidth:
-    case StyleProperty::FontSize:
+    {
+        if (!CheckParsedUnit(Value, UIUnit_Float32, str8_lit(""), Debug))
+        {
+            break;
+        }
+
+        Style->Properties[0].BorderWidth = Value->Unit.Float32;
+    } break;
+
     case StyleProperty::Softness:
+    {
+        if (!CheckParsedUnit(Value, UIUnit_Float32, str8_lit(""), Debug))
+        {
+            break;
+        }
+
+        Style->Properties[0].Softness = Value->Unit.Float32;
+    } break;
+
     case StyleProperty::Grow:
+    {
+        if (!CheckParsedUnit(Value, UIUnit_Float32, str8_lit(""), Debug))
+        {
+            break;
+        }
+
+        Style->Properties[0].Grow = Value->Unit.Float32;
+    } break;
+
     case StyleProperty::Shrink:
+    {
+        if (!CheckParsedUnit(Value, UIUnit_Float32, str8_lit(""), Debug))
+        {
+            break;
+        }
+
+        Style->Properties[0].Shrink = Value->Unit.Float32;
+    } break;
+
+    case StyleProperty::FontSize:
+    {
+        if (!CheckParsedUnit(Value, UIUnit_Float32, str8_lit(""), Debug))
+        {
+            break;
+        }
+
+        Style->Properties[0].FontSize = Value->Unit.Float32;
+    } break;
+
     case StyleProperty::CaretWidth:
     {
-        if (Value->Type != StyleToken::Unit || Value->Unit.Type != UIUnit_Float32)
+        if (!CheckParsedUnit(Value, UIUnit_Float32, str8_lit(""), Debug))
         {
             break;
         }
 
-        if (Value->Unit.Float32 <= 0)
-        {
-            break;
-        }
-
-        // TODO:
-        // Store the value
-
+        Style->Properties[0].CaretWidth = Value->Unit.Float32;
     } break;
 
     case StyleProperty::Font:
@@ -1019,7 +1074,7 @@ ParseStyleFile(token_buffer &Buffer, variable_table *VariableTable, memory_arena
             }
             else
             {
-                // TODO: Sync.
+                VOID_ASSERT(!"Sync");
             }
         } break;
 
@@ -1028,9 +1083,9 @@ ParseStyleFile(token_buffer &Buffer, variable_table *VariableTable, memory_arena
             variable Variable = {};
 
             style_token *Name = Buffer.Consume(StyleToken::Identifier, byte_string_literal("Expected a name after 'var'."), Debug);
-            if (!IsValidByteString(Variable.Name))
+            if (!IsValidByteString(Name->Identifier))
             {
-                // TODO: Figure out.
+                VOID_ASSERT(!"Sync");
                 break;
             }
 
@@ -1038,7 +1093,7 @@ ParseStyleFile(token_buffer &Buffer, variable_table *VariableTable, memory_arena
 
             if (!Buffer.Consume(StyleToken::Assignment, byte_string_literal("Expected an assignment"), Debug))
             {
-                // TODO: Figure out
+                VOID_ASSERT(!"Sync");
                 break;
             }
 
@@ -1054,7 +1109,7 @@ ParseStyleFile(token_buffer &Buffer, variable_table *VariableTable, memory_arena
 
             if (!Buffer.Consume(StyleToken::SemiColon, byte_string_literal("Expected a ;"), Debug))
             {
-                // TODO: Figure out
+                VOID_ASSERT(!"Sync");
                 break;
             }
 
@@ -1092,13 +1147,13 @@ ParseStyleFile(token_buffer &Buffer, variable_table *VariableTable, memory_arena
         {
             if (!Buffer.Consume(StyleToken::String, byte_string_literal("Expected style name as string"), Debug))
             {
-                // TODO: Figure out.
+                VOID_ASSERT(!"Sync");
                 break;
             }
 
             if (!Buffer.Consume(StyleToken::OpenBrace, byte_string_literal("Expected a {."), Debug))
             {
-                // TODO: Figure out.
+                VOID_ASSERT(!"Sync");
                 break;
             }
 
@@ -1134,7 +1189,7 @@ ParseStyleFile(token_buffer &Buffer, variable_table *VariableTable, memory_arena
             style_token *Name = Buffer.Consume(StyleToken::Identifier, str8_lit("Expected a valid effect name"), Debug);
             if(Name)
             {
-                uint32_t StateEntry = FindStateMapEntry(Name->Identifier);
+                uint32_t StateEntry = FindKeywordMapEntry(Name->Identifier);
                 if(StateEntry != INVALID_MAP_ENTRY)
                 {
                     Parser.StyleState = static_cast<StyleState_Type>(StateEntry);
@@ -1151,7 +1206,7 @@ ParseStyleFile(token_buffer &Buffer, variable_table *VariableTable, memory_arena
             style_token *Name = Buffer.Consume(StyleToken::Identifier, str8_lit("Expected a property name"), Debug);
             if(Name)
             {
-                uint32_t PropertyEntry = FindPropertyMapEntry(Name->Identifier);
+                uint32_t PropertyEntry = FindKeywordMapEntry(Name->Identifier);
                 if(PropertyEntry == INVALID_MAP_ENTRY)
                 {
                     ReportStyleFileError(Debug, error_message("Invalid attribute name"));
@@ -1162,15 +1217,18 @@ ParseStyleFile(token_buffer &Buffer, variable_table *VariableTable, memory_arena
             }
             else
             {
-                // TODO: Sync.
+                VOID_ASSERT(!"Sync");
                 break;
             }
 
             if(!Buffer.Consume(StyleToken::Assignment, byte_string_literal("Expected an assignment ':='"), Debug))
             {
-                // TODO: Sync.
+                VOID_ASSERT(!"Sync");
                 break;
             }
+
+            // NOTE:
+            // Quite Garbage.
 
             style_token *Value = Buffer.Peek(0);
             if(Buffer.Expect(StyleToken::Identifier))
@@ -1180,15 +1238,27 @@ ParseStyleFile(token_buffer &Buffer, variable_table *VariableTable, memory_arena
 
                 if(!Entry || !Entry->ValueToken)
                 {
-                    // TODO: Sync.
+                    VOID_ASSERT(!"Sync");
                     ReportStyleFileError(Debug, error_message("Undefined variable."));
                     break;
                 }
+
+                Value = Entry->ValueToken;
+            }
+            else
+            {
+                Buffer.Eat(1);
+            }
+
+            if (!(Value->Matches(StyleToken::String) || Value->Matches(StyleToken::Vector) || Value->Matches(StyleToken::Unit)))
+            {
+                VOID_ASSERT(!"Sync");
+                break;
             }
 
             if(!Buffer.Consume(StyleToken::SemiColon, byte_string_literal("Expected a semicolon"), Debug))
             {
-                // TODO: Sync.
+                VOID_ASSERT(!"Sync");
                 break;
             }
 
@@ -1212,7 +1282,7 @@ ParseStyleFile(token_buffer &Buffer, variable_table *VariableTable, memory_arena
 // @Public: Parser API
 
 static ui_cached_style_list
-LoadStylesFromFiles(os_read_file *Files, uint32_t FileCount, memory_arena *OutputArena)
+LoadStyles(os_read_file *Files, uint32_t FileCount, memory_arena *OutputArena)
 {
     VOID_ASSERT(Files);
     VOID_ASSERT(OutputArena);
