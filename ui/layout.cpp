@@ -36,58 +36,12 @@ typedef struct ui_parent_stack
     ui_layout_node **Nodes;
 } ui_parent_stack;
 
-typedef struct ui_layout_box
+enum class Constraint
 {
-    // Output
-    vec2_float FixedOuterPosition;
-    vec2_float FixedOuterSize;
-    vec2_float FixedInnerPosition;
-    vec2_float FixedInnerSize;
-    vec2_float FixedContentPosition;
-    vec2_float FixedContentSize;
-
-    // Transformations (Applied every time we place)
-    vec2_float ScrollOffset;
-    vec2_float DragOffset;
-} ui_layout_box;
-
-enum class LayoutDirection
-{
-    None       = 0,
-    Horizontal = 1,
-    Vertical   = 2,
-};
-
-enum class Sizing
-{
-    None    = 0,
-    Fit     = 1,
-    Grow    = 2,
-    Percent = 3,
-    Fixed   = 4,
-    Stretch = 5,
-};
-
-struct ui_sizing_bounds
-{
-    float Min;
-    float Max;
-};
-
-struct ui_sizing_axis
-{
-    Sizing Type;
-    union
-    {
-        ui_sizing_bounds Bounds;
-        float            Percent;
-    };
-};
-
-struct ui_sizing
-{
-    ui_sizing_axis Horizontal;
-    ui_sizing_axis Vertical;
+    None      = 0,
+    Exact     = 1,
+    AtMost    = 2,
+    Unbounded = 3,
 };
 
 struct ui_layout_node
@@ -99,85 +53,57 @@ struct ui_layout_node
     ui_layout_node *Next;
     ui_layout_node *Prev;
 
+    // Output
+    float ResultX;
+    float ResultY;
+    float ResultWidth;
+    float ResultHeight;
+
+    // Transient State
+    vec2_float ScrollOffset;
+    vec2_float DragOffset;
+    ui_size    ConstrainedSize;
+    Constraint Constraint;
+
+    // Static Properties
+    ui_sizing       Sizing;
+    ui_size         MinSize;
+    ui_size         MaxSize;
+    ui_padding      Padding;
+    float           Spacing;
+    LayoutDirection Direction;
+    float           Grow;
+    float           Shrink;
+
     // Extra Info
     uint32_t SubIndex;
     uint32_t Index;
     uint32_t ChildCount;
-
-    // Layout Information
-    float           Width;
-    float           Height;
-    ui_padding      Padding;
-    uint16_t        Spacing;
-    LayoutDirection Direction;
-    ui_sizing       Sizing;
-    float           Grow;
-    float           Shrink;
-
-    // Value
-    ui_layout_box Value;
-    uint32_t      Flags;
+    uint32_t Flags;
 };
 
 typedef struct ui_layout_tree
 {
     // Nodes
-    uint64_t             NodeCapacity;
-    uint64_t             NodeCount;
+    uint64_t        NodeCapacity;
+    uint64_t        NodeCount;
     ui_layout_node *Nodes;
 
     // Depth
     ui_parent_stack ParentStack;
 } ui_layout_tree;
 
-static rect_float
-GetOuterBoxRect(ui_layout_box *Box)
-{
-    vec2_float ScreenPosition = Box->FixedOuterPosition + Box->DragOffset + Box->ScrollOffset;
-    rect_float Result = rect_float::FromXYWH(ScreenPosition.X, ScreenPosition.Y, Box->FixedOuterSize.X, Box->FixedOuterSize.Y);
-    return Result;
-}
-
-static rect_float
-GetInnerBoxRect(ui_layout_box *Box)
-{
-    vec2_float ScreenPosition = Box->FixedInnerPosition + Box->DragOffset + Box->ScrollOffset;
-    rect_float Result = rect_float::FromXYWH(ScreenPosition.X, ScreenPosition.Y, Box->FixedInnerSize.X, Box->FixedInnerSize.Y);
-    return Result;
-}
-
-static rect_float
-GetContentBoxRect(ui_layout_box *Box)
-{
-    vec2_float ScreenPosition = Box->FixedContentPosition + Box->DragOffset + Box->ScrollOffset;
-    rect_float Result = rect_float::FromXYWH(ScreenPosition.X, ScreenPosition.Y, Box->FixedContentSize.X, Box->FixedContentSize.Y);
-    return Result;
-}
-
-static void
-ComputeNodeBoxes(ui_layout_box *Box, float BorderWidth, ui_padding Padding, float Width, float Height)
-{
-    VOID_ASSERT(Box);
-
-    Box->FixedOuterSize   = vec2_float(Width, Height);
-    Box->FixedInnerSize   = Box->FixedOuterSize - vec2_float(BorderWidth * 2, BorderWidth * 2);
-    Box->FixedContentSize = Box->FixedInnerSize - vec2_float(Padding.Left + Padding.Right, Padding.Top + Padding.Bot);
-}
-
-static void
-PlaceLayoutBoxes(ui_layout_box *Box, vec2_float Origin, float BorderWidth, ui_padding Padding)
-{
-    VOID_ASSERT(Box);
-
-    Box->FixedOuterPosition   = Origin;
-    Box->FixedInnerPosition   = Box->FixedOuterPosition + (vec2_float(BorderWidth , BorderWidth));
-    Box->FixedContentPosition = Box->FixedInnerPosition + (vec2_float(Padding.Left, Padding.Top));
-}
-
 static bool 
 IsValidLayoutNode(ui_layout_node *Node)
 {
     bool Result = Node && Node->Index != InvalidLayoutNodeIndex;
+    return Result;
+}
+
+static bool
+IsValidLayoutTree(ui_layout_tree *Tree)
+{
+    bool Result = (Tree) && (Tree->Nodes) && (Tree->NodeCount <= Tree->NodeCapacity);
     return Result;
 }
 
@@ -195,9 +121,16 @@ GetLayoutNode(uint32_t Index, ui_layout_tree *Tree)
 }
 
 static ui_layout_node *
+GetLayoutRoot(ui_layout_tree *Tree)
+{
+    ui_layout_node *Result = Tree->Nodes;
+    return Result;
+}
+
+static ui_layout_node *
 GetFreeLayoutNode(ui_layout_tree *Tree)
 {
-    VOID_ASSERT(Tree && "Calling GetFreeLayoutNode with a NULL tree");
+    VOID_ASSERT(Tree);
 
     ui_layout_node *Result = 0;
 
@@ -212,10 +145,10 @@ GetFreeLayoutNode(ui_layout_tree *Tree)
     return Result;
 }
 
-static ui_layout_node *
-NodeToLayoutNode(ui_node Node, ui_layout_tree *Tree)
+static bool
+IsValidParentStack(ui_parent_stack *Stack)
 {
-    ui_layout_node *Result = GetLayoutNode(Node.IndexInTree, Tree);
+    bool Result = (Stack) && (Stack->Size);
     return Result;
 }
 
@@ -226,13 +159,6 @@ BeginParentStack(uint64_t Size, memory_arena *Arena)
     Result.Nodes = PushArray(Arena, ui_layout_node *, Size);
     Result.Size  = Size;
 
-    return Result;
-}
-
-static bool
-IsValidParentStack(ui_parent_stack *Stack)
-{
-    bool Result = (Stack) && (Stack->Size);
     return Result;
 }
 
@@ -311,9 +237,49 @@ CreateAndInsertLayoutNode(uint32_t Flags, ui_subtree *Subtree)
     return Result;
 }
 
+// ==================================================================================
+// @Public : Tree/Node Public API.
 
-// -------------------------------------------------------------
-// Tree/Node Public API Implementation
+static rect_float
+GetNodeOuterRect(ui_layout_node *Node)
+{
+    vec2_float Screen = vec2_float(Node->ResultX, Node->ResultY) + Node->ScrollOffset;
+    rect_float Result = rect_float::FromXYWH(Screen.X, Screen.Y, Node->ResultWidth, Node->ResultHeight);
+    return Result;
+}
+
+static rect_float
+GetNodeInnerRect(ui_layout_node *Node)
+{
+    vec2_float Screen = vec2_float(Node->ResultX, Node->ResultY) + Node->ScrollOffset;
+    rect_float Result = rect_float::FromXYWH(Screen.X, Screen.Y, Node->ResultWidth, Node->ResultHeight);
+    return Result;
+}
+
+static rect_float
+GetNodeContentRect(ui_layout_node *Node)
+{
+    vec2_float Screen = vec2_float(Node->ResultX, Node->ResultY) + Node->ScrollOffset;
+    rect_float Result = rect_float::FromXYWH(Screen.X, Screen.Y, Node->ResultWidth, Node->ResultHeight);
+    return Result;
+}
+
+static void
+SetNodeProperties(uint32_t NodeIndex, ui_layout_tree *Tree, ui_cached_style *Cached)
+{
+    ui_layout_node *Node = GetLayoutNode(NodeIndex, Tree);
+    if(Node)
+    {
+        Node->Sizing    = Cached->Properties[static_cast<uint32_t>(StyleState::Default)].Sizing;
+        Node->MinSize   = Cached->Properties[static_cast<uint32_t>(StyleState::Default)].MinSize;
+        Node->MaxSize   = Cached->Properties[static_cast<uint32_t>(StyleState::Default)].MaxSize;
+        Node->Padding   = Cached->Properties[static_cast<uint32_t>(StyleState::Default)].Padding;
+        Node->Spacing   = Cached->Properties[static_cast<uint32_t>(StyleState::Default)].Spacing;
+        Node->Direction = Cached->Properties[static_cast<uint32_t>(StyleState::Default)].LayoutDirection;
+        Node->Grow      = Cached->Properties[static_cast<uint32_t>(StyleState::Default)].Grow;
+        Node->Shrink    = Cached->Properties[static_cast<uint32_t>(StyleState::Default)].Shrink;
+    }
+}
 
 static uint64_t
 GetLayoutTreeFootprint(uint64_t NodeCount)
@@ -540,7 +506,7 @@ static void
 UpdateScrollNode(float ScrolledLines, ui_layout_node *Node, ui_subtree *Subtree, ui_scroll_region *Region)
 {
     float      ScrolledPixels = ScrolledLines * Region->PixelPerLine;
-    vec2_float WindowSize     = Node->Value.FixedOuterSize;
+    vec2_float WindowSize     = vec2_float(Node->ResultWidth, Node->ResultHeight);
 
     float ScrollLimit = 0.f;
     if (Region->Axis == UIAxis_X)
@@ -565,16 +531,16 @@ UpdateScrollNode(float ScrolledLines, ui_layout_node *Node, ui_subtree *Subtree,
         ScrollDelta.Y = -1.f * Region->ScrollOffset;
     }
 
-    rect_float WindowContent = GetOuterBoxRect(&Node->Value);
+    rect_float WindowContent = GetNodeOuterRect(Node);
     IterateLinkedList(Node, ui_layout_node *, Child)
     {
         ui_paint_properties *Paint = GetPaintProperties(Child->Index, Subtree);
         if(Paint)
         {
-            Child->Value.ScrollOffset = vec2_float(-ScrollDelta.X, -ScrollDelta.Y);
+            Child->ScrollOffset = vec2_float(-ScrollDelta.X, -ScrollDelta.Y);
 
-            vec2_float FixedContentSize = Child->Value.FixedOuterSize;
-            rect_float ChildContent     = GetOuterBoxRect(&Child->Value);
+            vec2_float FixedContentSize = vec2_float(Child->ResultWidth, Child->ResultHeight);
+            rect_float ChildContent     = GetNodeOuterRect(Child);
 
             if (FixedContentSize.X > 0.0f && FixedContentSize.Y > 0.0f) 
             {
@@ -758,8 +724,8 @@ IsMouseInsideOuterBox(vec2_float MousePosition, uint32_t NodeIndex, ui_subtree *
     ui_layout_node *Node = GetLayoutNode(NodeIndex, Subtree->LayoutTree);
     VOID_ASSERT(Node);
 
-    vec2_float OuterSize  = Node->Value.FixedOuterSize;
-    vec2_float OuterPos   = Node->Value.FixedOuterPosition + Node->Value.DragOffset + Node->Value.ScrollOffset;
+    vec2_float OuterSize  = vec2_float(Node->ResultWidth, Node->ResultHeight);
+    vec2_float OuterPos   = vec2_float(Node->ResultX    , Node->ResultY     ) + Node->ScrollOffset;
     vec2_float OuterHalf  = vec2_float(OuterSize.X * 0.5f, OuterSize.Y * 0.5f);
     vec2_float Center     = OuterPos + OuterHalf;
     vec2_float LocalMouse = MousePosition - Center;
@@ -772,11 +738,14 @@ IsMouseInsideOuterBox(vec2_float MousePosition, uint32_t NodeIndex, ui_subtree *
     return Distance <= 0.f;
 }
 
+// BUG:
+// No access to border width.
+
 static bool
 IsMouseInsideBorder(vec2_float MousePosition, ui_layout_node *Node)
 {
-    vec2_float InnerSize   = Node->Value.FixedInnerSize;
-    vec2_float InnerPos    = Node->Value.FixedInnerPosition + Node->Value.DragOffset + Node->Value.ScrollOffset;
+    vec2_float InnerSize   = vec2_float(Node->ResultWidth, Node->ResultHeight) - vec2_float(0.f, 0.f);
+    vec2_float InnerPos    = vec2_float(Node->ResultX    , Node->ResultY     ) - vec2_float(0.f, 0.f) + Node->ScrollOffset;
     vec2_float InnerHalf   = vec2_float(InnerSize.X * 0.5f, InnerSize.Y * 0.5f);
     vec2_float InnerCenter = InnerPos + InnerHalf;
 
@@ -802,14 +771,14 @@ ClearUIEvents(ui_event_list *EventList)
 static UIIntent_Type
 DetermineResizeIntent(vec2_float MousePosition, ui_layout_node *Node, ui_subtree *Subtree)
 {
-    vec2_float InnerSize = Node->Value.FixedInnerSize;
-    vec2_float InnerPos  = Node->Value.FixedInnerPosition;
+    vec2_float InnerSize   = vec2_float(Node->ResultWidth, Node->ResultHeight) - vec2_float(0.f, 0.f);
+    vec2_float InnerPos    = vec2_float(Node->ResultX    , Node->ResultY     ) - vec2_float(0.f, 0.f) + Node->ScrollOffset;
 
     float Left        = InnerPos.X;
     float Top         = InnerPos.Y;
     float Width       = InnerSize.X;
     float Height      = InnerSize.Y;
-    float BorderWidth = GetPaintProperties(Node->Index, Subtree)->Properties.BorderWidth; // WARN: Not safe.
+    float BorderWidth = GetPaintProperties(Node->Index, Subtree)->BorderWidth; // WARN: Not safe.
 
     float CornerTolerance = 5.f;
     float CornerX         = Left + Width;
@@ -1058,7 +1027,8 @@ ProcessUIEvents(ui_event_list *Events, ui_subtree *Subtree)
             ui_layout_node *Node = Drag.Node;
             VOID_ASSERT(Node);
 
-            Node->Value.DragOffset += Drag.Delta;
+            Node->ResultX += Drag.Delta.X;
+            Node->ResultY += Drag.Delta.Y;
         } break;
 
         case UIEvent_Scroll:
@@ -1113,7 +1083,7 @@ ProcessUIEvents(ui_event_list *Events, ui_subtree *Subtree)
                 if(Paint)
                 {
                     uint32_t CountBeforeAppend = Text->ShapedCount;
-                    UITextAppend_(TextInput.Text, Paint->Properties.Font, Text);
+                    UITextAppend_(TextInput.Text, Paint->Font, Text);
                     uint32_t CountAfterAppend = Text->ShapedCount;
 
                     UITextInputMoveCaret_(Text, Input, CountAfterAppend - CountBeforeAppend);
@@ -1139,221 +1109,333 @@ ProcessUIEvents(ui_event_list *Events, ui_subtree *Subtree)
 }
 
 // ----------------------------------------------------------------------------------
-// Text Layout Implementation
-
-static float
-GetUITextOffset(UIAlign_Type Align, float FixedContentSize, float TextSize)
-{
-    float Result = 0.f;
-
-    if(Align == UIAlign_Center)
-    {
-        Result = (FixedContentSize - TextSize) * 0.5f;
-    } else
-    if(Align == UIAlign_End)
-    {
-        Result = (FixedContentSize - TextSize);
-    }
-
-    return Result;
-}
-
-static float
-GetUITextSpace(ui_layout_node *Node, ui_unit Width)
-{
-    VOID_ASSERT(Node);
-
-    float Result = Node->Value.FixedContentSize.X;
-
-    if(Width.Type == UIUnit_Auto)
-    {
-        ui_layout_node *Parent = Node->Parent;
-        VOID_ASSERT(Parent);
-
-        Result = Parent->Value.FixedContentSize.X;
-    }
-
-    return Result;
-}
-
-static void
-AlignUITextLine(float ContentWidth, float LineWidth, UIAlign_Type XAlign, ui_shaped_glyph *Glyphs, uint32_t Count)
-{
-    float XAlignOffset = GetUITextOffset(XAlign, ContentWidth, LineWidth);
-
-    if(XAlignOffset != 0.f)
-    {
-        for(uint32_t Idx = 0; Idx < Count; ++Idx)
-        {
-            Glyphs[Idx].Position.Left += XAlignOffset;
-            Glyphs[Idx].Position.Right += XAlignOffset;
-        }
-    }
-}
+// @Internal: Text Layout Implementation
 
 // -----------------------------------------------------------
 // Layout Pass internal Helpers/Types
 
-DEFINE_TYPED_QUEUE(Node, node, ui_layout_node *);
-
-// NOTE:
-// This code is really garbage.
-
 static void
-PreOrderPlaceSubtree(ui_layout_node *Root, ui_subtree *Subtree)
+PlaceLayoutTree(ui_layout_tree *Tree, memory_arena *Arena)
 {
-    VOID_ASSERT(Root);
-    VOID_ASSERT(Subtree);
-    VOID_ASSERT(Subtree->Transient);
+    VOID_ASSERT(Arena);
+    VOID_ASSERT(IsValidLayoutTree(Tree));
 
-    ui_layout_tree *Tree = Subtree->LayoutTree;
-    VOID_ASSERT(Tree);
+    ui_layout_node **LayoutBuffer = PushArray(Arena, ui_layout_node *, Tree->NodeCount);
 
-    ui_resource_table *Table = UIState.ResourceTable;
-    VOID_ASSERT(Table);
+    ui_layout_node *Root = GetLayoutRoot(Tree);
+    Root->ResultWidth  = Root->ConstrainedSize.Width;
+    Root->ResultHeight = Root->ConstrainedSize.Height;
 
-    node_queue Queue = BeginNodeQueue((typed_queue_params){.QueueSize = Tree->NodeCount}, Subtree->Transient);
-    if (Queue.Data)
+    uint64_t VisitedNodes = 0;
+    LayoutBuffer[VisitedNodes++] = Root;
+
+    for (uint64_t Idx = 0; Idx < VisitedNodes; ++Idx)
     {
-        ui_paint_properties *RootPaint = GetPaintProperties(Root->Index, Subtree);
-        if(RootPaint)
-        {
-            PlaceLayoutBoxes(&Root->Value, vec2_float(0, 0), RootPaint->Properties.BorderWidth, RootPaint->Properties.Padding);
-        }
+        ui_layout_node *Parent = LayoutBuffer[Idx];
 
-        PushNodeQueue(&Queue, Root);
+        LayoutDirection Direction    = Parent->Direction;
+        bool            IsHorizontal = Direction == LayoutDirection::Horizontal;
 
-        while (!IsNodeQueueEmpty(&Queue))
+        float Spacing = Parent->Spacing;
+        ui_padding P  = Parent->Padding;
+        float StartX  = Parent->ResultX + P.Left;
+        float StartY  = Parent->ResultY + P.Top;
+
+        float CursorM = 0.f;
+
+        IterateLinkedList(Parent, ui_layout_node *, Child)
         {
-            // TODO: ReImplement the placer.
+            if (Child != Parent->First)
+            {
+                CursorM += Spacing;
+            }
+
+            if (IsHorizontal)
+            {
+                Child->ResultX = StartX + CursorM;
+                Child->ResultY = StartY;
+                CursorM += Child->ConstrainedSize.Width;
+            }
+            else
+            {
+                Child->ResultX = StartX;
+                Child->ResultY = StartY + CursorM;
+                CursorM += Child->ConstrainedSize.Height;
+            }
+
+            if (Child->ChildCount > 0)
+            {
+                LayoutBuffer[VisitedNodes++] = Child;
+            }
+
+            Child->ResultWidth  = Child->ConstrainedSize.Width;
+            Child->ResultHeight = Child->ConstrainedSize.Height;
         }
     }
 }
 
 // ----------------------------------------------------------------------------------
-// @internal: PreOrder Measure Passes Implementation
+// @internal: Layout Pass
 
-static void
-PreOrderMeasureSubtree(ui_layout_node *Root, ui_subtree *Subtree)
+static float
+GetConstrainedSize(float ParentSize, float MinSize, float MaxSize, ui_sizing_axis Axis)
 {
+    float Result = Axis.Fixed;
+
+    if(Axis.Type == Sizing::Percent)
+    {
+        Result = Axis.Percent * ParentSize;
+    }
+
+    Result = min(max(Result, MinSize), MaxSize);
+
+    return Result;
 }
 
 static void
-SizeContainerAlongAxis(ui_layout_node *Root, ui_subtree *Subtree, bool IsXAxis)
+PreOrderMeasureSubtree(ui_layout_tree *Tree, memory_arena *Arena)
 {
-    node_queue Queue = BeginNodeQueue({.QueueSize = Subtree->LayoutTree->NodeCount}, Subtree->Transient);
+    VOID_ASSERT(Arena);
+    VOID_ASSERT(IsValidLayoutTree(Tree));
 
-    PushNodeQueue(&Queue, Root);
+    ui_layout_node **LayoutBuffer = PushArray(Arena, ui_layout_node *, Tree->NodeCount);
 
-    while(!IsNodeQueueEmpty(&Queue))
+    ui_layout_node *Root = GetLayoutRoot(Tree);
+
+    // BUG:
+    // I'm not sure how we treat fixed node sizes. Currently roots are shrinked to min-size since Root->ResultWidth will be 0 at first iteration
+    // and then Root->ResultWidth depends on the constrained size, thus unless manually resized it has no effect. So I guess we need to figure out
+    // what exactly we consider to be "fixed" size.
+
+    if(Root->Sizing.Horizontal.Type != Sizing::Percent)
     {
-        ui_layout_node *Parent = PopNodeQueue(&Queue);
+        Root->ConstrainedSize.Width = min(max(Root->ResultWidth, Root->MinSize.Width), Root->MaxSize.Width);
+    }
 
-        float ParentSize    = IsXAxis ? Parent->Width : Parent->Height;
-        float ParentPadding = IsXAxis ? Parent->Padding.Left + Parent->Padding.Right : Parent->Padding.Top + Parent->Padding.Bot;
-        float ParentSpacing = Parent->Spacing;
+    if(Root->Sizing.Vertical.Type != Sizing::Percent)
+    {
+        Root->ConstrainedSize.Height = min(max(Root->ResultHeight, Root->MinSize.Height), Root->MaxSize.Height);
+    }
 
-        float InnerContentSize       = 0;
-        float TotalGrow              = 0.f;
-        float TotalShrink            = 0.f;
-        float TotalPaddingAndSpacing = ParentPadding;
+    uint64_t VisitedNodes = 0;
+    LayoutBuffer[VisitedNodes++] = Root;
 
-        bool IsSizingAlongParentAxis = ( IsXAxis && Parent->Direction == LayoutDirection::Horizontal) ||
-                                       (!IsXAxis && Parent->Direction == LayoutDirection::Vertical);
+    for(uint64_t Idx = 0; Idx < VisitedNodes; Idx++)
+    {
+        ui_layout_node *Parent = LayoutBuffer[Idx];
+
+        LayoutDirection Direction    = Parent->Direction;
+        bool            IsHorizontal = Direction == LayoutDirection::Horizontal;
+
+        float      Spacing  = Parent->Spacing;
+        ui_padding Padding  = Parent->Padding;
+        float      PaddingM = IsHorizontal ? Padding.Left + Padding.Right : Padding.Top + Padding.Bot;
+        float      PaddingC = IsHorizontal ? Padding.Top  + Padding.Bot   : Padding.Left + Padding.Right;
+
+
+        ui_size ParentSize  = Parent->ConstrainedSize;
+        float   ParentSizeM = (IsHorizontal ? ParentSize.Width  : ParentSize.Height) - PaddingM;
+        float   ParentSizeC = (IsHorizontal ? ParentSize.Height : ParentSize.Width ) - PaddingC;
+
+        float InnerContentSizeM = 0.f;
+        float InnerContentSizeC = 0.f;
+        float TotalGrowWeight   = 0.f;
+        float TotalShrinkWeight = 0.f;
+
+        // BUG:
+        // If a node is specified without some sort of min/max, then it is clamped to 0.
+        // Is that the expected behavior. I feel like it shouldn't be. But like...
 
         IterateLinkedList(Parent, ui_layout_node *, Child)
         {
-            ui_sizing_axis ChildSizing = IsXAxis ? Child->Sizing.Horizontal : Child->Sizing.Vertical;
-            float          ChildSize   = IsXAxis ? Child->Width             : Child->Height;
+            float ChildSizeM = 0.f;
+            float ChildSizeC = 0.f;
+            float MinWidth   = Child->MinSize.Width;
+            float MaxWidth   = Child->MaxSize.Width;
+            float MinHeight  = Child->MinSize.Height;
+            float MaxHeight  = Child->MaxSize.Height;
 
-            if(Child->ChildCount > 0)
+            // NOTE:
+            // Unsure if this is enough or should the parser just generate a maximum
+            // with a FLOAT32_MAX for example? Not sure yet, but this should do the
+            // trick for the time being.
+
+            if(MaxWidth  <= 0.f) MaxWidth  = FLT_MAX;
+            if(MaxHeight <= 0.f) MaxHeight = FLT_MAX;
+
+            if(IsHorizontal)
             {
-                PushNodeQueue(&Queue, Child);
-            }
+                Child->ConstrainedSize.Width  = GetConstrainedSize(ParentSizeM, MinWidth , MaxWidth , Child->Sizing.Horizontal);
+                Child->ConstrainedSize.Height = GetConstrainedSize(ParentSizeC, MinHeight, MaxHeight, Child->Sizing.Vertical);
 
-            if(IsSizingAlongParentAxis)
-            {
-                InnerContentSize += (ChildSizing.Type == Sizing::Percent ? 0.f : ChildSize);
-
-                if(ChildSizing.Type == Sizing::Grow)
-                {
-                    TotalGrow += Child->Grow;
-                }
-
-                if(Child != Parent->First)
-                {
-                    InnerContentSize       += ParentSpacing;
-                    TotalPaddingAndSpacing += ParentSpacing;
-                }
-
-                TotalShrink += Child->Shrink * ChildSize;
+                ChildSizeM = Child->ConstrainedSize.Width;
+                ChildSizeC = Child->ConstrainedSize.Height;
             }
             else
             {
-                InnerContentSize = max(ChildSize, InnerContentSize);
+                Child->ConstrainedSize.Width  = GetConstrainedSize(ParentSizeC, MinWidth , MaxWidth , Child->Sizing.Horizontal);
+                Child->ConstrainedSize.Height = GetConstrainedSize(ParentSizeM, MinHeight, MaxHeight, Child->Sizing.Vertical);
+
+                ChildSizeM = Child->ConstrainedSize.Height;
+                ChildSizeC = Child->ConstrainedSize.Width;
+            }
+
+            if(Child->ChildCount > 0)
+            {
+                LayoutBuffer[VisitedNodes++] = Child;
+            }
+
+            InnerContentSizeM += ChildSizeM;
+            TotalGrowWeight   += Child->Grow   * ChildSizeM;
+            TotalShrinkWeight += Child->Shrink * ChildSizeM;
+
+            if(Child != Parent->First)
+            {
+                InnerContentSizeM += Spacing;
+            }
+
+            InnerContentSizeC = max(InnerContentSizeC, ChildSizeC);
+        }
+
+        UIAxis_Type UnboundedAxis = UIAxis_None;
+
+        if(Parent->Flags & UILayoutNode_HasScrollRegion)
+        {
+            VOID_ASSERT(!"Implement");
+            auto *Region = static_cast<ui_scroll_region *>(QueryNodeResource(Parent->Index, 0, UIResource_ScrollRegion, UIState.ResourceTable));
+            if(Region)
+            {
+                UnboundedAxis = Region->Axis;
             }
         }
 
-        IterateLinkedList(Parent, ui_layout_node *, Child)
+        float Epsilon = 1e-6f;
+
+        // NOTE: The grow/shrink part is about measuring content on the main axis.
+        // the only part we seem to be missing is: Sizing along the cross axis.
+
+        if(UnboundedAxis != (IsHorizontal ? UIAxis_X : UIAxis_Y))
         {
-            ui_sizing_axis ChildSizing = IsXAxis ? Child->Sizing.Horizontal : Child->Sizing.Vertical;
-            float         *ChildSize   = IsXAxis ? &Child->Width            : &Child->Height;
+            float FreeSpaceM = ParentSizeM - InnerContentSizeM;
 
-            if(ChildSizing.Type == Sizing::Percent)
+            if(FreeSpaceM < 0.f && TotalShrinkWeight > 0.f)
             {
-                *ChildSize = (ParentSize - TotalPaddingAndSpacing) * ChildSizing.Percent;
+                float ToShrink = -1.f * FreeSpaceM;
 
-                if(IsSizingAlongParentAxis)
-                {
-                    InnerContentSize += *ChildSize;
-                }
-            }
-        }
+                ui_layout_node **Shrinkable      = PushArray(Arena, ui_layout_node *, Parent->ChildCount);
+                uint32_t         ShrinkableCount = 0;
 
-        if(IsSizingAlongParentAxis)
-        {
-            float FreeSpace = ParentSize - ParentPadding - InnerContentSize;
-
-            if(FreeSpace < 0.f && TotalShrink > 0.f)
-            {
                 IterateLinkedList(Parent, ui_layout_node *, Child)
                 {
-                    float *ChildSize = IsXAxis ? &Child->Width : &Child->Height;
-                    *ChildSize = ((Child->Shrink * (*ChildSize)) / TotalShrink) * FreeSpace;
+                    float SizeM = IsHorizontal ? Child->ConstrainedSize.Width : Child->ConstrainedSize.Height;
+                    float MinM  = IsHorizontal ? Child->MinSize.Width         : Child->MinSize.Height;
+
+                    if(Child->Shrink > 0.f && SizeM > MinM + Epsilon)
+                    {
+                        Shrinkable[ShrinkableCount++] = Child;
+                    }
+                }
+
+                while(ToShrink > Epsilon && ShrinkableCount > 0 && TotalShrinkWeight > 0.f)
+                {
+                    float IterationShrink = ToShrink;
+
+                    for(uint32_t Idx = 0; Idx < ShrinkableCount; Idx++)
+                    {
+                        ui_layout_node *Child = Shrinkable[Idx];
+
+                        float *SizePointer = IsHorizontal ? &Child->ConstrainedSize.Width : &Child->ConstrainedSize.Height;
+
+                        float SizeM = IsHorizontal ? Child->ConstrainedSize.Width : Child->ConstrainedSize.Height;
+                        float MinM  = IsHorizontal ? Child->MinSize.Width         : Child->MinSize.Height;
+
+                        float ShrinkWeight = Child->Shrink * SizeM;
+                        float ShrinkAmount = (ShrinkWeight / TotalShrinkWeight) * IterationShrink;
+                        float ShrinkLimit  = SizeM - MinM;
+
+                        if(ShrinkAmount >= ShrinkLimit)
+                        {
+                            *SizePointer      = MinM;
+                            Child->Constraint = Constraint::Exact;
+
+                            ToShrink          -= ShrinkLimit;
+                            IterationShrink   -= ShrinkLimit;
+                            TotalShrinkWeight -= ShrinkWeight;
+
+                            Shrinkable[Idx--] = Shrinkable[--ShrinkableCount];
+                        }
+                        else
+                        {
+                            ToShrink     -= ShrinkAmount;
+                            *SizePointer -= ShrinkAmount;
+
+                            Child->Constraint = Constraint::AtMost;
+                        }
+                    }
                 }
             } else
-            if(FreeSpace > 0.f && TotalGrow > 0.f)
+            if(FreeSpaceM > 0.f && TotalGrowWeight > 0.f)
             {
+                float ToGrow = FreeSpaceM;
+
+                ui_layout_node **Growable      = PushArray(Arena, ui_layout_node *, Parent->ChildCount);
+                uint32_t         GrowableCount = 0;
+
                 IterateLinkedList(Parent, ui_layout_node *, Child)
                 {
-                    ui_sizing_axis ChildSizing = IsXAxis ? Child->Sizing.Horizontal : Child->Sizing.Vertical;
+                    float SizeM = IsHorizontal ? Child->ConstrainedSize.Width : Child->ConstrainedSize.Height;
+                    float MaxM  = IsHorizontal ? Child->MaxSize.Width         : Child->MaxSize.Height;
 
-                    if(ChildSizing.Type == Sizing::Grow)
+                    if(Child->Grow > 0.f && SizeM < MaxM - Epsilon)
                     {
-                        float *ChildSize = IsXAxis ? &Child->Width : &Child->Height;
-                        *ChildSize = (Child->Grow / TotalGrow) * FreeSpace;
+                        Growable[GrowableCount++] = Child;
+                    }
+                }
+
+                while(ToGrow > Epsilon && GrowableCount > 0)
+                {
+                    float IterationGrow = ToGrow;
+
+                    for(uint32_t Idx = 0; Idx < GrowableCount; Idx++)
+                    {
+                        ui_layout_node *Child = Growable[Idx];
+
+                        float *SizePointer = IsHorizontal ? &Child->ConstrainedSize.Width : &Child->ConstrainedSize.Height;
+
+                        float SizeM = IsHorizontal ? Child->ConstrainedSize.Width : Child->ConstrainedSize.Height;
+                        float MaxM  = IsHorizontal ? Child->MaxSize.Width         : Child->MaxSize.Height;
+
+                        float GrowWeight = Child->Grow * SizeM;
+                        float GrowAmount = (GrowWeight / TotalGrowWeight) * IterationGrow;
+                        float GrowLimit  = MaxM - SizeM;
+
+                        if(GrowAmount >= GrowLimit)
+                        {
+                            *SizePointer      = MaxM;
+                            Child->Constraint = Constraint::Exact;
+
+                            ToGrow          -= GrowLimit;
+                            IterationGrow   -= GrowLimit;
+                            TotalGrowWeight -= GrowWeight;
+
+                            Growable[Idx--] = Growable[--GrowableCount];
+                        }
+                        else
+                        {
+                            *SizePointer += GrowAmount;
+                            ToGrow       -= GrowAmount;
+
+                            Child->Constraint = Constraint::AtMost;
+                        }
                     }
                 }
             }
         }
         else
         {
-            float ParentMaxSize = ParentSize - ParentPadding;
-
             IterateLinkedList(Parent, ui_layout_node *, Child)
             {
-                ui_sizing_axis ChildSizing = IsXAxis ? Child->Sizing.Horizontal : Child->Sizing.Vertical;
-                float         *ChildSize   = IsXAxis ? &Child->Width            : &Child->Height;
-
-                float ChildMinSize = ChildSizing.Bounds.Min;
-                float ChildMaxSize = ChildSizing.Bounds.Max;
-
-                if(ChildSizing.Type == Sizing::Stretch)
-                {
-                    *ChildSize = min(ChildMaxSize, ParentMaxSize);
-                }
-
-                *ChildSize = max(ChildMinSize, min(*ChildSize, ParentMaxSize));
+                Child->Constraint = Constraint::Unbounded;
             }
         }
     }
@@ -1365,13 +1447,6 @@ SizeContainerAlongAxis(ui_layout_node *Root, ui_subtree *Subtree, bool IsXAxis)
 static void
 PostOrderMeasureSubtree(ui_layout_node *Root, ui_subtree *Subtree)
 {
-    IterateLinkedList(Root, ui_layout_node *, Child)
-    {
-        PostOrderMeasureSubtree(Child, Subtree);
-    }
-
-    // TODO: ReImplement.
-
 }
 
 // -----------------------------------------------------------------------------------
@@ -1399,19 +1474,9 @@ UpdateSubtreeState(ui_subtree *Subtree)
 static void
 ComputeSubtreeLayout(ui_subtree *Subtree)
 {
-    TimeFunction;
-
-    VOID_ASSERT(Subtree);
-
-    ui_layout_tree *Tree = Subtree->LayoutTree;
-    VOID_ASSERT(Tree);
-
-    ui_layout_node *Root = GetLayoutNode(0, Tree);
-    {
-        PreOrderMeasureSubtree   (Root, Subtree);
-        PostOrderMeasureSubtree  (Root, Subtree);
-        PreOrderPlaceSubtree     (Root, Subtree);
-    }
+    PreOrderMeasureSubtree   (Subtree->LayoutTree, Subtree->Transient);
+    PostOrderMeasureSubtree  (0, Subtree);
+    PlaceLayoutTree          (Subtree->LayoutTree, Subtree->Transient);
 }
 
 static void 

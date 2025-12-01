@@ -781,8 +781,7 @@ void ui_node::SetStyle(uint32_t StyleIndex)
     ui_subtree *Subtree = GetSubtreeForNode(this);
     VOID_ASSERT(Subtree);
 
-    // TODO:
-    // ReImplement this.
+    SetNodeStyle(this->IndexInTree, StyleIndex, Subtree);
 }
 
 ui_node * ui_node::FindChild(uint32_t Index)
@@ -858,7 +857,7 @@ void ui_node::SetText(byte_string Text)
         ui_paint_properties *Paint = GetPaintProperties(this->IndexInTree, Subtree);
         if(Paint)
         {
-            ui_text *UIText = PlaceUITextInMemory(Text, Text.Size, Paint->Properties.Font, Memory);
+            ui_text *UIText = PlaceUITextInMemory(Text, Text.Size, Paint->Font, Memory);
             VOID_ASSERT(UIText);
 
             UpdateResourceTable(State.Id, Key, UIText, Table);
@@ -1206,6 +1205,7 @@ UIBeginSubtree(ui_subtree_params Params)
             Subtree->Persistent = Persistent;
             Subtree->Transient  = Transient;
             Subtree->NodeCount  = Params.NodeCount;
+            Subtree->PaintArray = PushArray(Persistent, ui_paint_properties, Params.NodeCount);
 
             ui_layout_tree *Tree = 0;
             {
@@ -1271,10 +1271,12 @@ UICreatePipeline(ui_pipeline_params Params)
         Result->internalArena = AllocateArena(ArenaParams);
     }
 
-    // Registry - Maybe just return a buffer?
+    // BUG: This is completely wrong, but I need to try the parser.
     {
-        // TODO: Implement the file loading and calling the new API.
-        VOID_ASSERT(!"Not Implemented");
+        os_handle    FileHandle = OSFindFile(Params.ThemeFile);
+        os_read_file ReadFile   = OSReadFile(FileHandle, Result->internalArena);
+
+        Result->CachedStyles = StyleParser::LoadStyles(&ReadFile, 1, Result->internalArena);
     }
 
     State->CurrentPipeline = Result;

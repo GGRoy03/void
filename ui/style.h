@@ -105,7 +105,7 @@ struct ui_sizing
 
 struct ui_style_properties
 {
-    ui_sizing        Size;
+    ui_sizing        Sizing;
     ui_size          MinSize;
     ui_size          MaxSize;
     LayoutDirection  LayoutDirection;
@@ -149,15 +149,26 @@ struct ui_cached_style_list
 
 struct ui_paint_properties
 {
-    ui_style_properties Properties;
-    uint32_t            CachedIndex;
-};
+    ui_color         Color;
+    ui_color         BorderColor;
+    ui_color         TextColor;
+    ui_color         CaretColor;
 
-static ui_paint_properties *
-GetPaintProperties(uint32_t NodeIndex, ui_subtree *Subtree);
+    float            Softness;
+    float            BorderWidth;
+    float            CaretWidth;
+    ui_corner_radius CornerRadius;
+
+    ui_font         *Font;
+
+    uint32_t         CachedIndex;
+};
 
 static void
 SetNodeStyle(uint32_t NodeIndex, uint32_t StyleIndex, ui_subtree *Subtree);
+
+static ui_paint_properties *
+GetPaintProperties(uint32_t NodeIndex, ui_subtree *Subtree);
 
 static void
 ClearPaintProperties(uint32_t NodeIndex, ui_subtree *Subtree);

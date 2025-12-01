@@ -1,125 +1,3 @@
-// ui_layout_tree:
-//   Opaque type representing the internal layout tree structure. Users interact with
-//   layout nodes through indices and the subtree API, never directly with this type.
-//
-// GetLayoutTreeFootprint(NodeCount):
-//   Use this to pre-allocate memory before calling PlaceLayoutTreeInMemory. (See PlaceLayoutTreeInMemory)
-//
-//   Returns:
-//      The total memory required (in bytes) to initialize a layout tree that can hold {NodeCount} layout nodes.
-//
-// PlaceLayoutTreeInMemory(NodeCount, Memory)
-//   Initializes a layout tree structure within the provided {Memory}.
-//   The buffer must be at least GetLayoutTreeFootprint({NodeCount}) bytes large.
-//
-//   Returns:
-//      A pointer to the initialized tree, or 0 if {Memory} is null.
-//
-//   Example:
-//      uint64_t NodeCount = 64;
-//      uint64_t Footprint = GetLayoutTreeFootprint(NodeCount);
-//
-//      void *Memory = PlaceLayoutTreeInMemory(NodeCount, malloc(Footprint));
-//      if(Memory)  // -> If this is false, then we know the malloc (Or any allocator) failed
-//      {
-//      }
-//
-// UIEnterSubtree & UILeaveSubtree & UISubtree:
-//
-// AllocateLayoutNode:
-//
-// UIEnd:
-//
-// FindLayoutChild(ParentIndex, ChildIndex, Subtree)
-//   Searches for the {ChildIndex}-th child of the node at {ParentIndex} within the {Subtree}.
-//
-//   Returns:
-//      The node index of the child, or InvalidLayoutNodeIndex if not found or if ChildIndex exceeds the number of children.
-//
-// AppendLayoutChild(ParentIndex, ChildIndex, Subtree)
-//   Adds {ChildIndex} as a child of {ParentIndex}, establishing a parent-child relationship.
-//
-// ReserveLayoutChildren(NodeIndex)
-//   Pre-allocates space for Amount child nodes under the node at Index. This is an
-//   optimization hint to reduce fragmentation when adding many children incrementally.
-//   You may find these nodes using FindLayoutChild(...)
-//
-// IsMouseInsideOuterBox(MousePosition, NodeIndex, Subtree)
-//   Tests whether the mouse at MousePosition is within the outer box bounds of the node
-//   at NodeIndex.
-//   Returns true if the mouse is inside, false otherwise. Useful for
-//   hit-testing and input handling.
-//
-// UpdateNodeIfNeeded:
-//   Re-calculates layout for the node at NodeIndex if its layout state is dirty.
-//   Call this when node properties have changed and layout must be recalculated.
-//   Does nothing if the node is not marked as needing an update.
-//
-// SetLayoutNodeFlags & ClearLayoutNodeFlags:
-//   Modify the flags bitfield of the node at NodeIndex. SetLayoutNodeFlags enables the
-//   specified flags, ClearLayoutNodeFlags disables them. Flags control rendering behavior,
-//   interactivity, and debug visualization.
-//   Opaque type representing the internal layout tree structure. Users interact with
-//   layout nodes through indices and the subtree API, never directly with this type.
-//
-// GetLayoutTreeFootprint:
-//   Returns the total memory required (in bytes) to initialize a layout tree that can
-//   hold NodeCount layout nodes. Use this to pre-allocate memory before calling
-//   PlaceLayoutTreeInMemory.
-//
-// PlaceLayoutTreeInMemory:
-//   Initializes a layout tree structure within the provided memory buffer.
-//   The buffer must be at least GetLayoutTreeFootprint(NodeCount) bytes large.
-//   Returns a pointer to the initialized tree, or 0 if Memory is null.
-//   VOID_ASSERT fails if NodeCount is 0.
-//   Preconditions:
-//      NodeCount > 0
-//      Memory is either null or points to valid allocated memory of sufficient size
-//
-// UIEnterSubtree & UILeaveSubtree & UISubtree:
-//   Control the lifetime and scope of a UI subtree. UIEnterSubtree marks the beginning
-//   of a subtree block, UILeaveSubtree marks the end. UISubtree is a convenience macro
-//   that wraps both, establishing a scoped block for hierarchical UI construction.
-//
-// AllocateLayoutNode:
-//   Creates a new layout node with the specified initial flags and adds it to the subtree.
-//   Returns the index of the newly allocated node. The node is not yet attached to the
-//   tree hierarchy; use AppendLayoutChild to establish parent-child relationships.
-//
-// UIEnd:
-//   Finalizes the current UI construction phase. Must be called after all UI blocks
-//   and subtrees have been defined to commit layout changes.
-//
-// FindLayoutChild:
-//   Searches for the ChildIndex-th child of the node at NodeIndex within the subtree.
-//   Returns the node index of the child, or InvalidLayoutNodeIndex if not found or if
-//   ChildIndex exceeds the number of children.
-//
-// AppendLayoutChild:
-//   Adds ChildIndex as a child of ParentIndex, establishing a parent-child relationship.
-//   The child is appended to the parent's existing children list. The child must have
-//   been previously allocated with AllocateLayoutNode.
-//
-// ReserveLayoutChildren:
-//   Pre-allocates space for Amount child nodes under the node at Index. This is an
-//   optimization hint to reduce reallocations when adding many children incrementally.
-//   Does not create actual nodes; use AppendLayoutChild to add nodes to the reserved space.
-//
-// IsMouseInsideOuterBox:
-//   Tests whether the mouse at MousePosition is within the outer box bounds of the node
-//   at NodeIndex. Returns true if the mouse is inside, false otherwise. Useful for
-//   hit-testing and input handling.
-//
-// UpdateNodeIfNeeded:
-//   Re-calculates layout for the node at NodeIndex if its layout state is dirty.
-//   Call this when node properties have changed and layout must be recalculated.
-//   Does nothing if the node is not marked as needing an update.
-//
-// SetLayoutNodeFlags & ClearLayoutNodeFlags:
-//   Modify the flags bitfield of the node at NodeIndex. SetLayoutNodeFlags enables the
-//   specified flags, ClearLayoutNodeFlags disables them. Flags control rendering behavior,
-//   interactivity, and debug visualization.
-
 #define InvalidLayoutNodeIndex 0xFFFFFFFF
 
 // NOTE:
@@ -150,9 +28,9 @@ typedef enum UILayoutNode_Flag
     UILayoutNode_DebugContentBox = 1 << 13,
 } UILayoutNode_Flag;
 
-static uint64_t              GetLayoutTreeFootprint   (uint64_t NodeCount);
+static uint64_t         GetLayoutTreeFootprint   (uint64_t NodeCount);
 static ui_layout_tree * PlaceLayoutTreeInMemory  (uint64_t NodeCount, void *Memory);
-static uint32_t              AllocateLayoutNode       (uint32_t Flags, ui_subtree *Subtree);
+static uint32_t         AllocateLayoutNode       (uint32_t Flags, ui_subtree *Subtree);
 static void             UIEnd                    (void);
 
 static bool IsMouseInsideOuterBox  (vec2_float MousePosition, uint32_t NodeIndex, ui_subtree *Subtree);
@@ -160,13 +38,27 @@ static bool IsMouseInsideOuterBox  (vec2_float MousePosition, uint32_t NodeIndex
 static void SetLayoutNodeFlags    (uint32_t NodeIndex, uint32_t Flags, ui_subtree *Subtree);
 static void ClearLayoutNodeFlags  (uint32_t NodeIndex, uint32_t Flags, ui_subtree *Subtree);
 
+// -----------------------------------------------------------------------------------
+// @internal: Node Queries
+
+static rect_float
+GetNodeOuterRect(ui_layout_node *Node);
+
+static rect_float
+GetNodeInnerRect(ui_layout_node *Node);
+
+static rect_float
+GetNodeContentRect(ui_layout_node *Node);
+
+static void
+SetNodeProperties(uint32_t NodeIndex, ui_layout_tree *Tree, ui_cached_style *Cached);
 
 // ------------------------------------------------------------------------------------
-// @static: Tree Queries
+// @internal: Tree Queries (TODO: Pass the tree instead, makes more sense)
 
-static uint32_t  UITreeFindChild    (uint32_t ParentIndex, uint32_t ChildIndex, ui_subtree *Subtree);
-static void UITreeAppendChild  (uint32_t ParentIndex, uint32_t ChildIndex, ui_subtree *Subtree);
-static void UITreeReserve      (uint32_t NodeIndex  , uint32_t Amount    , ui_subtree *Subtree);
+static uint32_t UITreeFindChild    (uint32_t ParentIndex, uint32_t ChildIndex, ui_subtree *Subtree);
+static void     UITreeAppendChild  (uint32_t ParentIndex, uint32_t ChildIndex, ui_subtree *Subtree);
+static void     UITreeReserve      (uint32_t NodeIndex  , uint32_t Amount    , ui_subtree *Subtree);
 
 // ------------------------------------------------------------------------------------
 // @internal: Layout Resources
@@ -181,7 +73,7 @@ static void UITreeReserve      (uint32_t NodeIndex  , uint32_t Amount    , ui_su
 //
 // GetScrollRegionFootprint & PlaceScrollRegionInMemory
 //   Used to initilialize in memory a scroll region. You may specify parameters to modify the behavior of the scroll region.
-//   Note that you may re-use the same memory with different parameters to modify the behaviors with new parameters.
+//   Note that you may re-use the same memory with different parameters to modify the behavior with new parameters.
 //
 //   Example Usage:
 //   uint64_t   Size   = GetScrollRegionFootprint(); -> Get the size needed to allocate

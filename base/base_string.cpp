@@ -7,6 +7,13 @@ ByteString(uint8_t *String, uint64_t Size)
     return Result;
 }
 
+static compile_byte_string
+CompileByteString (const char *String, uint64_t Size)
+{
+    compile_byte_string Result = {String, Size};
+    return Result;
+}
+
 static wide_string
 WideString(uint16_t *String, uint64_t Size)
 {

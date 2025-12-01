@@ -16,6 +16,12 @@ typedef struct byte_string
     uint64_t Size;
 } byte_string;
 
+struct compile_byte_string
+{
+    const char *String;
+    uint64_t    Size;
+};
+
 typedef struct wide_string
 {
     uint16_t *String;
@@ -30,15 +36,16 @@ typedef struct unicode_decode
 
 // [API]
 
-#define str8_lit(String) ByteString((uint8_t *)String, sizeof(String) - 1)
+#define str8_lit(String)  ByteString((uint8_t *)String, sizeof(String) - 1)
 
 #define byte_string_literal(String) ByteString((uint8_t *)String, sizeof(String) - 1)
 #define byte_string_compile(String) {(uint8_t *)String, sizeof(String) - 1}
 
 // [Constructors]
 
-byte_string ByteString  (uint8_t *String, uint64_t Size);
-static wide_string WideString  (uint16_t *String, uint64_t Size);
+static byte_string         ByteString  (uint8_t *String, uint64_t Size);
+static compile_byte_string CompileByteString (const char *String, uint64_t Size);
+static wide_string         WideString  (uint16_t *String, uint64_t Size);
 
 // [String Utilities]
 

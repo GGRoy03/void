@@ -44,6 +44,8 @@ static inline StyleProperty FindStyleProperty(byte_string Name)
     if (ByteStringMatches(str8_lit("size")            , Name, 0)) return StyleProperty::Size;
     if (ByteStringMatches(str8_lit("min-size")        , Name, 0)) return StyleProperty::MinSize;
     if (ByteStringMatches(str8_lit("max-size")        , Name, 0)) return StyleProperty::MaxSize;
+    if (ByteStringMatches(str8_lit("grow")            , Name, 0)) return StyleProperty::Grow;
+    if (ByteStringMatches(str8_lit("shrink")          , Name, 0)) return StyleProperty::Shrink;
     if (ByteStringMatches(str8_lit("layout-direction"), Name, 0)) return StyleProperty::LayoutDirection;
     if (ByteStringMatches(str8_lit("color")           , Name, 0)) return StyleProperty::Color;
     if (ByteStringMatches(str8_lit("padding")         , Name, 0)) return StyleProperty::Padding;
@@ -809,6 +811,8 @@ ParsedVectorToColor(vec4_unit Vector)
         .A = Vector.W.Float32,
     };
 
+    Result = NormalizeColor(Result);
+
     return Result;
 }
 
@@ -827,13 +831,13 @@ ValidateProperty(style_token *Value, StyleProperty PropType, StyleState State, u
 
         if(Value->Vector.V.X.Type == UIUnit_Float32)
         {
-            Style->Properties[static_cast<uint32_t>(State)].Size.Horizontal.Type  = Sizing::Fixed;
-            Style->Properties[static_cast<uint32_t>(State)].Size.Horizontal.Fixed = Value->Vector.V.X.Float32;
+            Style->Properties[static_cast<uint32_t>(State)].Sizing.Horizontal.Type  = Sizing::Fixed;
+            Style->Properties[static_cast<uint32_t>(State)].Sizing.Horizontal.Fixed = Value->Vector.V.X.Float32;
         } else
         if(Value->Vector.V.X.Type == UIUnit_Percent && IsInRange(0.f, 100.f, Value->Vector.V.X.Percent))
         {
-            Style->Properties[static_cast<uint32_t>(State)].Size.Horizontal.Type  = Sizing::Percent;
-            Style->Properties[static_cast<uint32_t>(State)].Size.Horizontal.Fixed = Value->Vector.V.X.Percent;
+            Style->Properties[static_cast<uint32_t>(State)].Sizing.Horizontal.Type  = Sizing::Percent;
+            Style->Properties[static_cast<uint32_t>(State)].Sizing.Horizontal.Fixed = Value->Vector.V.X.Percent;
         }
         else
         {
@@ -842,13 +846,13 @@ ValidateProperty(style_token *Value, StyleProperty PropType, StyleState State, u
 
         if(Value->Vector.V.Y.Type == UIUnit_Float32)
         {
-            Style->Properties[static_cast<uint32_t>(State)].Size.Vertical.Type  = Sizing::Fixed;
-            Style->Properties[static_cast<uint32_t>(State)].Size.Vertical.Fixed = Value->Vector.V.Y.Float32;
+            Style->Properties[static_cast<uint32_t>(State)].Sizing.Vertical.Type  = Sizing::Fixed;
+            Style->Properties[static_cast<uint32_t>(State)].Sizing.Vertical.Fixed = Value->Vector.V.Y.Float32;
         } else
         if(Value->Vector.V.Y.Type == UIUnit_Percent)
         {
-            Style->Properties[static_cast<uint32_t>(State)].Size.Vertical.Type  = Sizing::Percent;
-            Style->Properties[static_cast<uint32_t>(State)].Size.Vertical.Fixed = Value->Vector.V.X.Percent;
+            Style->Properties[static_cast<uint32_t>(State)].Sizing.Vertical.Type  = Sizing::Percent;
+            Style->Properties[static_cast<uint32_t>(State)].Sizing.Vertical.Fixed = Value->Vector.V.X.Percent;
         }
         else
         {

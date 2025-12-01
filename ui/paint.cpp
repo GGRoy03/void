@@ -165,22 +165,20 @@ PaintUIGlyph(rect_float Rect, ui_color Color, rect_float Source, render_batch_li
 static void
 PaintDebugInformation(ui_layout_node *Node, ui_corner_radius CornerRadii, float Softness, render_batch_list *BatchList, memory_arena *Arena)
 {
+
     if((Node->Flags & UILayoutNode_DebugOuterBox))
     {
-        rect_float OuterRect = GetOuterBoxRect(&Node->Value);
-        PaintUIRect(OuterRect, {.R = 255.f, .G = 0.f, .B = 0.f, .A = 255.f}, CornerRadii, 1.f, Softness, BatchList, Arena);
+        PaintUIRect(GetNodeOuterRect(Node), {.R = 255.f, .G = 0.f, .B = 0.f, .A = 255.f}, CornerRadii, 1.f, Softness, BatchList, Arena);
     }
 
     if((Node->Flags & UILayoutNode_DebugInnerBox))
     {
-        rect_float InnerRect = GetInnerBoxRect(&Node->Value);
-        PaintUIRect(InnerRect, {.R = 0.f, .G = 255.f, .B = 0.f, .A = 255.f}, CornerRadii, 1.f, Softness, BatchList, Arena);
+        PaintUIRect(GetNodeInnerRect(Node), {.R = 0.f, .G = 255.f, .B = 0.f, .A = 255.f}, CornerRadii, 1.f, Softness, BatchList, Arena);
     }
 
     if((Node->Flags & UILayoutNode_DebugContentBox))
     {
-        rect_float ContentRect = GetContentBoxRect(&Node->Value);
-        PaintUIRect(ContentRect, {.R = 0.f, .G = 0.f, .B = 255.f, .A = 255.f}, CornerRadii, 1.f, Softness, BatchList, Arena);
+        PaintUIRect(GetNodeContentRect(Node), {.R = 0.f, .G = 0.f, .B = 255.f, .A = 255.f}, CornerRadii, 1.f, Softness, BatchList, Arena);
     }
 }
 
@@ -205,22 +203,22 @@ PaintLayoutTreeFromRoot(ui_layout_node *Root, ui_subtree *Subtree)
         {
             paint_stack_frame Frame = PopPaintStack(&Stack);
 
-            rect_float        ClipRect  = Frame.Clip;
+            rect_float     ClipRect  = Frame.Clip;
             ui_layout_node *Node      = Frame.Node;
 
-            rect_float FinalRect = GetOuterBoxRect(&Node->Value);
+            rect_float FinalRect = GetNodeOuterRect(Node);
 
             // Painting
             {
                 render_batch_list   *BatchList = GetPaintBatchList(Node, Subtree, ClipRect);
                 ui_paint_properties *Paint     = GetPaintProperties(Node->Index, Subtree);
 
-                ui_corner_radius CornerRadii = Paint->Properties.CornerRadius;
-                float            Softness    = Paint->Properties.Softness;
-                ui_color         Color       = Paint->Properties.Color;
-                ui_color         BorderColor = Paint->Properties.BorderColor;
-                ui_color         TextColor   = Paint->Properties.TextColor;
-                float            BorderWidth = Paint->Properties.BorderWidth;
+                ui_corner_radius CornerRadii = Paint->CornerRadius;
+                float            Softness    = Paint->Softness;
+                ui_color         Color       = Paint->Color;
+                ui_color         BorderColor = Paint->BorderColor;
+                ui_color         TextColor   = Paint->TextColor;
+                float            BorderWidth = Paint->BorderWidth;
 
                 if(IsVisibleColor(Color))
                 {
@@ -260,8 +258,7 @@ PaintLayoutTreeFromRoot(ui_layout_node *Root, ui_subtree *Subtree)
                     VOID_ASSERT(Input);
                     VOID_ASSERT(Input->CaretAnchor <= Text->ShapedCount);
 
-                    vec2_float ContentPos = Node->Value.FixedContentPosition;
-                    vec2_float CaretStart = vec2_float(ContentPos.X, ContentPos.Y);
+                    vec2_float CaretStart = vec2_float(Node->ResultX, Node->ResultY);
 
                     if(Input->CaretAnchor > 0)
                     {
@@ -270,8 +267,8 @@ PaintLayoutTreeFromRoot(ui_layout_node *Root, ui_subtree *Subtree)
                         CaretStart.Y = AfterGlyph->Position.Top;
                     }
 
-                    ui_color CaretColor = Paint->Properties.CaretColor;
-                    float    CaretWidth = Paint->Properties.CaretWidth;
+                    ui_color CaretColor = Paint->CaretColor;
+                    float    CaretWidth = Paint->CaretWidth;
 
                     rect_float Caret = {};
                     Caret.Left   = CaretStart.X;
@@ -301,7 +298,7 @@ PaintLayoutTreeFromRoot(ui_layout_node *Root, ui_subtree *Subtree)
                     rect_float EmptyClip     = {};
                     bool      ParentHasClip = (MemoryCompare(&ClipRect, &EmptyClip, sizeof(rect_float)) != 0);
 
-                    ClipRect = GetContentBoxRect(&Node->Value);
+                    ClipRect = GetNodeContentRect(Node);
 
                     if(ParentHasClip)
                     {
