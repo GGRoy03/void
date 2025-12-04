@@ -1,39 +1,3 @@
-//-------------------------------------------------------------------------------------
-// @internal: Style Helpers
-
-static uint32_t
-ResolveCachedIndex(uint32_t Index)
-{
-    VOID_ASSERT(Index);
-
-    uint32_t Result = Index - 1;
-    return Result;
-}
-
-static ui_cached_style *
-GetCachedStyle(uint32_t StyleIndex, ui_cached_style_list *List)
-{
-    VOID_ASSERT(StyleIndex);
-    VOID_ASSERT(List);
-    VOID_ASSERT(StyleIndex <= List->Count);
-
-    ui_cached_style *Result = 0;
-
-    uint32_t IterCount = 0;
-    IterateLinkedList(List, ui_cached_style_node *, Node)
-    {
-        if((StyleIndex - 1) == IterCount)
-        {
-            Result = &Node->Value;
-            break;
-        }
-
-        IterCount++;
-    }
-
-    return Result;
-}
-
 // ------------------------------------------------------------------------------------
 // Style Manipulation Public API
 
@@ -65,7 +29,7 @@ SetNodeStyle(uint32_t NodeIndex, uint32_t StyleIndex, ui_subtree *Subtree)
     ui_pipeline *Pipeline = GetCurrentPipeline();
     VOID_ASSERT(Pipeline);
 
-    ui_cached_style *Cached = GetCachedStyle(StyleIndex, Pipeline->CachedStyles);
+    ui_cached_style *Cached = 0;
     VOID_ASSERT(Cached);
 
     ui_paint_properties *Paint = GetPaintProperties(NodeIndex, Subtree);

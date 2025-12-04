@@ -324,8 +324,6 @@ typedef struct ui_state
     ui_hovered_node Hovered;
     ui_focused_node Focused;
 
-    console_queue Console;
-
     // NOTE: What about this?
     ui_font_list     Fonts;
     memory_arena    *StaticData;

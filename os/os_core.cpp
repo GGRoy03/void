@@ -118,15 +118,6 @@ IsValidFile(os_read_file *File)
     return Result;
 }
 
-static void 
-SkipWhiteSpaces(os_read_file *File)
-{
-    while(IsValidFile(File) && IsWhiteSpace(PeekFile(File, 0)))
-    {
-        AdvanceFile(File, 1);
-    }
-}
-
 static uint8_t *
 PeekFilePointer(os_read_file *File)
 {

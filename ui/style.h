@@ -3,33 +3,35 @@
 enum class StyleProperty : uint32_t
 {
     // Layout Properties
-    Size            = 0,
-    MinSize         = 1,
-    MaxSize         = 2,
-    Padding         = 3,
-    Spacing         = 4,
-    BorderWidth     = 5,
-    Grow            = 6,
-    Shrink          = 7,
-    LayoutDirection = 8,
+    Size               = 0,
+    MinSize            = 1,
+    MaxSize            = 2,
+    Padding            = 3,
+    Spacing            = 4,
+    BorderWidth        = 5,
+    Grow               = 6,
+    Shrink             = 7,
+    LayoutDirection    = 8,
+    AlignmentM         = 9,
+    AlignmentC         = 10,
 
     // Style Properties
-    Color        = 9,
-    BorderColor  = 10,
-    Softness     = 11,
-    CornerRadius = 12,
+    Color              = 11,
+    BorderColor        = 12,
+    Softness           = 13,
+    CornerRadius       = 14,
 
     // Text Properties
-    Font       = 13,
-    FontSize   = 14,
-    TextAlign  = 15,
-    TextColor  = 16,
-    CaretColor = 17,
-    CaretWidth = 18,
+    Font               = 15,
+    FontSize           = 16,
+    TextAlign          = 17,
+    TextColor          = 18,
+    CaretColor         = 19,
+    CaretWidth         = 20,
 
     // Misc
-    Count = 19,
-    None  = 666,
+    Count              = 21,
+    None               = 666,
 };
 
 constexpr uint32_t StylePropertyCount = static_cast<uint32_t>(StyleProperty::Count);
@@ -109,22 +111,25 @@ struct ui_style_properties
     ui_size          MinSize;
     ui_size          MaxSize;
     LayoutDirection  LayoutDirection;
+    Alignment        AlignmentM;
+    Alignment        AlignmentC;
 
     ui_padding       Padding;
     float            Spacing;
-    float            BorderWidth;
     float            Grow;
     float            Shrink;
 
     ui_color         Color;
     ui_color         BorderColor;
+    ui_color         TextColor;
+    ui_color         CaretColor;
+
+    float            BorderWidth;
     float            Softness;
     ui_corner_radius CornerRadius;
 
     ui_font         *Font;
     float            FontSize;
-    ui_color         TextColor;
-    ui_color         CaretColor;
     float            CaretWidth;
     Alignment        TextAlign[2];
 };
@@ -132,19 +137,10 @@ struct ui_style_properties
 struct ui_cached_style
 {
     ui_style_properties Properties[StyleStateCount];
-};
 
-struct ui_cached_style_node
-{
-    ui_cached_style_node *Next;
-    ui_cached_style       Value;
-};
-
-struct ui_cached_style_list
-{
-    ui_cached_style_node *First;
-    ui_cached_style_node *Last;
-    uint32_t              Count;
+    ui_style_properties Default;
+    ui_style_properties Hovered;
+    ui_style_properties Focused;
 };
 
 struct ui_paint_properties

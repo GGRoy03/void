@@ -55,12 +55,10 @@ UILoadFont(byte_string Name, float Size)
         }
         else
         {
-            ConsoleWriteMessage(error_message("Failed to allocate memory when calling UILoadFont."));
         }
     }
     else
     {
-        ConsoleWriteMessage(error_message("One or more arguments given to UILoadFont is invalid."));
     }
 
     return Result;
@@ -175,7 +173,6 @@ PrepareGlyph(byte_string UTF8, ui_font *Font)
         }
         else
         {
-            ConsoleWriteMessage(warn_message("Could not pack glyph inside the texture in CreateGlyphRun"));
         }
     }
 
@@ -270,7 +267,6 @@ PlaceUITextInMemory(byte_string Text, uint64_t BufferSize, ui_font *Font, void *
     }
     else
     {
-        ConsoleWriteMessage(warn_message("One or more arguments passed to CreateGlyphRun is invalid"));
     }
 
     return Result;

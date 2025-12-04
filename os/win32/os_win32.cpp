@@ -312,9 +312,6 @@ wWinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPWSTR CmdLine, int ShowCmd
             }
             UIState.ResourceTable = PlaceResourceTableInMemory(Params, Memory);
         }
-
-        // NOTE: Should this be here?
-        InitializeConsoleMessageQueue(&UIState.Console);
     }
 
     // Render State

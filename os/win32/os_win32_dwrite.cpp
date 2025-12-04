@@ -171,7 +171,6 @@ OSGetGlyphInfo(byte_string UTF8, float FontSize, os_font_context *Context)
     // BUG: When this fails, the console queue crashes? Why? Wonder if it's a C vs CPP diff?
     if(!IsValidOSFontContext(Context))
     {
-        ConsoleWriteMessage(error_message("Calling OSGetGlyphInfo with an invalid font context. See os/core.h"));
         return Result;
     }
 
@@ -180,7 +179,6 @@ OSGetGlyphInfo(byte_string UTF8, float FontSize, os_font_context *Context)
     wide_string    UTF16       = ByteStringToWideString(Arena, UTF8);
     if(DecodedUTF8.Codepoint == _UI32_MAX || !IsValidWideString(UTF16))
     {
-        ConsoleWriteMessage(error_message("Calling OSGetGlyphInfo with an invalid UTF-8 string. See os/core.h"));
         return Result;
     }
 
@@ -236,7 +234,6 @@ OSRasterizeGlyph(byte_string UTF8, rect_float Rect, os_font_context *Context)
 
     if(!IsValidOSFontContext(Context))
     {
-        ConsoleWriteMessage(error_message("Calling OSRasterizeGlyph with an invalid font context. See os/core.h"));
         return Result;
     }
 
@@ -246,7 +243,6 @@ OSRasterizeGlyph(byte_string UTF8, rect_float Rect, os_font_context *Context)
     wide_string    UTF16       = ByteStringToWideString(Local.Arena, UTF8);
     if(DecodedUTF8.Codepoint == _UI32_MAX || !IsValidWideString(UTF16))
     {
-        ConsoleWriteMessage(error_message("Calling OSRasterizeGlyph with an invalid UTF-8 string. See os/core.h"));
         return Result;
     }
 

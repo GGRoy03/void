@@ -137,7 +137,6 @@ static os_utf8_playback   * OSGetTextPlayback    (void);
 // [Files]
 
 static bool   IsValidFile      (os_read_file *File);
-static void  SkipWhiteSpaces  (os_read_file *File);
 static uint8_t  * PeekFilePointer  (os_read_file *File);
 static uint8_t    PeekFile         (os_read_file *File, int Offset);
 static void  AdvanceFile      (os_read_file *File, uint32_t Count);

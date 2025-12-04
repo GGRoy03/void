@@ -64,6 +64,7 @@ struct ui_layout_node
     vec2_float DragOffset;
     ui_size    ConstrainedSize;
     Constraint Constraint;
+    float      FreeSpaceM;
 
     // Static Properties
     ui_sizing       Sizing;
@@ -72,6 +73,8 @@ struct ui_layout_node
     ui_padding      Padding;
     float           Spacing;
     LayoutDirection Direction;
+    Alignment       AlignmentM;
+    Alignment       AlignmentC;
     float           Grow;
     float           Shrink;
 
@@ -270,14 +273,16 @@ SetNodeProperties(uint32_t NodeIndex, ui_layout_tree *Tree, ui_cached_style *Cac
     ui_layout_node *Node = GetLayoutNode(NodeIndex, Tree);
     if(Node)
     {
-        Node->Sizing    = Cached->Properties[static_cast<uint32_t>(StyleState::Default)].Sizing;
-        Node->MinSize   = Cached->Properties[static_cast<uint32_t>(StyleState::Default)].MinSize;
-        Node->MaxSize   = Cached->Properties[static_cast<uint32_t>(StyleState::Default)].MaxSize;
-        Node->Padding   = Cached->Properties[static_cast<uint32_t>(StyleState::Default)].Padding;
-        Node->Spacing   = Cached->Properties[static_cast<uint32_t>(StyleState::Default)].Spacing;
-        Node->Direction = Cached->Properties[static_cast<uint32_t>(StyleState::Default)].LayoutDirection;
-        Node->Grow      = Cached->Properties[static_cast<uint32_t>(StyleState::Default)].Grow;
-        Node->Shrink    = Cached->Properties[static_cast<uint32_t>(StyleState::Default)].Shrink;
+        Node->Sizing     = Cached->Properties[static_cast<uint32_t>(StyleState::Default)].Sizing;
+        Node->MinSize    = Cached->Properties[static_cast<uint32_t>(StyleState::Default)].MinSize;
+        Node->MaxSize    = Cached->Properties[static_cast<uint32_t>(StyleState::Default)].MaxSize;
+        Node->Padding    = Cached->Properties[static_cast<uint32_t>(StyleState::Default)].Padding;
+        Node->Spacing    = Cached->Properties[static_cast<uint32_t>(StyleState::Default)].Spacing;
+        Node->Direction  = Cached->Properties[static_cast<uint32_t>(StyleState::Default)].LayoutDirection;
+        Node->AlignmentM = Cached->Properties[static_cast<uint32_t>(StyleState::Default)].AlignmentM;
+        Node->AlignmentC = Cached->Properties[static_cast<uint32_t>(StyleState::Default)].AlignmentC;
+        Node->Grow       = Cached->Properties[static_cast<uint32_t>(StyleState::Default)].Grow;
+        Node->Shrink     = Cached->Properties[static_cast<uint32_t>(StyleState::Default)].Shrink;
     }
 }
 
@@ -1112,7 +1117,28 @@ ProcessUIEvents(ui_event_list *Events, ui_subtree *Subtree)
 // @Internal: Text Layout Implementation
 
 // -----------------------------------------------------------
-// Layout Pass internal Helpers/Types
+
+static float
+GetCursorOffsetFromAlignment(float FreeSpace, Alignment Alignment)
+{
+    float Offset = 0.f;
+
+    if(Alignment == Alignment::Start)
+    {
+        Offset = 0.f;
+    } else
+    if(Alignment == Alignment::Center)
+    {
+        Offset = 0.5f * FreeSpace;
+    } else
+    if(Alignment == Alignment::End)
+    {
+        VOID_ASSERT(!"Idk");
+        Offset = 0.f;
+    }
+
+    return Offset;
+}
 
 static void
 PlaceLayoutTree(ui_layout_tree *Tree, memory_arena *Arena)
@@ -1122,6 +1148,7 @@ PlaceLayoutTree(ui_layout_tree *Tree, memory_arena *Arena)
 
     ui_layout_node **LayoutBuffer = PushArray(Arena, ui_layout_node *, Tree->NodeCount);
 
+    // NOTE: Temporary hack just to see.
     ui_layout_node *Root = GetLayoutRoot(Tree);
     Root->ResultWidth  = Root->ConstrainedSize.Width;
     Root->ResultHeight = Root->ConstrainedSize.Height;
@@ -1136,15 +1163,23 @@ PlaceLayoutTree(ui_layout_tree *Tree, memory_arena *Arena)
         LayoutDirection Direction    = Parent->Direction;
         bool            IsHorizontal = Direction == LayoutDirection::Horizontal;
 
-        float Spacing = Parent->Spacing;
-        ui_padding P  = Parent->Padding;
-        float StartX  = Parent->ResultX + P.Left;
-        float StartY  = Parent->ResultY + P.Top;
+        float      Spacing = Parent->Spacing;
+        ui_padding Padding = Parent->Padding;
+        float      StartX  = Parent->ResultX + Padding.Left;
+        float      StartY  = Parent->ResultY + Padding.Top;
 
-        float CursorM = 0.f;
+        float ParentC = IsHorizontal ? Parent->ResultWidth : Parent->ResultHeight;
+        float CursorM = GetCursorOffsetFromAlignment(Parent->FreeSpaceM, Parent->AlignmentM);
 
         IterateLinkedList(Parent, ui_layout_node *, Child)
         {
+            // NOTE: Temporary hack just to see.
+            Child->ResultWidth  = Child->ConstrainedSize.Width;
+            Child->ResultHeight = Child->ConstrainedSize.Height;
+
+            float ChildSizeC = IsHorizontal ? Child->ResultHeight : Child->ResultWidth;
+            float CursorC    = GetCursorOffsetFromAlignment((ParentC - ChildSizeC), Parent->AlignmentC);
+
             if (Child != Parent->First)
             {
                 CursorM += Spacing;
@@ -1153,23 +1188,22 @@ PlaceLayoutTree(ui_layout_tree *Tree, memory_arena *Arena)
             if (IsHorizontal)
             {
                 Child->ResultX = StartX + CursorM;
-                Child->ResultY = StartY;
-                CursorM += Child->ConstrainedSize.Width;
+                Child->ResultY = StartY + CursorC;
+
+                CursorM += Child->ResultWidth;
             }
             else
             {
-                Child->ResultX = StartX;
+                Child->ResultX = StartX + CursorC;
                 Child->ResultY = StartY + CursorM;
-                CursorM += Child->ConstrainedSize.Height;
+
+                CursorM += Child->ResultHeight;
             }
 
             if (Child->ChildCount > 0)
             {
                 LayoutBuffer[VisitedNodes++] = Child;
             }
-
-            Child->ResultWidth  = Child->ConstrainedSize.Width;
-            Child->ResultHeight = Child->ConstrainedSize.Height;
         }
     }
 }
@@ -1243,8 +1277,8 @@ PreOrderMeasureSubtree(ui_layout_tree *Tree, memory_arena *Arena)
         float TotalShrinkWeight = 0.f;
 
         // BUG:
-        // If a node is specified without some sort of min/max, then it is clamped to 0.
-        // Is that the expected behavior. I feel like it shouldn't be. But like...
+        // How do we correctly track the remaining free space? I think it's in the post-order pass.
+        // Yeah, because at this point we don't really know how much space we have.
 
         IterateLinkedList(Parent, ui_layout_node *, Child)
         {

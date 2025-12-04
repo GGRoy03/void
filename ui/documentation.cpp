@@ -13,6 +13,64 @@ enum VoidDocumentation_Style : uint32_t
     VoidDocumentation_SubWindow  = 2 ,
 };
 
+// NOTE:
+// I think I am stupid.
+
+static ui_cached_style StyleArray[] =
+{
+    // Main Window
+    {
+        .Default =
+        {
+            .Sizing          = {},
+            .MinSize         = {400.f, 400.f},
+            .MaxSize         = {600.f, 600.f},
+            .LayoutDirection = LayoutDirection::Vertical,
+            .AlignmentM      = Alignment::Center,
+            .AlignmentC      = Alignment::Center,
+
+            .Padding         = {8, 8, 8, 8},
+            .Spacing         = 4.f,
+
+            .Color        = ui_color{0.15f, 0.15f, 0.15f, 1.0f},
+            .BorderColor  = ui_color{0.30f, 0.30f, 0.30f, 1.0f},
+            .TextColor    = ui_color{1.0f , 1.0f , 1.0f , 1.0f},
+
+            .BorderWidth  = 3.f,
+            .Softness     = 2.f,
+            .CornerRadius = {4.f, 4.f, 4.f, 4.f},
+
+            .FontSize     = 14.f,
+        },
+
+        .Hovered = {},
+        .Focused = {},
+    },
+
+    // SubWindow
+    {
+        .Default =
+        {
+            .Sizing          = {},
+            .LayoutDirection = LayoutDirection::Horizontal,
+            .AlignmentM      = Alignment::Center,
+            .AlignmentC      = Alignment::Center,
+
+            .Color        = ui_color{1.f, 0.15f, 0.15f, 1.0f},
+            .BorderColor  = ui_color{0.30f, 0.30f, 0.30f, 1.0f},
+
+            .BorderWidth  = 3.f,
+            .Softness     = 2.f,
+            .CornerRadius = {4.f, 4.f, 4.f, 4.f},
+
+            .FontSize     = 14.f,
+        },
+
+        .Hovered = {},
+        .Focused = {},
+    },
+};
+
 struct ui_void_documentation
 {
     ui_pipeline *UIPipeline;
@@ -30,7 +88,7 @@ InitializeVoidDocumentation(ui_void_documentation *Doc)
 
     ui_pipeline_params PipelineParams =
     {
-        .ThemeFile = byte_string_literal("styles/void_documentation.void"),
+        .ThemeFile = byte_string_literal("styles/void_parser.void"),
     };
     Doc->UIPipeline = UICreatePipeline(PipelineParams);
 

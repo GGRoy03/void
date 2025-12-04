@@ -11,6 +11,8 @@
 #define XXH_IMPLEMENTATION
 #include "third_party/xxhash.h"
 
+#include "third_party/nxi_log.h"
+
 // [Headers]
 
 #include "base/base_inc.h"

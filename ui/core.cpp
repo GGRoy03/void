@@ -229,9 +229,6 @@ SetNodeId(byte_string Id, uint32_t NodeIndex, ui_node_table *Table)
     }
     else
     {
-        // TODO: Show which ID is faulty.
-
-        ConsoleWriteMessage(warn_message("ID could not be set because it already exists for this pipeline"));
     }
 }
 
@@ -299,13 +296,10 @@ UIFindNodeById(byte_string Id, ui_node_table *Table)
         }
         else
         {
-            // TODO: Show which ID is faulty.
-            ConsoleWriteMessage(warn_message("Could not find queried node."));
         }
     }
     else
     {
-        ConsoleWriteMessage(warn_message("Invalid Arguments Provided. See ui/layout.h for information."));
     }
 
     return Result;
@@ -744,12 +738,10 @@ LoadImageInGroup(byte_string GroupName, byte_string Path)
         }
         else
         {
-            ConsoleWriteMessage(error_message("Unable to load image inside group."));
         }
     }
     else
     {
-        ConsoleWriteMessage(error_message("Could not find image on disk."));
     }
 
     return Result;
@@ -960,7 +952,6 @@ void ui_node::SetImage(byte_string Path, byte_string Group)
         }
         else
         {
-            ConsoleWriteMessage(error_message("Failed to allocate memory: Image."));
         }
     }
 }
@@ -1271,12 +1262,8 @@ UICreatePipeline(ui_pipeline_params Params)
         Result->internalArena = AllocateArena(ArenaParams);
     }
 
-    // BUG: This is completely wrong, but I need to try the parser.
+    // BUG: This is completely wrong, but I need to try the parser. Idk.
     {
-        os_handle    FileHandle = OSFindFile(Params.ThemeFile);
-        os_read_file ReadFile   = OSReadFile(FileHandle, Result->internalArena);
-
-        Result->CachedStyles = StyleParser::LoadStyles(&ReadFile, 1, Result->internalArena);
     }
 
     State->CurrentPipeline = Result;
