@@ -763,3 +763,18 @@ CopyIntoRenderTexture(render_texture RenderTexture, rect_float Source, uint8_t *
 
     Renderer->DeviceContext->UpdateSubresource((ID3D11Resource *)Texture, 0, &Box, Pixels, Pitch, 0);
 }
+
+// ===================================================================================
+// NOTE: I don't know yet.
+
+static byte_string
+GetDefaultVtxShader(void)
+{
+    return byte_string_compile(D3D11RectShader);
+}
+
+static byte_string
+GetDefaultPxlShader(void)
+{
+    return byte_string_compile(D3D11RectShader);
+}

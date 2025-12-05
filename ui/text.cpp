@@ -10,12 +10,13 @@ GetFontAtlas(ui_font *Font)
 static ui_font *
 UILoadFont(byte_string Name, float Size)
 {
-    ui_font *Result = 0;
+    void_context &Context = GetVoidContext();
+    ui_font      *Result  = 0;
 
     // Global Access
     render_handle Renderer = RenderState.Renderer;
-    memory_arena *Arena    = UIState.StaticData;
-    ui_font_list *FontList = &UIState.Fonts;
+    memory_arena *Arena    = Context.StateArena;
+    ui_font_list *FontList = &Context.Fonts;
 
     if(IsValidByteString(Name) && Size && IsValidRenderHandle(Renderer))
     {
@@ -67,9 +68,10 @@ UILoadFont(byte_string Name, float Size)
 static ui_font *
 UIQueryFont(byte_string FontName, float FontSize)
 {
-    ui_font *Result = 0;
+    void_context &Context = GetVoidContext();
+    ui_font      *Result  = 0;
 
-    ui_font_list *FontList = &UIState.Fonts;
+    ui_font_list *FontList = &Context.Fonts;
     IterateLinkedList(FontList, ui_font *, Font)
     {
         if (Font->Size == FontSize && ByteStringMatches(Font->Name, FontName, 0))

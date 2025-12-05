@@ -136,8 +136,6 @@ struct ui_style_properties
 
 struct ui_cached_style
 {
-    ui_style_properties Properties[StyleStateCount];
-
     ui_style_properties Default;
     ui_style_properties Hovered;
     ui_style_properties Focused;
@@ -161,13 +159,7 @@ struct ui_paint_properties
 };
 
 static void
-SetNodeStyle(uint32_t NodeIndex, uint32_t StyleIndex, ui_subtree *Subtree);
-
-static ui_paint_properties *
-GetPaintProperties(uint32_t NodeIndex, ui_subtree *Subtree);
-
-static void
-ClearPaintProperties(uint32_t NodeIndex, ui_subtree *Subtree);
+SetNodeStyle(uint32_t NodeIndex, uint32_t StyleIndex, ui_pipeline &Pipeline);
 
 // ===================================================================================
 // @Internal: Small Helpers

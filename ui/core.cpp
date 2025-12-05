@@ -1,47 +1,3 @@
-#define ui_id(Id)  byte_string_literal(Id)
-#define UIBlock(X) DeferLoop(X, UIEnd())
-
-// -----------------------------------------------------------------------------------
-// UI Context Private Implementation
-
-static ui_pipeline *
-GetCurrentPipeline(void)
-{
-    ui_pipeline *Pipeline = UIState.CurrentPipeline;
-    return Pipeline;
-}
-
-static ui_subtree *
-GetCurrentSubtree(void)
-{
-    ui_pipeline *Pipeline = GetCurrentPipeline();
-    VOID_ASSERT(Pipeline);
-
-    ui_subtree *Subtree = Pipeline->CurrentSubtree;
-    return Subtree;
-}
-
-static ui_subtree *
-FindSubtree(ui_node Node)
-{
-    ui_pipeline *Pipeline = GetCurrentPipeline();
-    VOID_ASSERT(Pipeline);
-
-    ui_subtree *Result = 0;
-
-    IterateLinkedList((&Pipeline->Subtrees), ui_subtree_node *, SubtreeNode)
-    {
-        ui_subtree *Subtree = &SubtreeNode->Value;
-        if(Subtree->Id == Node.SubtreeId)
-        {
-            Result = Subtree;
-            break;
-        }
-    }
-
-    return Result;
-}
-
 // ------------------------------------------------------------------------------
 // Node Id Map Implementation
 
@@ -275,10 +231,10 @@ PlaceNodeIdTableInMemory(ui_node_table_params Params, void *Memory)
     return Result;
 }
 
-static ui_node *
+static ui_node
 UIFindNodeById(byte_string Id, ui_node_table *Table)
 {
-    ui_node *Result = 0;
+    ui_node Result = {InvalidLayoutNodeIndex};
 
     if(IsValidByteString(Id) && IsValidNodeIdTable(Table))
     {
@@ -287,12 +243,7 @@ UIFindNodeById(byte_string Id, ui_node_table *Table)
 
         if(Entry)
         {
-            // BUG:
-            // Does not set subtree ID. But is it needed really?
-
-            Result = UICreateNode(0, 1);
-            Result->CanUse = 1;
-            Result->IndexInTree = Entry->NodeIndex;
+            Result = {Entry->NodeIndex};
         }
         else
         {
@@ -499,9 +450,9 @@ PlaceResourceTableInMemory(ui_resource_table_params Params, void *Memory)
 }
 
 static ui_resource_key
-MakeResourceKey(UIResource_Type Type, uint32_t NodeIndex, ui_subtree *Subtree)
+MakeNodeResourceKey(UIResource_Type Type, uint32_t NodeIndex, ui_layout_tree *Tree)
 {
-    uint64_t Low  = (uint64_t)Subtree;
+    uint64_t Low  = (uint64_t)Tree;
     uint64_t High = ((uint64_t)Type << 32) | NodeIndex;
 
     ui_resource_key Key = {.Value = _mm_set_epi64x(High, Low)};
@@ -613,9 +564,9 @@ UpdateResourceTable(uint32_t Id, ui_resource_key Key, void *Memory, ui_resource_
 }
 
 static void *
-QueryNodeResource(uint32_t NodeIndex, ui_subtree *Subtree, UIResource_Type Type, ui_resource_table *Table)
+QueryNodeResource(uint32_t NodeIndex, ui_layout_tree *Tree, UIResource_Type Type, ui_resource_table *Table)
 {
-    ui_resource_key   Key   = MakeResourceKey(Type, NodeIndex, Subtree);
+    ui_resource_key   Key   = MakeNodeResourceKey(Type, NodeIndex, Tree);
     ui_resource_state State = FindResourceByKey(Key, Table);
 
     VOID_ASSERT(State.Resource && State.ResourceType == Type);
@@ -676,13 +627,15 @@ UICreateImageGroup(byte_string Name, int Width, int Height)
     VOID_ASSERT(Width  > 0);
     VOID_ASSERT(Height > 0);
 
+    void_context &Context = GetVoidContext();
+
     ui_resource_key   Key   = MakeGlobalResourceKey(UIResource_ImageGroup, Name);
-    ui_resource_state State = FindResourceByKey(Key, UIState.ResourceTable);
+    ui_resource_state State = FindResourceByKey(Key, Context.ResourceTable);
 
     VOID_ASSERT(!State.Resource);
 
     uint64_t   Size   = GetImageGroupFootprint(Width);
-    void *Memory = AllocateUIResource(Size, &UIState.ResourceTable->Allocator);
+    void *Memory = AllocateUIResource(Size, &Context.ResourceTable->Allocator);
 
     if(Memory)
     {
@@ -702,16 +655,17 @@ UICreateImageGroup(byte_string Name, int Width, int Height)
 
         stbrp_init_target(&Group->Allocator, Width, Height, Group->AllocatorNodes, Width);
 
-        UpdateResourceTable(State.Id, Key, Group, UIState.ResourceTable);
+        UpdateResourceTable(State.Id, Key, Group, Context.ResourceTable);
     }
 }
 
 static ui_loaded_image
 LoadImageInGroup(byte_string GroupName, byte_string Path)
 {
-    ui_loaded_image Result = {};
+    void_context   &Context = GetVoidContext();
+    ui_loaded_image Result  = {};
 
-    ui_image_group *Group = (ui_image_group *)QueryGlobalResource(GroupName, UIResource_ImageGroup, UIState.ResourceTable);
+    ui_image_group *Group = (ui_image_group *)QueryGlobalResource(GroupName, UIResource_ImageGroup, Context.ResourceTable);
     VOID_ASSERT(Group);
 
     int Width, Height, Channels;
@@ -748,97 +702,38 @@ LoadImageInGroup(byte_string GroupName, byte_string Path)
 }
 
 // -------------------------------------------------------------
-// UI Node Private Implementation
+// @Public: Frame Node API
 
-static ui_subtree *
-GetSubtreeForNode(ui_node *Node)
+void ui_node::SetStyle(uint32_t StyleIndex, ui_pipeline &Pipeline)
 {
-    ui_subtree *Result = GetCurrentSubtree();
-    if(!Result)
+    if(StyleIndex >= Pipeline.StyleIndexMin && StyleIndex <= Pipeline.StyleIndexMax)
     {
-        Result = FindSubtree(*Node);
+        SetNodeProperties(Index, StyleIndex, Pipeline.StyleArray[StyleIndex], Pipeline.Tree);
     }
+}
 
-    VOID_ASSERT(Result);
+ui_node ui_node::Find(uint32_t FindIndex, ui_pipeline &Pipeline)
+{
+    ui_node Result = { UITreeFindChild(Index, FindIndex, Pipeline.Tree) };
     return Result;
 }
 
-// -------------------------------------------------------------
-// UI Node Public API Implementation
-
-void ui_node::SetStyle(uint32_t StyleIndex)
+void ui_node::Append(ui_node Child, ui_pipeline &Pipeline)
 {
-    VOID_ASSERT(this->CanUse);
-
-    ui_subtree *Subtree = GetSubtreeForNode(this);
-    VOID_ASSERT(Subtree);
-
-    SetNodeStyle(this->IndexInTree, StyleIndex, Subtree);
+    UITreeAppendChild(Index, Child.Index, Pipeline.Tree);
 }
 
-ui_node * ui_node::FindChild(uint32_t Index)
+void ui_node::Reserve(uint32_t Amount, ui_pipeline &Pipeline)
 {
-    VOID_ASSERT(this->CanUse);
-
-    ui_node    *Result  = 0;
-    ui_subtree *Subtree = GetSubtreeForNode(this);
-    VOID_ASSERT(Subtree);
-
-    uint32_t NodeIndex = UITreeFindChild(this->IndexInTree, Index, Subtree);
-    if(NodeIndex != InvalidLayoutNodeIndex)
-    {
-        Result = 0; // TODO: Alloc.
-    }
-
-    return Result;
+    UITreeReserve(Index, Amount, Pipeline.Tree);
 }
 
-void ui_node::AppendChild(ui_node *Child)
+void ui_node::SetText(byte_string Text, ui_pipeline &Pipeline)
 {
-    VOID_ASSERT(this->CanUse);
+    void_context &Context  = GetVoidContext();
 
-    ui_subtree *Subtree = GetSubtreeForNode(this);
-    VOID_ASSERT(Subtree);
-
-    UITreeAppendChild(this->IndexInTree, Child->IndexInTree, Subtree);
-}
-
-void ui_node::ReserveChildren(uint32_t Amount)
-{
-    VOID_ASSERT(this->CanUse);
-
-    ui_subtree *Subtree = GetSubtreeForNode(this);
-    VOID_ASSERT(Subtree);
-
-    UITreeReserve(this->IndexInTree, Amount, Subtree);
-}
-
-void ui_node::ClearTextInput(void)
-{
-    VOID_ASSERT(this->CanUse);
-
-    ui_subtree *Subtree = GetSubtreeForNode(this);
-    VOID_ASSERT(Subtree);
-
-    ui_text       *Text      = (ui_text *)      QueryNodeResource(this->IndexInTree, Subtree, UIResource_Text     , UIState.ResourceTable);
-    ui_text_input *TextInput = (ui_text_input *)QueryNodeResource(this->IndexInTree, Subtree, UIResource_TextInput, UIState.ResourceTable);
-
-    VOID_ASSERT(Text);
-    VOID_ASSERT(TextInput);
-
-    UITextClear_(Text);
-    UITextInputClear_(TextInput);
-}
-
-void ui_node::SetText(byte_string Text)
-{
-    VOID_ASSERT(this->CanUse);
-
-    ui_subtree *Subtree = GetSubtreeForNode(this);
-    VOID_ASSERT(Subtree);
-
-    ui_resource_table *Table = UIState.ResourceTable;
-    ui_resource_key    Key   = MakeResourceKey(UIResource_Text, this->IndexInTree, Subtree);
+    ui_resource_table *Table = Context.ResourceTable;
+    ui_resource_key    Key   = MakeNodeResourceKey(UIResource_Text, Index, Pipeline.Tree);
     ui_resource_state  State = FindResourceByKey(Key, Table);
 
     if(!State.Resource)
@@ -846,14 +741,15 @@ void ui_node::SetText(byte_string Text)
         uint64_t  Size   = GetUITextFootprint(Text.Size);
         void     *Memory = AllocateUIResource(Size, &Table->Allocator);
 
-        ui_paint_properties *Paint = GetPaintProperties(this->IndexInTree, Subtree);
+        // BUG:  Should not be 0. How do we query this?
+        ui_paint_properties *Paint = 0;
         if(Paint)
         {
             ui_text *UIText = PlaceUITextInMemory(Text, Text.Size, Paint->Font, Memory);
             VOID_ASSERT(UIText);
 
             UpdateResourceTable(State.Id, Key, UIText, Table);
-            SetLayoutNodeFlags(this->IndexInTree, UILayoutNode_HasText, Subtree);
+            SetLayoutNodeFlags(Index, UILayoutNode_HasText, Pipeline.Tree);
         }
     }
     else
@@ -862,47 +758,42 @@ void ui_node::SetText(byte_string Text)
     }
 }
 
-void ui_node::SetTextInput(uint8_t *Buffer, uint64_t BufferSize)
+void ui_node::SetTextInput(uint8_t *Buffer, uint64_t BufferSize, ui_pipeline &Pipeline)
 {
-    VOID_ASSERT(this->CanUse);
+    void_context &Context  = GetVoidContext();
 
-    ui_subtree *Subtree = GetSubtreeForNode(this);
-    VOID_ASSERT(Subtree);
+    ui_resource_key   Key   = MakeNodeResourceKey(UIResource_TextInput, Index, Pipeline.Tree);
+    ui_resource_state State = FindResourceByKey(Key, Context.ResourceTable);
 
-    ui_resource_key   Key   = MakeResourceKey(UIResource_TextInput, this->IndexInTree, Subtree);
-    ui_resource_state State = FindResourceByKey(Key, UIState.ResourceTable);
-
-    uint64_t   Size   = sizeof(ui_text_input);
-    void *Memory = AllocateUIResource(Size, &UIState.ResourceTable->Allocator);
+    uint64_t Size    = sizeof(ui_text_input);
+    void     *Memory = AllocateUIResource(Size, &Context.ResourceTable->Allocator);
 
     ui_text_input *TextInput = (ui_text_input *)Memory;
     TextInput->UserBuffer    = ByteString(Buffer, BufferSize);
     TextInput->internalCount = strlen((char *)Buffer);
 
-    UpdateResourceTable(State.Id, Key, TextInput, UIState.ResourceTable);
+    UpdateResourceTable(State.Id, Key, TextInput, Context.ResourceTable);
 
     // NOTE:
     // I mean... Maybe this is fine. But at least centralize it when we update
     // the resource table perhaps? And then we kinda have the index from the key.
     // Just need to make global keys recognizable.
 
-    SetLayoutNodeFlags(this->IndexInTree, UILayoutNode_HasTextInput, Subtree);
+    SetLayoutNodeFlags(Index, UILayoutNode_HasTextInput, Pipeline.Tree);
 
-    this->SetText(ByteString(Buffer, BufferSize));
+    // pass Pipeline through to SetText
+    SetText(ByteString(Buffer, BufferSize), Pipeline);
 }
 
-void ui_node::SetScroll(float ScrollSpeed, UIAxis_Type Axis)
+void ui_node::SetScroll(float ScrollSpeed, UIAxis_Type Axis, ui_pipeline &Pipeline)
 {
-    VOID_ASSERT(this->CanUse);
+    void_context &Context  = GetVoidContext();
 
-    ui_subtree *Subtree = GetSubtreeForNode(this);
-    VOID_ASSERT(Subtree);
+    ui_resource_key   Key   = MakeNodeResourceKey(UIResource_ScrollRegion, Index, Pipeline.Tree);
+    ui_resource_state State = FindResourceByKey(Key, Context.ResourceTable);
 
-    ui_resource_key   Key   = MakeResourceKey(UIResource_ScrollRegion, this->IndexInTree, Subtree);
-    ui_resource_state State = FindResourceByKey(Key, UIState.ResourceTable);
-
-    uint64_t   Size   = GetScrollRegionFootprint();
-    void *Memory = AllocateUIResource(Size, &UIState.ResourceTable->Allocator);
+    uint64_t  Size   = GetScrollRegionFootprint();
+    void     *Memory = AllocateUIResource(Size, &Context.ResourceTable->Allocator);
 
     scroll_region_params Params =
     {
@@ -913,30 +804,24 @@ void ui_node::SetScroll(float ScrollSpeed, UIAxis_Type Axis)
     ui_scroll_region *ScrollRegion = PlaceScrollRegionInMemory(Params, Memory);
     if(ScrollRegion)
     {
-        UpdateResourceTable(State.Id, Key, ScrollRegion, UIState.ResourceTable);
+        UpdateResourceTable(State.Id, Key, ScrollRegion, Context.ResourceTable);
 
         // WARN:
         // Still don't know how to feel about this.
         // It's not great, that's for sure. Again this idea of centralizing
-        SetLayoutNodeFlags(this->IndexInTree, UILayoutNode_HasScrollRegion, Subtree);
+        SetLayoutNodeFlags(Index, UILayoutNode_HasScrollRegion, Pipeline.Tree);
     }
 }
 
-// NOTE:
-// Then we at least need to specify that group names must be internal strings.
-
-void ui_node::SetImage(byte_string Path, byte_string Group)
+void ui_node::SetImage(byte_string Path, byte_string Group, ui_pipeline &Pipeline)
 {
-    VOID_ASSERT(this->CanUse);
-
-    ui_subtree *Subtree = GetSubtreeForNode(this);
-    VOID_ASSERT(Subtree);
+    void_context &Context = GetVoidContext();
 
     ui_loaded_image Image = LoadImageInGroup(Group, Path);
     if(Image.IsLoaded)
     {
-        uint64_t   Size   = sizeof(ui_image);
-        void *Memory = AllocateUIResource(Size, &UIState.ResourceTable->Allocator);
+        uint64_t  Size   = sizeof(ui_image);
+        void     *Memory = AllocateUIResource(Size, &Context.ResourceTable->Allocator);
 
         if(Memory)
         {
@@ -944,11 +829,11 @@ void ui_node::SetImage(byte_string Path, byte_string Group)
             ImageResource->Source    = Image.Source;
             ImageResource->GroupName = Group;
 
-            ui_resource_key   Key   = MakeResourceKey(UIResource_Image, this->IndexInTree, Subtree);
-            ui_resource_state State = FindResourceByKey(Key, UIState.ResourceTable);
+            ui_resource_key   Key   = MakeNodeResourceKey(UIResource_Image, Index, Pipeline.Tree);
+            ui_resource_state State = FindResourceByKey(Key, Context.ResourceTable);
 
-            UpdateResourceTable(State.Id, Key, ImageResource, UIState.ResourceTable);
-            SetLayoutNodeFlags(this->IndexInTree, UILayoutNode_HasImage, Subtree);
+            UpdateResourceTable(State.Id, Key, ImageResource, Context.ResourceTable);
+            SetLayoutNodeFlags(Index, UILayoutNode_HasImage, Pipeline.Tree);
         }
         else
         {
@@ -956,353 +841,168 @@ void ui_node::SetImage(byte_string Path, byte_string Group)
     }
 }
 
-void ui_node::ListenOnKey(ui_text_input_onkey Callback, void *UserData)
+void ui_node::DebugBox(uint32_t Flag, bool Draw, ui_pipeline &Pipeline)
 {
-    VOID_ASSERT(this->CanUse);
-
-    ui_subtree *Subtree = GetSubtreeForNode(this);
-    VOID_ASSERT(Subtree);
-
-    // NOTE:
-    // For now these callbacks are limited to text inputs. Unsure if I want to expose
-    // them more generally. It's also not clear that it's limited to text input.
-
-    ui_text_input *TextInput = (ui_text_input *)QueryNodeResource(this->IndexInTree, Subtree, UIResource_TextInput, UIState.ResourceTable);
-    VOID_ASSERT(TextInput);
-
-    TextInput->OnKey         = Callback;
-    TextInput->OnKeyUserData = UserData;
-}
-
-void ui_node::DebugBox(uint32_t Flag, bool Draw)
-{
-    VOID_ASSERT(this->CanUse);
-    VOID_ASSERT(Flag == UILayoutNode_DebugOuterBox || Flag == UILayoutNode_DebugInnerBox|| Flag == UILayoutNode_DebugContentBox);
-
-    ui_subtree *Subtree = GetCurrentSubtree();
-    VOID_ASSERT(Subtree);
+    VOID_ASSERT(Flag == UILayoutNode_DebugOuterBox || Flag == UILayoutNode_DebugInnerBox || Flag == UILayoutNode_DebugContentBox);
 
     if(Draw)
     {
-        SetLayoutNodeFlags(this->IndexInTree, Flag, Subtree);
+        SetLayoutNodeFlags(Index, Flag, Pipeline.Tree);
     }
     else
     {
-        ClearLayoutNodeFlags(this->IndexInTree, Flag, Subtree);
+        ClearLayoutNodeFlags(Index, Flag, Pipeline.Tree);
     }
 }
 
-void ui_node::SetId(byte_string Id, ui_node_table *Table)
+void ui_node::SetId(byte_string Id, ui_pipeline &Pipeline)
 {
-    VOID_ASSERT(this->CanUse);
-    VOID_ASSERT(IsValidByteString(Id));
-    VOID_ASSERT(Table);
+    VOID_ASSERT(IsValidByteString(Id)); // Makes no sense.
 
-    ui_pipeline *Pipeline = GetCurrentPipeline();
-    VOID_ASSERT(Pipeline);
-
-    SetNodeId(Id, this->IndexInTree, Table);
-}
-
-static ui_node *
-UICreateNode(uint32_t Flags, bool IsFrameNode)
-{
-    ui_subtree *Subtree = GetCurrentSubtree();
-    VOID_ASSERT(Subtree);
-
-    ui_node *Node = PushStruct(Subtree->Transient, ui_node);
-
-    if(Node && !IsFrameNode)
-    {
-        Node->IndexInTree = AllocateLayoutNode(Flags, Subtree);
-        Node->CanUse      = true;
-        Node->SubtreeId   = Subtree->Id;
-    }
-
-    return Node;
+    SetNodeId(Id, Index, Pipeline.NodeTable);
 }
 
 // ----------------------------------------------------------------------------------
-// Context internal Implementation
-
-static uint64_t
-GetSubtreeFootprint(uint64_t NodeCount)
-{
-    uint64_t TreeSize = GetLayoutTreeFootprint(NodeCount);
-    uint64_t Styles   = NodeCount * sizeof(ui_paint_properties);
-    uint64_t Result   = sizeof(ui_subtree) + TreeSize + Styles;
-
-    return Result;
-}
-
-static bool
-IsValidHoveredNode(ui_hovered_node *Node)
-{
-    VOID_ASSERT(Node);
-
-    bool Result = (Node->Subtree && Node->Index < Node->Subtree->NodeCount);
-    return Result;
-}
-
-static void
-ClearHoveredNode(ui_hovered_node *Node)
-{
-    VOID_ASSERT(Node);
-
-    Node->Index   = 0;
-    Node->Subtree = 0;
-}
-
-static bool
-IsValidFocusedNode(ui_focused_node *Node)
-{
-    VOID_ASSERT(Node);
-
-    bool Result = (Node->Subtree && Node->Index < Node->Subtree->NodeCount);
-    return Result;
-}
-
-static void
-ClearFocusedNode(ui_focused_node *Node)
-{
-    VOID_ASSERT(Node);
-
-    Node->Index       = 0;
-    Node->Subtree     = 0;
-    Node->IsTextInput = 0;
-    Node->Intent      = UIIntent_None;
-}
-
-// ----------------------------------------------------------------------------------
-// Context Public API Implementation
+// Context Public API Implementation NOTE: Looks garbage!
 
 static void
 UIBeginFrame(vec2_int WindowSize)
 {
-    bool      MouseReleased = OSIsMouseReleased(OSMouseButton_Left);
-    bool      MouseClicked  = OSIsMouseClicked(OSMouseButton_Left);
-    vec2_float MousePosition = OSGetMousePosition();
+    void_context &Context = GetVoidContext();
 
-    ui_focused_node Focused = UIState.Focused;
-    if(IsValidFocusedNode(&Focused))
-    {
-        if(MouseClicked && Focused.IsTextInput && !IsMouseInsideOuterBox(MousePosition, Focused.Index, Focused.Subtree))
-        {
-            ClearFocusedNode(&UIState.Focused);
-        } else
-        if(MouseReleased && !Focused.IsTextInput)
-        {
-            ClearFocusedNode(&UIState.Focused);
-        }
-    }
+    // TODO:
+    // Reimplement this I guess?
 
-    UIState.WindowSize = WindowSize;
+    Context.WindowSize = WindowSize;
 }
 
 static void
 UIEndFrame(void)
 {
-    ClearHoveredNode(&UIState.Hovered);
+    // TODO: Something.
 }
 
-static void
-UISetNodeHover(uint32_t NodeIndex, ui_subtree *Subtree)
+// ==================================================================================
+// @Public : Context
+
+static void_context &
+GetVoidContext(void)
 {
-    VOID_ASSERT(!IsValidHoveredNode(&UIState.Hovered));
-
-    UIState.Hovered.Index   = NodeIndex;
-    UIState.Hovered.Subtree = Subtree;
-}
-
-static bool
-UIHasNodeHover(void)
-{
-    bool Result = IsValidHoveredNode(&UIState.Hovered);
-    return Result;
-}
-
-static ui_hovered_node
-UIGetNodeHover(void)
-{
-    VOID_ASSERT(IsValidHoveredNode(&UIState.Hovered));
-
-    ui_hovered_node Result = UIState.Hovered;
-    return Result;
-}
-
-static void
-UISetNodeFocus(uint32_t NodeIndex, ui_subtree *Subtree, bool IsTextInput, UIIntent_Type Intent)
-{
-    VOID_ASSERT(!IsValidFocusedNode(&UIState.Focused));
-
-    UIState.Focused.Index       = NodeIndex;
-    UIState.Focused.Subtree     = Subtree;
-    UIState.Focused.IsTextInput = IsTextInput;
-    UIState.Focused.Intent      = Intent;
-}
-
-static bool
-UIHasNodeFocus(void)
-{
-    bool Result = IsValidFocusedNode(&UIState.Focused);
-    return Result;
-}
-
-static ui_focused_node
-UIGetNodeFocus(void)
-{
-    VOID_ASSERT(IsValidFocusedNode(&UIState.Focused));
-
-    ui_focused_node Result = UIState.Focused;
-    return Result;
-}
-
-static void
-UIBeginSubtree(ui_subtree_params Params)
-{
-    if(Params.CreateNew)
-    {
-        VOID_ASSERT(Params.NodeCount && "Cannot create a subtree with 0 nodes.");
-
-        memory_arena *Persistent = 0;
-        {
-            uint64_t Footprint = GetSubtreeFootprint(Params.NodeCount);
-
-            memory_arena_params Params = {};
-            Params.AllocatedFromFile = __FILE__;
-            Params.AllocatedFromLine = __LINE__;
-            Params.ReserveSize       = Footprint;
-            Params.CommitSize        = Footprint;
-
-            Persistent = AllocateArena(Params);
-        }
-
-        memory_arena *Transient = 0;
-        {
-            memory_arena_params Params = {};
-            Params.AllocatedFromFile = __FILE__;
-            Params.AllocatedFromLine = __LINE__;
-            Params.ReserveSize       = VOID_KILOBYTE(32);
-            Params.CommitSize        = VOID_KILOBYTE(16);
-
-            Transient = AllocateArena(Params);
-        }
-
-        if(Persistent && Transient)
-        {
-            ui_subtree_node *SubtreeNode = PushStruct(Persistent, ui_subtree_node);
-            ui_subtree      *Subtree     = &SubtreeNode->Value;
-
-            Subtree->Persistent = Persistent;
-            Subtree->Transient  = Transient;
-            Subtree->NodeCount  = Params.NodeCount;
-            Subtree->PaintArray = PushArray(Persistent, ui_paint_properties, Params.NodeCount);
-
-            ui_layout_tree *Tree = 0;
-            {
-                uint64_t Footprint = GetLayoutTreeFootprint(Params.NodeCount);
-                void    *Memory    = PushArray(Subtree->Persistent, uint8_t, Footprint);
-
-                Tree = PlaceLayoutTreeInMemory(Params.NodeCount, Memory);
-            }
-            Subtree->LayoutTree = Tree;
-
-            // NOTE:
-            // What the fuck is this? Not great.
-
-            ui_pipeline *Pipeline = GetCurrentPipeline();
-            VOID_ASSERT(Pipeline);
-            ui_subtree_list *SubtreeList = &Pipeline->Subtrees;
-            AppendToLinkedList(SubtreeList, SubtreeNode, SubtreeList->Count);
-            Pipeline->CurrentSubtree = Subtree;
-        }
-    }
-    else
-    {
-        // NOTE: Not sure..
-    }
-}
-
-static void
-UIEndSubtree(ui_subtree_params Params)
-{
-    VOID_UNUSED(Params);
-
-    ui_pipeline *Pipeline = GetCurrentPipeline();
-    VOID_ASSERT(Pipeline);
-}
-
-static ui_pipeline *
-GetFreeUIPipeline(void)
-{
-    ui_pipeline_buffer *Buffer = &UIState.Pipelines;
-    VOID_ASSERT(Buffer);
-    VOID_ASSERT(Buffer->Count < Buffer->Size); // NOTE: Wrong ui_config.h!
-
-    ui_pipeline *Result = Buffer->Values + Buffer->Count++;
-
-    return Result;
-}
-
-static ui_pipeline *
-UICreatePipeline(ui_pipeline_params Params)
-{
-    ui_state    *State  = &UIState;
-    ui_pipeline *Result = GetFreeUIPipeline();
-    VOID_ASSERT(Result);
-
-    // internal Data
-    {
-        memory_arena_params ArenaParams = { 0 };
-        ArenaParams.AllocatedFromFile = __FILE__;
-        ArenaParams.AllocatedFromLine = __LINE__;
-        ArenaParams.ReserveSize       = VOID_MEGABYTE(1);
-        ArenaParams.CommitSize        = VOID_KILOBYTE(1);
-
-        Result->internalArena = AllocateArena(ArenaParams);
-    }
-
-    // BUG: This is completely wrong, but I need to try the parser. Idk.
-    {
-    }
-
-    State->CurrentPipeline = Result;
-
-    return Result;
+    return GlobalVoidContext;
 }
 
 // NOTE:
-// Perhaps we do not need this?
+// Context parameters? Unsure.
 
 static void
-UIBeginAllSubtrees(ui_pipeline *Pipeline)
+CreateVoidContext(void)
 {
-    VOID_ASSERT(Pipeline);
+    void_context &Context = GetVoidContext();
 
-    ui_subtree_list *List  = &Pipeline->Subtrees;
-    IterateLinkedList(List, ui_subtree_node *, Node)
+    // Memory
     {
-        ui_subtree *Subtree = &Node->Value;
+        Context.StateArena = AllocateArena({});
 
-        ClearArena(Subtree->Transient);
-
-        UpdateSubtreeState(Subtree);
+        VOID_ASSERT(Context.StateArena);
     }
 
-    UIState.CurrentPipeline = Pipeline;
+    // State
+    {
+        ui_resource_table_params TableParams =
+        {
+            .HashSlotCount = 512,
+            .EntryCount    = 2048,
+        };
+
+        uint64_t TableFootprint = GetResourceTableFootprint(TableParams);
+        void    *TableMemory    = PushArena(Context.StateArena, TableFootprint, 0);
+
+        Context.ResourceTable =  PlaceResourceTableInMemory(TableParams, TableMemory);
+
+        VOID_ASSERT(Context.ResourceTable);
+    }
+}
+
+// ==================================================================================
+// @Private : Pipeline Helpers
+
+static uint64_t
+GetPipelineStateFootprint(const ui_pipeline_params &Params)
+{
+    uint64_t TreeSize = GetLayoutTreeFootprint(Params.NodeCount);
+    uint64_t Result   = TreeSize;
+
+    return Result;
+};
+
+// ==================================================================================
+// @Public : Pipeline API
+
+static void
+UICreatePipeline(const ui_pipeline_params &Params)
+{
+    ui_pipeline Pipeline = {};
+
+    // Memory
+    {
+        uint64_t StateFootprint = GetPipelineStateFootprint(Params);
+
+        Pipeline.Arena      = AllocateArena({.ReserveSize = StateFootprint});
+        Pipeline.FrameStart = StateFootprint;
+
+        VOID_ASSERT(Pipeline.Arena);
+    }
+
+    // UI State
+    {
+        uint64_t  TreeFootprint = GetLayoutTreeFootprint(Params.NodeCount);
+        void     *TreeMemory    = PushArena(Pipeline.Arena, TreeFootprint, 0);
+
+        Pipeline.Tree = PlaceLayoutTreeInMemory(Params.NodeCount, TreeMemory);
+
+        VOID_ASSERT(Pipeline.Tree);
+    }
+
+    // User State
+    {
+        Pipeline.StyleArray    = Params.StyleArray;
+        Pipeline.StyleIndexMin = Params.StyleIndexMin;
+        Pipeline.StyleIndexMax = Params.StyleIndexMax;
+
+        VOID_ASSERT(Pipeline.StyleArray && Pipeline.StyleIndexMin < Pipeline.StyleIndexMax);
+    }
+
+    // Render State
+    {
+        // NOTE: Could expose some shader utilities? Have to.
+    }
+}
+
+static ui_pipeline &
+UIBindPipeline(UIPipeline UserPipeline)
+{
+    void_context &Context  = GetVoidContext();
+    ui_pipeline  &Pipeline = Context.PipelineArray[static_cast<uint32_t>(UserPipeline)];
+
+    // TODO: Reset State?
+
+    return Pipeline;
 }
 
 static void
-UIExecuteAllSubtrees(ui_pipeline *Pipeline)
+UIUnbindPipeline(UIPipeline Pipeline)
 {
-    VOID_ASSERT(Pipeline);
+    // TODO: What should this do?
+}
 
-    ui_subtree_list *List = &Pipeline->Subtrees;
-    IterateLinkedList(List, ui_subtree_node *, Node)
+static ui_pipeline_params
+UIGetDefaultPipelineParams(void)
+{
+    ui_pipeline_params Params =
     {
-        ui_subtree *Subtree = &Node->Value;
+        .VtxShaderByteCode = GetDefaultVtxShader(),
+        .PxlShaderByteCode = GetDefaultPxlShader(),
+    };
 
-        ComputeSubtreeLayout(Subtree);
-        PaintSubtree(Subtree);
-    }
+    return Params;
 }

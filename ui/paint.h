@@ -1,1 +1,1 @@
-static void PaintLayoutTreeFromRoot  (ui_layout_node *Root, ui_subtree *Subtree);
+static void PaintLayoutTreeFromRoot  (ui_layout_tree *Tree);

@@ -4,5 +4,3 @@
 #include "layout.cpp"
 #include "paint.cpp"
 #include "component.cpp"
-
-#include "documentation.cpp"

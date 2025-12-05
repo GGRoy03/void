@@ -123,41 +123,28 @@ typedef UIEvent_State (*ui_text_input_onkey)   (OSInputKey_Type Key, void *UserD
 
 struct ui_node
 {
-    bool CanUse;
-    uint64_t  IndexInTree;
-    uint64_t  SubtreeId;
+    uint32_t Index;
 
     // Style
-    void SetStyle      (uint32_t Style);
-    void SetSize       (vec2_unit Size);
-    void SetDisplay    (UIDisplay_Type Type);
-    void SetColor      (ui_color Color);
-    void SetTextColor  (ui_color Color);
+    void     SetStyle         (uint32_t Style, ui_pipeline &Pipeline);
 
     // Layout
-    ui_node* FindChild        (uint32_t Index);
-    void     AppendChild      (ui_node *Child);
-    void     ReserveChildren  (uint32_t Amount);
+    ui_node  Find             (uint32_t Index , ui_pipeline &Pipeline);
+    void     Append           (ui_node  Child , ui_pipeline &Pipeline);
+    void     Reserve          (uint32_t Amount, ui_pipeline &Pipeline);
 
     // Resource
-    void SetText         (byte_string Text);
-    void SetTextInput    (uint8_t *Buffer, uint64_t BufferSize);
-    void SetScroll       (float ScrollSpeed, UIAxis_Type Axis);
-    void SetImage        (byte_string Path, byte_string Group);
-    void ClearTextInput  (void);
-
-    // Callbacks
-    void ListenOnKey        (ui_text_input_onkey Callback, void *UserData);
+    void     SetText          (byte_string Text, ui_pipeline &Pipeline);
+    void     SetTextInput     (uint8_t *Buffer, uint64_t BufferSize, ui_pipeline &Pipeline);
+    void     SetScroll        (float ScrollSpeed, UIAxis_Type Axis, ui_pipeline &Pipeline);
+    void     SetImage         (byte_string Path, byte_string Group, ui_pipeline &Pipeline);
 
     // Debug
-    void DebugBox           (uint32_t Flag, bool Draw);
+    void     DebugBox         (uint32_t Flag, bool Draw, ui_pipeline &Pipeline);
 
     // Misc
-    void SetId              (byte_string Id, ui_node_table *Table);
+    void     SetId            (byte_string Id, ui_pipeline &Pipeline);
 };
-
-
-static ui_node * UICreateNode  (uint32_t Flags, bool IsFrameNode);
 
 // -----------------------------------------------------------------------------------
 // Image API
@@ -186,9 +173,6 @@ static void UICreateImageGroup  (byte_string Name, int Width, int Height);
 //   Caller owns the memory and is responsible for managing it.
 // -------------------------------------------------------------------------------------------------------------------
 
-// NOTE:
-// This could be a user managed attachment? Because not every subtree needs this.
-
 typedef enum NodeIdTable_Size
 {
     NodeIdTable_128Bits = 16,
@@ -197,12 +181,14 @@ typedef enum NodeIdTable_Size
 typedef struct ui_node_table_params
 {
     NodeIdTable_Size GroupSize;
-    uint64_t              GroupCount;
+    uint64_t         GroupCount;
 } ui_node_table_params;
 
-static uint64_t             UIGetNodeTableFootprint   (ui_node_table_params Params);
+// NOTE: I believe most of this code can be hidden. Is it not meant to be used by the user.
+
+static uint64_t        UIGetNodeTableFootprint   (ui_node_table_params Params);
 static ui_node_table * UIPlaceNodeTableInMemory  (ui_node_table_params Params, void *Memory);
-static ui_node       * UIFindNodeById            (byte_string Id, ui_node_table *Table);
+static ui_node         UIFindNodeById            (byte_string Id, ui_node_table *Table);
 
 #include <immintrin.h>
 
@@ -243,7 +229,7 @@ typedef struct ui_resource_state
     void           *Resource;
 } ui_resource_state;
 
-static uint64_t                 GetResourceTableFootprint   (ui_resource_table_params Params);
+static uint64_t            GetResourceTableFootprint   (ui_resource_table_params Params);
 static ui_resource_table * PlaceResourceTableInMemory  (ui_resource_table_params Params, void *Memory);
 
 // Keys:
@@ -251,9 +237,7 @@ static ui_resource_table * PlaceResourceTableInMemory  (ui_resource_table_params
 //   MakeResourceKey is used for node-based resources (Text, Scroll Region, Images)
 //   MakeGlobalResourceKey is used for node-less resources (Image Group, ...)
 
-typedef struct ui_subtree ui_subtree;
-
-static ui_resource_key MakeResourceKey       (UIResource_Type Type, uint32_t NodeIndex, ui_subtree *Subtree);
+static ui_resource_key MakeNodeResourceKey   (UIResource_Type Type, uint32_t NodeIndex, ui_layout_tree *Tree);
 static ui_resource_key MakeGlobalResourceKey (UIResource_Type Type, byte_string Name);
 
 // Resources:
@@ -266,26 +250,92 @@ static void              UpdateResourceTable   (uint32_t Id, ui_resource_key Key
 
 // Queries:
 //   Queries both compute a key and retrieve the corresponding resource type.
-//   When querying a resource it is excpected that the resource already exists and
+//   When querying a resource it is expected that the resource already exists and
 //   is initialized with the requested type. On failure trigger an assertion.
 
-static void * QueryNodeResource    (uint32_t NodeIndex, ui_subtree *Subtree, UIResource_Type Type, ui_resource_table *Table);
+static void * QueryNodeResource    (uint32_t NodeIndex, ui_layout_tree *Tree, UIResource_Type Type, ui_resource_table *Table);
 static void * QueryGlobalResource  (byte_string Name, UIResource_Type Type, ui_resource_table *Table);
 
-// ------------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------------
 
-typedef struct ui_font ui_font;
+// NOTE:
+// Are these even used?
 
-typedef enum UIIntent_Type
+static void UIBeginFrame  (vec2_int WindowSize);
+static void UIEndFrame    (void);
+
+// -----------------------------------------------------------------------------------
+
+struct ui_event_node;
+struct ui_paint_properties;
+struct ui_cached_style_list;
+
+struct ui_event_list
 {
-    UIIntent_None          = 0,
-    UIIntent_Drag          = 1,
-    UIIntent_ResizeX       = 2,
-    UIIntent_ResizeY       = 3,
-    UIIntent_ResizeXY      = 4,
-    UIIntent_EditTextInput = 5,
-} UIIntent_Type;
+    ui_event_node *First;
+    ui_event_node *Last;
+    uint32_t       Count;
+};
 
+struct ui_cached_style;
+
+enum class UIPipeline : uint32_t
+{
+    Default = 0,
+    Count   = 1,
+};
+
+constexpr uint32_t PipelineCount = static_cast<uint32_t>(UIPipeline::Count);
+
+struct ui_pipeline_params
+{
+    byte_string VtxShaderByteCode;
+    byte_string PxlShaderByteCode;
+
+    uint64_t   NodeCount;
+    uint64_t   FrameBudget;
+
+    UIPipeline       Pipeline;
+    ui_cached_style *StyleArray;
+    uint32_t         StyleIndexMin;
+    uint32_t         StyleIndexMax;
+};
+
+struct ui_pipeline
+{
+    // Render State
+    render_handle        VtxShader;
+    render_handle        PxlShader;
+
+    // UI State
+    ui_layout_tree      *Tree;
+    ui_node_table       *NodeTable;
+
+    // User State
+    ui_cached_style     *StyleArray;
+    uint32_t             StyleIndexMin;
+    uint32_t             StyleIndexMax;
+
+    // Memory
+    memory_arena        *Arena;
+    uint64_t             FrameStart;
+
+    // Misc
+    uint64_t             NodeCount;
+};
+
+static void               UICreatePipeline            (const ui_pipeline_params &Params);
+static ui_pipeline&       UIBindPipeline              (UIPipeline Pipeline);
+static void               UIUnbindPipeline            (UIPipeline Pipeline);
+static ui_pipeline_params UIGetDefaultPipelineParams  (void);
+
+// ----------------------------------------
+
+// NOTE:
+// Only here, because of the D3D11 debug layer bug? Really?
+// Because it could fit in the global resource pattern as far as I understand?
+
+struct ui_font;
 typedef struct ui_font_list
 {
     ui_font *First;
@@ -293,145 +343,41 @@ typedef struct ui_font_list
     uint32_t Count;
 } ui_font_list;
 
-typedef struct ui_pipeline_buffer
+enum class FocusIntent
 {
-    ui_pipeline *Values;
-    uint32_t     Count;
-    uint32_t     Size;
-} ui_pipeline_buffer;
-
-typedef struct ui_hovered_node
-{
-    uint32_t         Index;
-    ui_subtree *Subtree;
-} ui_hovered_node;
-
-typedef struct ui_focused_node
-{
-    uint32_t           Index;
-    ui_subtree   *Subtree;
-    bool           IsTextInput;
-    UIIntent_Type Intent;
-} ui_focused_node;
-
-typedef struct ui_state
-{
-    // Resources
-    ui_resource_table  *ResourceTable;
-    ui_pipeline_buffer  Pipelines;
-
-    // internal State
-    ui_hovered_node Hovered;
-    ui_focused_node Focused;
-
-    // NOTE: What about this?
-    ui_font_list     Fonts;
-    memory_arena    *StaticData;
-
-    // State
-    ui_pipeline *CurrentPipeline;
-    vec2_int     WindowSize;
-} ui_state;
-
-static ui_state UIState;
-
-static void UIBeginFrame               (vec2_int WindowSize);
-static void UIEndFrame                 (void);
-
-static void            UISetNodeHover  (uint32_t NodeIndex, ui_subtree *Subtree);
-static bool             UIHasNodeHover  (void);
-static ui_hovered_node UIGetNodeHover  (void);
-
-static void            UISetNodeFocus  (uint32_t NodeIndex, ui_subtree *Subtree, bool IsTextInput, UIIntent_Type Intent);
-static bool             UIHasNodeFocus  (void);
-static ui_focused_node UIGetNodeFocus  (void);
-
-// [Helpers]
-
-static vec2_unit        Vec2Unit           (ui_unit U0, ui_unit U1);
-static bool              IsNormalizedColor  (ui_color Color);
-
-// ------------------
-
-typedef struct ui_event_node        ui_event_node;
-typedef struct ui_layout_node       ui_layout_node;
-typedef struct ui_paint_properties  ui_paint_properties;
-typedef struct ui_cached_style_list ui_cached_style_list;
-
-typedef struct ui_event_list
-{
-    ui_event_node *First;
-    ui_event_node *Last;
-    uint32_t       Count;
-} ui_event_list;
-
-typedef struct ui_subtree_params
-{
-    bool CreateNew;
-    uint64_t NodeCount;
-} ui_subtree_params;
-
-typedef struct ui_subtree
-{
-    // Persistent
-    memory_arena        *Persistent;
-    ui_layout_tree      *LayoutTree;
-    ui_paint_properties *PaintArray;
-
-    // Semi-Transient
-    ui_event_list Events;
-
-    // Transient
-    memory_arena *Transient;
-
-    // Info
-    uint64_t NodeCount;
-    uint64_t Id;
-
-    // State
-    ui_node LastNode;
-} ui_subtree;
-
-typedef struct ui_subtree_node ui_subtree_node;
-struct ui_subtree_node
-{
-    ui_subtree_node *Next;
-    ui_subtree       Value;
+    None          = 0,
+    Drag          = 1,
+    ResizeX       = 2,
+    ResizeY       = 3,
+    ResizeXY      = 4,
+    EditTextInput = 5,
 };
 
-typedef struct ui_subtree_list
+struct void_context
 {
-    ui_subtree_node *First;
-    ui_subtree_node *Last;
-    uint32_t         Count;
-} ui_subtree_list;
+    // Memory
+    memory_arena      *StateArena;
 
-typedef struct ui_pipeline_params
-{
-    byte_string ThemeFile;
-} ui_pipeline_params;
+    // State
+    ui_resource_table *ResourceTable;
+    ui_pipeline       *PipelineArray;
 
-typedef struct ui_pipeline
-{
-    // User State (WIP)
-    void *VShader;
-    void *PShader;
+    // Transient
+    uint32_t    HoveredNodeIndex;
+    uint32_t    FocusedNodeIndex;
+    FocusIntent FocusIntent;
 
-    // WIP
-    ui_cached_style_list *CachedStyles; // NOTE: Incomplete. Then pointer?
+    // NOTE: What about this? Still need it? Could be global resources though.
+    // Ah, I see, still this weird D3D11 issue.
 
-    uint64_t           NextSubtreeId;
-    ui_subtree        *CurrentSubtree;
-    ui_subtree_list    Subtrees;
-    memory_arena      *internalArena;
-} ui_pipeline;
+    ui_font_list     Fonts;
 
-#define UISubtree(Params) DeferLoop(UIBeginSubtree(Params), UIEndSubtree(Params))
+    // State
+    vec2_int   WindowSize;
+};
 
-static void          UIBeginSubtree       (ui_subtree_params Params);
-static void          UIEndSubtree         (ui_subtree_params Params);
+static void_context GlobalVoidContext;
 
-static ui_pipeline * UICreatePipeline      (ui_pipeline_params Params);
-static void          UIBeginAllSubtrees    (ui_pipeline *Pipeline);
-static void          UIExecuteAllSubtrees  (ui_pipeline *Pipeline);
-// ----------------------------------------
+static void_context & GetVoidContext     (void);
+static ui_pipeline  & GetBoundPipeline   (void);
+static void           CreateVoidContext  (void);

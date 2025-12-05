@@ -57,14 +57,17 @@ PopPaintStack(paint_stack *Stack)
     return Result;
 }
 
+// BUG: Need an arena in here.
+
 static render_batch_list *
-GetPaintBatchList(ui_layout_node *LayoutNode, ui_subtree *Subtree, rect_float Clip)
+GetPaintBatchList(ui_layout_node *LayoutNode, ui_layout_tree *Tree, rect_float Clip)
 {
     VOID_ASSERT(LayoutNode);
-    VOID_ASSERT(Subtree);
-    VOID_ASSERT(Subtree->Transient);
+    VOID_ASSERT(Tree);
 
-    render_pass           *Pass     = GetRenderPass(Subtree->Transient, RenderPass_UI);
+    void_context &Context = GetVoidContext();
+
+    render_pass           *Pass     = GetRenderPass(0, RenderPass_UI);
     render_pass_params_ui *UIParams = &Pass->Params.UI.Params;
     rect_group_node       *Node     = UIParams->Last;
 
@@ -75,7 +78,7 @@ GetPaintBatchList(ui_layout_node *LayoutNode, ui_subtree *Subtree, rect_float Cl
 
         if((LayoutNode->Flags & UILayoutNode_HasText))
         {
-            ui_text *Text = (ui_text *)QueryNodeResource(LayoutNode->Index, Subtree, UIResource_Text, UIState.ResourceTable);
+            ui_text *Text = (ui_text *)QueryNodeResource(LayoutNode->Index, Tree, UIResource_Text, Context.ResourceTable);
             VOID_ASSERT(Text);
 
             Params.Texture     = Text->Atlas;
@@ -84,10 +87,10 @@ GetPaintBatchList(ui_layout_node *LayoutNode, ui_subtree *Subtree, rect_float Cl
 
         if((LayoutNode->Flags & UILayoutNode_HasImage))
         {
-            ui_image *Image = (ui_image *)QueryNodeResource(LayoutNode->Index, Subtree, UIResource_Image, UIState.ResourceTable);
+            ui_image *Image = (ui_image *)QueryNodeResource(LayoutNode->Index, Tree, UIResource_Image, Context.ResourceTable);
             VOID_ASSERT(Image);
 
-            ui_image_group *Group = (ui_image_group *)QueryGlobalResource(Image->GroupName, UIResource_ImageGroup, UIState.ResourceTable);
+            ui_image_group *Group = (ui_image_group *)QueryGlobalResource(Image->GroupName, UIResource_ImageGroup, Context.ResourceTable);
             VOID_ASSERT(Group);
 
             Params.Texture     = Group->RenderTexture.View;
@@ -104,7 +107,7 @@ GetPaintBatchList(ui_layout_node *LayoutNode, ui_subtree *Subtree, rect_float Cl
 
     if(!Node || !CanMergeNodes)
     {
-        Node = PushStruct(Subtree->Transient, rect_group_node);
+        Node = PushStruct(0, rect_group_node);
         Node->BatchList.BytesPerInstance = sizeof(ui_rect);
 
         AppendToLinkedList(UIParams, Node, UIParams->Count);
@@ -190,10 +193,14 @@ PaintDebugInformation(ui_layout_node *Node, ui_corner_radius CornerRadii, float 
 // Painting Public API Implementation
 
 static void
-PaintLayoutTreeFromRoot(ui_layout_node *Root, ui_subtree *Subtree)
+PaintLayoutTreeFromRoot(ui_layout_tree *Tree)
 {
-    memory_arena *Arena = Subtree->Transient;
-    paint_stack   Stack = BeginPaintStack(Subtree->NodeCount, Arena);
+    void_context &Context = GetVoidContext();
+
+    memory_arena *Arena = 0;
+    paint_stack   Stack = BeginPaintStack(Tree->NodeCount, Arena);
+
+    ui_layout_node *Root = Tree->Nodes; // NOTE: Isn't there a helper?
 
     if(IsValidPaintStack(&Stack))
     {
@@ -210,8 +217,8 @@ PaintLayoutTreeFromRoot(ui_layout_node *Root, ui_subtree *Subtree)
 
             // Painting
             {
-                render_batch_list   *BatchList = GetPaintBatchList(Node, Subtree, ClipRect);
-                ui_paint_properties *Paint     = GetPaintProperties(Node->Index, Subtree);
+                render_batch_list   *BatchList = GetPaintBatchList(Node, Tree, ClipRect);
+                ui_paint_properties *Paint     = GetPaintProperties(Node->Index, Tree);
 
                 ui_corner_radius CornerRadii = Paint->CornerRadius;
                 float            Softness    = Paint->Softness;
@@ -232,7 +239,7 @@ PaintLayoutTreeFromRoot(ui_layout_node *Root, ui_subtree *Subtree)
 
                 if((Node->Flags & UILayoutNode_HasText))
                 {
-                    ui_text *Text = (ui_text *)QueryNodeResource(Node->Index, Subtree, UIResource_Text, UIState.ResourceTable);
+                    ui_text *Text = (ui_text *)QueryNodeResource(Node->Index, Tree, UIResource_Text, Context.ResourceTable);
                     VOID_ASSERT(Text);
 
                     for(uint32_t Idx = 0; Idx < Text->ShapedCount; ++Idx)
@@ -243,7 +250,7 @@ PaintLayoutTreeFromRoot(ui_layout_node *Root, ui_subtree *Subtree)
 
                 if((Node->Flags & UILayoutNode_HasImage))
                 {
-                    ui_image *Image = (ui_image *)QueryNodeResource(Node->Index, Subtree, UIResource_Image, UIState.ResourceTable);
+                    ui_image *Image = (ui_image *)QueryNodeResource(Node->Index, Tree, UIResource_Image, Context.ResourceTable);
                     VOID_ASSERT(Image);
 
                     PaintUIImage(FinalRect, Image->Source, BatchList, Arena);
@@ -251,8 +258,8 @@ PaintLayoutTreeFromRoot(ui_layout_node *Root, ui_subtree *Subtree)
 
                 if((Node->Flags & UILayoutNode_HasTextInput))
                 {
-                    ui_text       *Text  = (ui_text *)      QueryNodeResource(Node->Index, Subtree, UIResource_Text     , UIState.ResourceTable);
-                    ui_text_input *Input = (ui_text_input *)QueryNodeResource(Node->Index, Subtree, UIResource_TextInput, UIState.ResourceTable);
+                    ui_text       *Text  = (ui_text *)      QueryNodeResource(Node->Index, Tree, UIResource_Text     , Context.ResourceTable);
+                    ui_text_input *Input = (ui_text_input *)QueryNodeResource(Node->Index, Tree, UIResource_TextInput, Context.ResourceTable);
 
                     VOID_ASSERT(Text);
                     VOID_ASSERT(Input);
@@ -289,7 +296,7 @@ PaintLayoutTreeFromRoot(ui_layout_node *Root, ui_subtree *Subtree)
             {
                 if ((Frame.Node->Flags & UILayoutNode_HasScrollRegion))
                 {
-                    ui_scroll_region *Region = (ui_scroll_region *)QueryNodeResource(Frame.Node->Index, Subtree, UIResource_ScrollRegion, UIState.ResourceTable);
+                    ui_scroll_region *Region = (ui_scroll_region *)QueryNodeResource(Frame.Node->Index, Tree, UIResource_ScrollRegion, Context.ResourceTable);
                     VOID_ASSERT(Region);
                 }
 

@@ -92,6 +92,9 @@ typedef struct ui_layout_tree
     uint64_t        NodeCount;
     ui_layout_node *Nodes;
 
+    // Paint
+    ui_paint_properties *PaintArray;
+
     // Depth
     ui_parent_stack ParentStack;
 } ui_layout_tree;
@@ -203,22 +206,18 @@ PopParentStack(ui_parent_stack *Stack)
 }
 
 static ui_layout_node *
-CreateAndInsertLayoutNode(uint32_t Flags, ui_subtree *Subtree)
+CreateAndInsertLayoutNode(uint32_t Flags, ui_layout_tree *Tree, memory_arena *Arena)
 {
-    VOID_ASSERT(Subtree);
-
-    ui_layout_tree *Tree = Subtree->LayoutTree;
-    VOID_ASSERT(Tree);
+    VOID_ASSERT(Tree); // Internal Corruption
 
     ui_layout_node *Result = GetFreeLayoutNode(Tree);
     if(Result)
     {
-        Result->Flags    = Flags;
-        Result->SubIndex = Subtree->Id;
+        Result->Flags = Flags;
 
         if (!IsValidParentStack(&Tree->ParentStack))
         {
-            Tree->ParentStack = BeginParentStack(Tree->NodeCapacity, Subtree->Transient);
+            Tree->ParentStack = BeginParentStack(Tree->NodeCapacity, Arena);
         }
 
         Result->Last   = 0;
@@ -268,29 +267,57 @@ GetNodeContentRect(ui_layout_node *Node)
 }
 
 static void
-SetNodeProperties(uint32_t NodeIndex, ui_layout_tree *Tree, ui_cached_style *Cached)
+SetNodeProperties(uint32_t NodeIndex, uint32_t StyleIndex, const ui_cached_style &Cached, ui_layout_tree *Tree)
 {
+    // BUG: Not a safe read!
+
+    ui_paint_properties *Paint  = Tree->PaintArray + NodeIndex;
+    if(Paint)
+    {
+        Paint->Color        = Cached.Default.Color;
+        Paint->BorderColor  = Cached.Default.BorderColor;
+        Paint->TextColor    = Cached.Default.TextColor;
+        Paint->CaretColor   = Cached.Default.CaretColor;
+        Paint->Softness     = Cached.Default.Softness;
+        Paint->BorderWidth  = Cached.Default.BorderWidth;
+        Paint->CaretWidth   = Cached.Default.CaretWidth;
+        Paint->CornerRadius = Cached.Default.CornerRadius;
+        Paint->Font         = Cached.Default.Font;
+        Paint->CachedIndex  = StyleIndex;
+    }
+
     ui_layout_node *Node = GetLayoutNode(NodeIndex, Tree);
     if(Node)
     {
-        Node->Sizing     = Cached->Properties[static_cast<uint32_t>(StyleState::Default)].Sizing;
-        Node->MinSize    = Cached->Properties[static_cast<uint32_t>(StyleState::Default)].MinSize;
-        Node->MaxSize    = Cached->Properties[static_cast<uint32_t>(StyleState::Default)].MaxSize;
-        Node->Padding    = Cached->Properties[static_cast<uint32_t>(StyleState::Default)].Padding;
-        Node->Spacing    = Cached->Properties[static_cast<uint32_t>(StyleState::Default)].Spacing;
-        Node->Direction  = Cached->Properties[static_cast<uint32_t>(StyleState::Default)].LayoutDirection;
-        Node->AlignmentM = Cached->Properties[static_cast<uint32_t>(StyleState::Default)].AlignmentM;
-        Node->AlignmentC = Cached->Properties[static_cast<uint32_t>(StyleState::Default)].AlignmentC;
-        Node->Grow       = Cached->Properties[static_cast<uint32_t>(StyleState::Default)].Grow;
-        Node->Shrink     = Cached->Properties[static_cast<uint32_t>(StyleState::Default)].Shrink;
+        Node->Sizing     = Cached.Default.Sizing;
+        Node->MinSize    = Cached.Default.MinSize;
+        Node->MaxSize    = Cached.Default.MaxSize;
+        Node->Padding    = Cached.Default.Padding;
+        Node->Spacing    = Cached.Default.Spacing;
+        Node->Direction  = Cached.Default.LayoutDirection;
+        Node->AlignmentM = Cached.Default.AlignmentM;
+        Node->AlignmentC = Cached.Default.AlignmentC;
+        Node->Grow       = Cached.Default.Grow;
+        Node->Shrink     = Cached.Default.Shrink;
     }
+}
+
+// BUG:
+// Unsafe.
+
+static ui_paint_properties *
+GetPaintProperties(uint32_t NodeIndex, ui_layout_tree *Tree)
+{
+    ui_paint_properties *Result = Tree->PaintArray + NodeIndex;
+    return Result;
 }
 
 static uint64_t
 GetLayoutTreeFootprint(uint64_t NodeCount)
 {
     uint64_t ArraySize = NodeCount * sizeof(ui_layout_node);
-    uint64_t Result    = sizeof(ui_layout_tree) + ArraySize;
+    uint64_t PaintSize = NodeCount * sizeof(ui_paint_properties);
+    uint64_t Result    = sizeof(ui_layout_tree) + ArraySize + PaintSize;
 
     return Result;
 }
@@ -302,9 +329,14 @@ PlaceLayoutTreeInMemory(uint64_t NodeCount, void *Memory)
 
     if (Memory)
     {
-        Result = (ui_layout_tree *)Memory;
+        ui_layout_node      *Nodes      = static_cast<ui_layout_node      *>(Memory);
+        ui_paint_properties *PaintArray = reinterpret_cast<ui_paint_properties *>(Nodes + NodeCount);
+
+        Result = reinterpret_cast<ui_layout_tree *>(PaintArray + NodeCount);
+        Result->Nodes        = Nodes;
+        Result->PaintArray   = PaintArray;
+        Result->NodeCount    = 0;
         Result->NodeCapacity = NodeCount;
-        Result->Nodes        = (ui_layout_node *)(Result + 1);
 
         for (uint32_t Idx = 0; Idx < Result->NodeCapacity; Idx++)
         {
@@ -315,19 +347,21 @@ PlaceLayoutTreeInMemory(uint64_t NodeCount, void *Memory)
     return Result;
 }
 
-// ------------------------------------------------------------------------------------
-// @internal: Tree Queries
+// -----------------------------------------------------------------------------------
+// @Internal: Tree Queries
 
 static uint32_t
-UITreeFindChild(uint32_t NodeIndex, uint32_t ChildIndex, ui_subtree *Subtree)
+UITreeFindChild(uint32_t NodeIndex, uint32_t FindIndex, ui_layout_tree *Tree)
 {
+    VOID_ASSERT(Tree); // Internal Corruption
+
     uint32_t Result = InvalidLayoutNodeIndex;
 
-    ui_layout_node *LayoutNode = GetLayoutNode(NodeIndex, Subtree->LayoutTree);
+    ui_layout_node *LayoutNode = GetLayoutNode(NodeIndex, Tree);
     if(IsValidLayoutNode(LayoutNode))
     {
         ui_layout_node *Child = LayoutNode->First;
-        while(ChildIndex--)
+        while(Child && FindIndex--)
         {
             Child = Child->Next;
         }
@@ -342,93 +376,80 @@ UITreeFindChild(uint32_t NodeIndex, uint32_t ChildIndex, ui_subtree *Subtree)
 }
 
 static void
-UITreeAppendChild(uint32_t ParentIndex, uint32_t ChildIndex, ui_subtree *Subtree)
+UITreeAppendChild(uint32_t ParentIndex, uint32_t ChildIndex, ui_layout_tree *Tree)
 {
-    VOID_ASSERT(ParentIndex != ChildIndex);
+    VOID_ASSERT(Tree);                      // Internal Corruption
+    VOID_ASSERT(ParentIndex != ChildIndex); // Trying to append the node to itself
 
-    ui_layout_node *Parent = GetLayoutNode(ParentIndex, Subtree->LayoutTree);
-    ui_layout_node *Child  = GetLayoutNode(ChildIndex , Subtree->LayoutTree);
+    ui_layout_node *Parent = GetLayoutNode(ParentIndex, Tree);
+    ui_layout_node *Child  = GetLayoutNode(ChildIndex , Tree);
 
-    VOID_ASSERT(Parent);
-    VOID_ASSERT(Child);
-
-    AppendToDoublyLinkedList(Parent, Child, Parent->ChildCount);
-    Child->Parent = Parent;
+    if(IsValidLayoutNode(Parent) && IsValidLayoutNode(Child) && ParentIndex != ChildIndex)
+    {
+        AppendToDoublyLinkedList(Parent, Child, Parent->ChildCount);
+        Child->Parent = Parent;
+    }
+    else
+    {
+        LogError("Invalid Indices Provided | Parent = %u, Child = %u", ParentIndex, ChildIndex);
+    }
 }
 
-// BUG:
-// Does not check if there is enough space to allocate the children.
-// An assertion should be enough? Unsure, same for append layout child.
-// Perhaps both?
-
 static void
-UITreeReserve(uint32_t NodeIndex, uint32_t Amount, ui_subtree *Subtree)
+UITreeReserve(uint32_t NodeIndex, uint32_t Amount, ui_layout_tree *Tree)
 {
-    VOID_ASSERT(NodeIndex != InvalidLayoutNodeIndex);
-    VOID_ASSERT(Subtree);
+    VOID_ASSERT(Tree);   // Internal Corruption
+    VOID_ASSERT(Amount); // Calling this with 0 is useless
 
-    ui_layout_tree *Tree = Subtree->LayoutTree;
-    VOID_ASSERT(Tree);
-
-    bool NeedPush = (PeekParentStack(&Tree->ParentStack)->Index != NodeIndex);
-
-    if(NeedPush)
+    ui_layout_node *Parent = GetLayoutNode(NodeIndex, Tree);
+    if(IsValidLayoutNode(Parent))
     {
-        ui_layout_node *LayoutNode = GetLayoutNode(NodeIndex, Tree);
-        VOID_ASSERT(LayoutNode);
-
-        PushParentStack(LayoutNode, &Tree->ParentStack);
+        for(uint32_t Idx = 0; Idx < Amount; ++Idx)
+        {
+            ui_layout_node *Reserved = GetFreeLayoutNode(Tree);
+            if(IsValidLayoutNode(Reserved))
+            {
+                AppendToDoublyLinkedList(Parent, Reserved, Parent->ChildCount);
+            }
+        }
     }
 
-    // WARN:
-    // Possibly bugged.
-
-    for(uint32_t Idx = 0; Idx < Amount; ++Idx)
-    {
-        CreateAndInsertLayoutNode(0, Subtree);
-    }
-
-    if(NeedPush)
-    {
-        PopParentStack(&Tree->ParentStack);
-    }
 }
 
 // NOTE:
 // We surely do not want to expose this...
 
 static void
-SetLayoutNodeFlags(uint32_t NodeIndex, uint32_t Flags, ui_subtree *Subtree)
+SetLayoutNodeFlags(uint32_t NodeIndex, uint32_t Flags, ui_layout_tree *Tree)
 {
-    VOID_ASSERT(Subtree);
-    VOID_ASSERT(Subtree->LayoutTree);
+    VOID_ASSERT(Tree); // Internal Corruption
 
-    ui_layout_node *Node = GetLayoutNode(NodeIndex, Subtree->LayoutTree);
-    VOID_ASSERT(Node);
-
-    Node->Flags |= Flags;
+    ui_layout_node *Node = GetLayoutNode(NodeIndex, Tree);
+    if(Node)
+    {
+        Node->Flags |= Flags;
+    }
 }
 
 static void
-ClearLayoutNodeFlags(uint32_t NodeIndex, uint32_t Flags, ui_subtree *Subtree)
+ClearLayoutNodeFlags(uint32_t NodeIndex, uint32_t Flags, ui_layout_tree *Tree)
 {
-    VOID_ASSERT(Subtree);
-    VOID_ASSERT(Subtree->LayoutTree);
+    VOID_ASSERT(Tree); // Internal Corruption
 
-    ui_layout_node *Node = GetLayoutNode(NodeIndex, Subtree->LayoutTree);
-    VOID_ASSERT(Node);
-
-    Node->Flags &= ~Flags;
+    ui_layout_node *Node = GetLayoutNode(NodeIndex, Tree);
+    if(Node)
+    {
+        Node->Flags &= ~Flags;
+    }
 }
 
 static uint32_t
-AllocateLayoutNode(uint32_t Flags, ui_subtree *Subtree)
+AllocateLayoutNode(uint32_t Flags, ui_layout_tree *Tree, memory_arena *Arena)
 {
-    VOID_ASSERT(Subtree);
 
     uint32_t Result = InvalidLayoutNodeIndex;
 
-    ui_layout_node *Node = CreateAndInsertLayoutNode(Flags, Subtree);
+    ui_layout_node *Node = CreateAndInsertLayoutNode(Flags, Tree, Arena);
     if (Node)
     {
         Result = Node->Index;
@@ -437,22 +458,10 @@ AllocateLayoutNode(uint32_t Flags, ui_subtree *Subtree)
     return Result;
 }
 
-// NOTE:
-// Still hate this.
-
+// BUG: This needs a nice rework. Some sort of destructor?
 static void
 UIEnd()
 {
-    ui_pipeline *Pipeline = GetCurrentPipeline();
-    VOID_ASSERT(Pipeline);
-
-    ui_subtree *Subtree = Pipeline->CurrentSubtree;
-    VOID_ASSERT(Subtree);
-
-    ui_layout_tree *LayoutTree = Subtree->LayoutTree;
-    VOID_ASSERT(LayoutTree);
-
-    PopParentStack(&LayoutTree->ParentStack);
 }
 
 // -----------------------------------------------------------
@@ -508,7 +517,7 @@ GetScrollNodeTranslation(ui_scroll_region *Region)
 }
 
 static void
-UpdateScrollNode(float ScrolledLines, ui_layout_node *Node, ui_subtree *Subtree, ui_scroll_region *Region)
+UpdateScrollNode(float ScrolledLines, ui_layout_node *Node, ui_layout_tree *Tree, ui_scroll_region *Region)
 {
     float      ScrolledPixels = ScrolledLines * Region->PixelPerLine;
     vec2_float WindowSize     = vec2_float(Node->ResultWidth, Node->ResultHeight);
@@ -539,7 +548,9 @@ UpdateScrollNode(float ScrolledLines, ui_layout_node *Node, ui_subtree *Subtree,
     rect_float WindowContent = GetNodeOuterRect(Node);
     IterateLinkedList(Node, ui_layout_node *, Child)
     {
-        ui_paint_properties *Paint = GetPaintProperties(Child->Index, Subtree);
+        // BUG: Not a safe read! Or is it?
+
+        ui_paint_properties *Paint = Tree->PaintArray + Node->Index;
         if(Paint)
         {
             Child->ScrollOffset = vec2_float(-ScrollDelta.X, -ScrollDelta.Y);
@@ -721,25 +732,28 @@ RecordUITextInputEvent(byte_string Text, ui_layout_node *Node, ui_event_list *Ev
 }
 
 static bool
-IsMouseInsideOuterBox(vec2_float MousePosition, uint32_t NodeIndex, ui_subtree *Subtree)
+IsMouseInsideOuterBox(vec2_float MousePosition, uint32_t NodeIndex, ui_layout_tree *Tree)
 {
-    VOID_ASSERT(Subtree);
-    VOID_ASSERT(Subtree->LayoutTree);
+    VOID_ASSERT(Tree); // Internal Corruption
 
-    ui_layout_node *Node = GetLayoutNode(NodeIndex, Subtree->LayoutTree);
-    VOID_ASSERT(Node);
+    float Distance = 1.f;
 
-    vec2_float OuterSize  = vec2_float(Node->ResultWidth, Node->ResultHeight);
-    vec2_float OuterPos   = vec2_float(Node->ResultX    , Node->ResultY     ) + Node->ScrollOffset;
-    vec2_float OuterHalf  = vec2_float(OuterSize.X * 0.5f, OuterSize.Y * 0.5f);
-    vec2_float Center     = OuterPos + OuterHalf;
-    vec2_float LocalMouse = MousePosition - Center;
+    ui_layout_node *Node = GetLayoutNode(NodeIndex, Tree);
+    if(Node)
+    {
+        vec2_float OuterSize  = vec2_float(Node->ResultWidth, Node->ResultHeight);
+        vec2_float OuterPos   = vec2_float(Node->ResultX    , Node->ResultY     ) + Node->ScrollOffset;
+        vec2_float OuterHalf  = vec2_float(OuterSize.X * 0.5f, OuterSize.Y * 0.5f);
+        vec2_float Center     = OuterPos + OuterHalf;
+        vec2_float LocalMouse = MousePosition - Center;
 
-    rect_sdf_params Params = {0};
-    Params.HalfSize      = OuterHalf;
-    Params.PointPosition = LocalMouse;
+        rect_sdf_params Params = {0};
+        Params.HalfSize      = OuterHalf;
+        Params.PointPosition = LocalMouse;
 
-    float Distance = RoundedRectSDF(Params);
+        Distance = RoundedRectSDF(Params);
+    }
+
     return Distance <= 0.f;
 }
 
@@ -773,8 +787,8 @@ ClearUIEvents(ui_event_list *EventList)
     EventList->Count = 0;
 }
 
-static UIIntent_Type
-DetermineResizeIntent(vec2_float MousePosition, ui_layout_node *Node, ui_subtree *Subtree)
+static FocusIntent
+DetermineResizeIntent(vec2_float MousePosition, ui_layout_node *Node, ui_layout_tree *Tree)
 {
     vec2_float InnerSize   = vec2_float(Node->ResultWidth, Node->ResultHeight) - vec2_float(0.f, 0.f);
     vec2_float InnerPos    = vec2_float(Node->ResultX    , Node->ResultY     ) - vec2_float(0.f, 0.f) + Node->ScrollOffset;
@@ -783,7 +797,7 @@ DetermineResizeIntent(vec2_float MousePosition, ui_layout_node *Node, ui_subtree
     float Top         = InnerPos.Y;
     float Width       = InnerSize.X;
     float Height      = InnerSize.Y;
-    float BorderWidth = GetPaintProperties(Node->Index, Subtree)->BorderWidth; // WARN: Not safe.
+    float BorderWidth = GetPaintProperties(Node->Index, Tree)->BorderWidth; // WARN: Not safe.
 
     float CornerTolerance = 5.f;
     float CornerX         = Left + Width;
@@ -793,203 +807,57 @@ DetermineResizeIntent(vec2_float MousePosition, ui_layout_node *Node, ui_subtree
     rect_float BottomEdge = rect_float::FromXYWH(Left, Top + Height, Width, BorderWidth);
     rect_float Corner     = rect_float::FromXYWH(CornerX, CornerY, CornerTolerance, CornerTolerance);
 
-    UIIntent_Type Result = UIIntent_None;
+    FocusIntent Result = FocusIntent::None;
 
     if(Corner.IsPointInside(MousePosition))
     {
-        Result = UIIntent_ResizeXY;
+        Result = FocusIntent::ResizeXY;
     } else
     if(RightEdge.IsPointInside(MousePosition))
     {
-        Result = UIIntent_ResizeX;
+        Result = FocusIntent::ResizeX;
     } else
     if(BottomEdge.IsPointInside(MousePosition))
     {
-        Result = UIIntent_ResizeY;
+        Result = FocusIntent::ResizeY;
     }
 
     return Result;
 }
 
-// NOTE:
-// The hovered node is set on the global state by: UISetNodeHover.
-// We call: UIHasNodeHover to check if that global state was set.
-// It's a bit opaque but it fits well with other parts of the code.
-
-// WARN:
-// Errr actually, it's not that good. Maybe re-visit.
-
 static void
-FindHoveredNode(vec2_float MousePosition, ui_layout_node *Node, ui_subtree *Subtree)
+FindHoveredNode(vec2_float MousePosition, ui_layout_node *Node, ui_layout_tree *Tree)
 {
-    if(IsMouseInsideOuterBox(MousePosition, Node->Index, Subtree))
-    {
-        IterateLinkedListBackward(Node, ui_layout_node *, Child)
-        {
-            FindHoveredNode(MousePosition, Child, Subtree);
-
-            if(UIHasNodeHover())
-            {
-                return;
-            }
-        }
-
-        UISetNodeHover(Node->Index, Subtree);
-    }
-
-    return;
+    // TODO: Re-Implement
 }
 
 static void
-AttemptNodeFocus(vec2_float MousePosition, ui_layout_node *Root, ui_subtree *Subtree)
+AttemptNodeFocus(vec2_float MousePosition, ui_layout_node *Root, ui_layout_tree *Tree)
 {
-    FindHoveredNode(MousePosition, Root, Subtree);
-    if(UIHasNodeHover())
-    {
-        ui_hovered_node Hovered = UIGetNodeHover();
-        VOID_ASSERT(Hovered.Subtree == Subtree);
-
-        ui_layout_node *Node   = GetLayoutNode(Hovered.Index, Hovered.Subtree->LayoutTree);
-        memory_arena   *Arena  = Subtree->Transient;
-        ui_event_list  *Events = &Subtree->Events;
-
-        bool MouseClicked = OSIsMouseClicked(OSMouseButton_Left);
-
-        if ((Node->Flags & UILayoutNode_IsResizable) && MouseClicked)
-        {
-            if (IsMouseInsideBorder(MousePosition, Node))
-            {
-                UIIntent_Type Intent = DetermineResizeIntent(MousePosition, Node, Subtree);
-                if (Intent != UIIntent_None)
-                {
-                    UISetNodeFocus(Node->Index, Subtree, 0, Intent);
-                    return;
-                }
-            }
-        }
-
-        if ((Node->Flags & UILayoutNode_IsDraggable) && MouseClicked)
-        {
-            UISetNodeFocus(Node->Index, Subtree, 0, UIIntent_Drag);
-            return;
-        }
-
-        if (MouseClicked)
-        {
-            if ((Node->Flags & UILayoutNode_HasTextInput))
-            {
-                UISetNodeFocus(Node->Index, Subtree, 1, UIIntent_EditTextInput);
-            }
-
-            RecordUIClickEvent(Node, Events, Arena);
-            return;
-        }
-
-        // NOTE:
-        // Should this take focus?
-
-        float ScrollDelta = OSGetScrollDelta();
-        if ((Node->Flags & UILayoutNode_HasScrollRegion) && ScrollDelta != 0.f)
-        {
-            RecordUIScrollEvent(Node, ScrollDelta, Events, Arena);
-        }
-
-        RecordUIHoverEvent(Node, Events, Arena);
-    }
+    // TODO: Re-Implement
 }
 
 static void
-GenerateFocusedNodeEvents(ui_focused_node Focused, ui_event_list *Events, memory_arena *Arena)
+GenerateFocusedNodeEvents(ui_event_list *Events, memory_arena *Arena)
 {
-    vec2_float MouseDelta = OSGetMouseDelta();
-    bool      MouseMoved = (MouseDelta.X != 0 || MouseDelta.Y != 0);
-
-    ui_layout_node *Node = GetLayoutNode(Focused.Index, Focused.Subtree->LayoutTree);
-    VOID_ASSERT(Node);
-
-    if(MouseMoved && Focused.Intent >= UIIntent_ResizeX && Focused.Intent <= UIIntent_ResizeXY)
-    {
-        vec2_float Delta = vec2_float(0.f, 0.f);
-
-        if(Focused.Intent == UIIntent_ResizeX)
-        {
-            Delta.X = MouseDelta.X;
-        } else
-        if(Focused.Intent == UIIntent_ResizeY)
-        {
-            Delta.Y = MouseDelta.Y;
-        } else
-        if(Focused.Intent == UIIntent_ResizeXY)
-        {
-            Delta = MouseDelta;
-        }
-
-        RecordUIResizeEvent(Node, Delta, Events, Arena);
-    } else
-    if(MouseMoved && Focused.Intent == UIIntent_Drag)
-    {
-        RecordUIDragEvent(Node, MouseDelta, Events, Arena);
-    } else
-    if(Focused.Intent == UIIntent_EditTextInput)
-    {
-        // NOTE:
-        // Might be a more general event.
-
-        os_button_playback *Playback = OSGetButtonPlayback();
-        VOID_ASSERT(Playback);
-
-        for(uint32_t Idx = 0; Idx < Playback->Count; ++Idx)
-        {
-            os_button_action Action = Playback->Actions[Idx];
-            if(Action.IsPressed)
-            {
-                uint32_t Key = Action.Keycode;
-                RecordUIKeyEvent(Key, Node, Events, Arena);
-            }
-        }
-
-        os_utf8_playback *Text = OSGetTextPlayback();
-        VOID_ASSERT(Text);
-
-        if(Text->Count)
-        {
-            byte_string TextAsString = ByteString(Text->UTF8, Text->Count);
-            RecordUITextInputEvent(TextAsString, Node, Events, Arena);
-        }
-    }
+    // TODO: Re-Implement
 }
 
 // WARN:
 // This code is quite garbage.
 
 static void
-GenerateUIEvents(vec2_float MousePosition, ui_layout_node *Root, ui_subtree *Subtree)
+GenerateUIEvents(vec2_float MousePosition, ui_layout_node *Root, ui_layout_tree *Tree)
 {
-    ui_event_list *Events = &Subtree->Events;
-    memory_arena  *Arena  = Subtree->Transient;
-    VOID_ASSERT(Arena);
-
-    if(!UIHasNodeFocus())
-    {
-        AttemptNodeFocus(MousePosition, Root, Subtree);
-    }
-
-    // BUG:
-    // The weird part is that this is done on a per-tree basis.
-    // This makes pretty much no sense. Well... Idk?
-
-    if(UIHasNodeFocus())
-    {
-        ui_focused_node Focused = UIGetNodeFocus();
-
-        GenerateFocusedNodeEvents(Focused, Events, Arena);
-    }
+    // TODO: Re-Implement
 }
 
 static void
-ProcessUIEvents(ui_event_list *Events, ui_subtree *Subtree)
+ProcessUIEvents(ui_event_list *Events, ui_layout_tree *Tree)
 {
     VOID_ASSERT(Events);
+
+    void_context &Context = GetVoidContext();
 
     IterateLinkedList(Events, ui_event_node *, Node)
     {
@@ -1004,7 +872,7 @@ ProcessUIEvents(ui_event_list *Events, ui_subtree *Subtree)
             VOID_ASSERT(Hover.Node);
 
             // TODO: Modify the paint properties.
-            // SetNodeStyleState(StyleState_Hovered, Hover.Node->Index, Subtree);
+            // SetNodeStyleState(StyleState_Hovered, Hover.Node->Index, Tree);
         } break;
 
         case UIEvent_Click:
@@ -1015,7 +883,9 @@ ProcessUIEvents(ui_event_list *Events, ui_subtree *Subtree)
         {
             ui_resize_event Resize = Event->Resize;
 
-            ui_paint_properties *Paint = GetPaintProperties(Resize.Node->Index, Subtree);
+            // BUG: Not a safe read?
+
+            ui_paint_properties *Paint = Tree->PaintArray + Resize.Node->Index;
             if(Paint)
             {
                 // TODO: Reimplement this.
@@ -1042,10 +912,10 @@ ProcessUIEvents(ui_event_list *Events, ui_subtree *Subtree)
             VOID_ASSERT(Scroll.Node);
             VOID_ASSERT(Scroll.Delta);
 
-            ui_scroll_region *Region = (ui_scroll_region *)QueryNodeResource(Scroll.Node->Index, Subtree, UIResource_ScrollRegion, UIState.ResourceTable);
+            ui_scroll_region *Region = (ui_scroll_region *)QueryNodeResource(Scroll.Node->Index, Tree, UIResource_ScrollRegion, Context.ResourceTable);
             VOID_ASSERT(Region);
 
-            UpdateScrollNode(Scroll.Delta, Scroll.Node, Subtree, Region);
+            UpdateScrollNode(Scroll.Delta, Scroll.Node, Tree, Region);
         } break;
 
         case UIEvent_Key:
@@ -1054,11 +924,11 @@ ProcessUIEvents(ui_event_list *Events, ui_subtree *Subtree)
             VOID_ASSERT(Key.Node);
 
             ui_layout_node    *Node  = Key.Node;
-            ui_resource_table *Table = UIState.ResourceTable;
+            ui_resource_table *Table = Context.ResourceTable;
 
             if((Node->Flags & UILayoutNode_HasTextInput))
             {
-                ui_text_input *Input = (ui_text_input *)QueryNodeResource(Node->Index, Subtree, UIResource_TextInput, Table);
+                ui_text_input *Input = (ui_text_input *)QueryNodeResource(Node->Index, Tree, UIResource_TextInput, Table);
                 VOID_ASSERT(Input);
 
                 if(Input->OnKey)
@@ -1074,17 +944,17 @@ ProcessUIEvents(ui_event_list *Events, ui_subtree *Subtree)
             VOID_ASSERT(TextInput.Node);
 
             ui_layout_node    *Node  = TextInput.Node;
-            ui_resource_table *Table = UIState.ResourceTable;
+            ui_resource_table *Table = Context.ResourceTable;
 
-            ui_text       *Text  = (ui_text *)      QueryNodeResource(Node->Index, Subtree, UIResource_Text     , Table);
-            ui_text_input *Input = (ui_text_input *)QueryNodeResource(Node->Index, Subtree, UIResource_TextInput, Table);
+            ui_text       *Text  = (ui_text *)      QueryNodeResource(Node->Index, Tree, UIResource_Text     , Table);
+            ui_text_input *Input = (ui_text_input *)QueryNodeResource(Node->Index, Tree, UIResource_TextInput, Table);
 
             VOID_ASSERT(Text);
             VOID_ASSERT(Input);
 
             if(IsValidByteString(TextInput.Text))
             {
-                ui_paint_properties *Paint = GetPaintProperties(Node->Index, Subtree);
+                ui_paint_properties *Paint = GetPaintProperties(Node->Index, Tree);
                 if(Paint)
                 {
                     uint32_t CountBeforeAppend = Text->ShapedCount;
@@ -1227,10 +1097,12 @@ GetConstrainedSize(float ParentSize, float MinSize, float MaxSize, ui_sizing_axi
 }
 
 static void
-PreOrderMeasureSubtree(ui_layout_tree *Tree, memory_arena *Arena)
+PreOrderMeasureTree(ui_layout_tree *Tree, memory_arena *Arena)
 {
     VOID_ASSERT(Arena);
     VOID_ASSERT(IsValidLayoutTree(Tree));
+
+    void_context &Context = GetVoidContext();
 
     ui_layout_node **LayoutBuffer = PushArray(Arena, ui_layout_node *, Tree->NodeCount);
 
@@ -1336,7 +1208,7 @@ PreOrderMeasureSubtree(ui_layout_tree *Tree, memory_arena *Arena)
         if(Parent->Flags & UILayoutNode_HasScrollRegion)
         {
             VOID_ASSERT(!"Implement");
-            auto *Region = static_cast<ui_scroll_region *>(QueryNodeResource(Parent->Index, 0, UIResource_ScrollRegion, UIState.ResourceTable));
+            auto *Region = static_cast<ui_scroll_region *>(QueryNodeResource(Parent->Index, 0, UIResource_ScrollRegion, Context.ResourceTable));
             if(Region)
             {
                 UnboundedAxis = Region->Axis;
@@ -1479,7 +1351,7 @@ PreOrderMeasureSubtree(ui_layout_tree *Tree, memory_arena *Arena)
 // @Internal: PostOrder Measure Pass Implementation
 
 static void
-PostOrderMeasureSubtree(ui_layout_node *Root, ui_subtree *Subtree)
+PostOrderMeasureTree(ui_layout_node *Root, ui_layout_tree *Tree)
 {
 }
 
@@ -1490,43 +1362,28 @@ PostOrderMeasureSubtree(ui_layout_node *Root, ui_subtree *Subtree)
 // Core?
 
 static void
-UpdateSubtreeState(ui_subtree *Subtree)
+UpdateTreeState(ui_layout_tree *Tree)
 {
-    VOID_ASSERT(Subtree);
-    VOID_ASSERT(Subtree->LayoutTree);
+    VOID_ASSERT(Tree);
 
-    ui_layout_tree *Tree = Subtree->LayoutTree;
-    ui_layout_node *Root = GetLayoutNode(0, Tree);
+    // TODO:
+    // Re-Implement
 
-    vec2_float MousePosition = OSGetMousePosition();
-
-    ClearUIEvents(&Subtree->Events);
-    GenerateUIEvents(MousePosition, Root, Subtree);
-    ProcessUIEvents(&Subtree->Events, Subtree);
 }
 
 static void
-ComputeSubtreeLayout(ui_subtree *Subtree)
+ComputeTreeLayout(ui_layout_tree *Tree)
 {
-    PreOrderMeasureSubtree   (Subtree->LayoutTree, Subtree->Transient);
-    PostOrderMeasureSubtree  (0, Subtree);
-    PlaceLayoutTree          (Subtree->LayoutTree, Subtree->Transient);
+    // TODO: Re-Implement
 }
 
+// NOTE:
+// Why is this even a thing?
+
 static void 
-PaintSubtree(ui_subtree *Subtree)
+PaintTree(ui_layout_tree *Tree)
 {
-    TimeFunction;
+    VOID_ASSERT(Tree);
 
-    VOID_ASSERT(Subtree);
-    VOID_ASSERT(Subtree->LayoutTree);
-    VOID_ASSERT(Subtree->Transient);
-
-    ui_layout_tree *Tree = Subtree->LayoutTree;
-    ui_layout_node *Root = GetLayoutNode(0, Tree);
-
-    if(Root)
-    {
-        PaintLayoutTreeFromRoot(Root, Subtree);
-    }
+    PaintLayoutTreeFromRoot(Tree);
 }

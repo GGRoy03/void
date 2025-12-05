@@ -30,13 +30,13 @@ typedef enum UILayoutNode_Flag
 
 static uint64_t         GetLayoutTreeFootprint   (uint64_t NodeCount);
 static ui_layout_tree * PlaceLayoutTreeInMemory  (uint64_t NodeCount, void *Memory);
-static uint32_t         AllocateLayoutNode       (uint32_t Flags, ui_subtree *Subtree);
+static uint32_t         AllocateLayoutNode       (uint32_t Flags, void *Subtree);
 static void             UIEnd                    (void);
 
-static bool IsMouseInsideOuterBox  (vec2_float MousePosition, uint32_t NodeIndex, ui_subtree *Subtree);
+static bool IsMouseInsideOuterBox  (vec2_float MousePosition, uint32_t NodeIndex, void *Subtree);
 
-static void SetLayoutNodeFlags    (uint32_t NodeIndex, uint32_t Flags, ui_subtree *Subtree);
-static void ClearLayoutNodeFlags  (uint32_t NodeIndex, uint32_t Flags, ui_subtree *Subtree);
+static void SetLayoutNodeFlags    (uint32_t NodeIndex, uint32_t Flags, ui_layout_tree *Tree);
+static void ClearLayoutNodeFlags  (uint32_t NodeIndex, uint32_t Flags, ui_layout_tree *Tree);
 
 // -----------------------------------------------------------------------------------
 // @internal: Node Queries
@@ -51,14 +51,14 @@ static rect_float
 GetNodeContentRect(ui_layout_node *Node);
 
 static void
-SetNodeProperties(uint32_t NodeIndex, ui_layout_tree *Tree, ui_cached_style *Cached);
+SetNodeProperties(uint32_t NodeIndex, uint32_t StyleIndex, const ui_cached_style &Cached, ui_layout_tree *Tree);
 
 // ------------------------------------------------------------------------------------
-// @internal: Tree Queries (TODO: Pass the tree instead, makes more sense)
+// @internal: Tree Queries
 
-static uint32_t UITreeFindChild    (uint32_t ParentIndex, uint32_t ChildIndex, ui_subtree *Subtree);
-static void     UITreeAppendChild  (uint32_t ParentIndex, uint32_t ChildIndex, ui_subtree *Subtree);
-static void     UITreeReserve      (uint32_t NodeIndex  , uint32_t Amount    , ui_subtree *Subtree);
+static uint32_t UITreeFindChild    (uint32_t ParentIndex, uint32_t ChildIndex, ui_layout_tree *Tree);
+static void     UITreeAppendChild  (uint32_t ParentIndex, uint32_t ChildIndex, ui_layout_tree *Tree);
+static void     UITreeReserve      (uint32_t NodeIndex  , uint32_t Amount    , ui_layout_tree *Tree);
 
 // ------------------------------------------------------------------------------------
 // @internal: Layout Resources
@@ -77,26 +77,26 @@ static void     UITreeReserve      (uint32_t NodeIndex  , uint32_t Amount    , u
 //
 //   Example Usage:
 //   uint64_t   Size   = GetScrollRegionFootprint(); -> Get the size needed to allocate
-//   void *Memory = malloc(Size);               -> Allocate (Do not check for 0s yet!)
+//   void *Memory = malloc(Size);               -> Allocate (Do not check for null yet!)
 //
 //   scroll_region_params Params = {.PixelPerLine = ScrollSpeed, .Axis = Axis};  -> Prepare the params
-//   ui_scroll_region *ScrollRegion = PlaceScrollRegionInMemory(Params, Memory); -> Allocate!
+//   ui_scroll_region *ScrollRegion = PlaceScrollRegionInMemory(Params, Memory); -> Initialize
 //   if(ScrollRegion)                                                            -> Now check if it succeeded
 
 struct ui_scroll_region;
 
 struct scroll_region_params
 {
-    float         PixelPerLine;
+    float       PixelPerLine;
     UIAxis_Type Axis;
 };
 
-static uint64_t                GetScrollRegionFootprint   (void);
+static uint64_t           GetScrollRegionFootprint   (void);
 static ui_scroll_region * PlaceScrollRegionInMemory  (scroll_region_params Params, void *Memory);
 
 // ------------------------------------------------------------------------------------
 
-static void ComputeSubtreeLayout  (ui_subtree *Subtree);
-static void UpdateSubtreeState    (ui_subtree *Subtree);
+static void ComputeSubtreeLayout  (void *Subtree);
+static void UpdateSubtreeState    (void *Subtree);
 
-static void PaintSubtree           (ui_subtree *Subtree);
+static void PaintSubtree           (void *Subtree);

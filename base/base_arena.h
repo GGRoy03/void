@@ -1,11 +1,14 @@
 #pragma once
 
+static uint64_t ArenaDefaultReserveSize = VOID_MEGABYTE(64);
+static uint64_t ArenaDefaultCommitSize  = VOID_KILOBYTE(64);
+
 typedef struct memory_arena_params
 {
-    uint64_t    ReserveSize;
-    uint64_t    CommitSize;
-    const char *AllocatedFromFile;
-    uint32_t    AllocatedFromLine;
+    uint64_t    ReserveSize       = ArenaDefaultReserveSize;
+    uint64_t    CommitSize        = ArenaDefaultCommitSize;
+    const char *AllocatedFromFile = __FILE__;
+    uint32_t    AllocatedFromLine = __LINE__;
 } memory_arena_params;
 
 typedef struct memory_arena memory_arena;
@@ -29,14 +32,12 @@ struct memory_arena
 typedef struct memory_region
 {
     memory_arena *Arena;
-    uint64_t           Position;
+    uint64_t      Position;
 } memory_region;
-
-static uint64_t ArenaDefaultReserveSize = VOID_MEGABYTE(64);
-static uint64_t ArenaDefaultCommitSize  = VOID_KILOBYTE(64);
 
 static memory_arena *AllocateArena  (memory_arena_params Params);
 static void          ReleaseArena   (memory_arena *Arena);
+
 
 static void *PushArena   (memory_arena *Arena, uint64_t Size, uint64_t Align);
 static void  ClearArena  (memory_arena *Arena);

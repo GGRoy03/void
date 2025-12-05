@@ -52,10 +52,10 @@ typedef struct render_batch_list
 
 typedef struct rect_group_params
 {
-    vec2_float      TextureSize;
+    vec2_float    TextureSize;
     render_handle Texture;
     matrix_3x3    Transform;
-    rect_float      Clip;
+    rect_float    Clip;
 } rect_group_params;
 
 // Group Types
@@ -142,9 +142,9 @@ const static uint64_t RenderPassDataSizeTable[] =
 
 // [Handles]
 
-static bool           IsValidRenderHandle    (render_handle Handle);
+static bool          IsValidRenderHandle    (render_handle Handle);
 static render_handle RenderHandle           (uint64_t Handle);
-static bool           RenderHandleMatches    (render_handle H1, render_handle H2);
+static bool          RenderHandleMatches    (render_handle H1, render_handle H2);
 
 // [Batches]
 
@@ -189,8 +189,8 @@ typedef struct render_texture_params
     RenderTexture_Wrap   WrapU;
     RenderTexture_Wrap   WrapV;
     void                *InitialData;
-    uint32_t                  InitialDataSize;
-    bool                  GenerateMipmaps;
+    uint32_t             InitialDataSize;
+    bool                 GenerateMipmaps;
 } render_texture_params;
 
 typedef struct render_texture
@@ -236,3 +236,9 @@ static bool  CreateGlyphTransfer   (render_handle HRenderer, vec2_float TextureS
 static void ReleaseGlyphCache     (gpu_font_context *FontContext);
 static void ReleaseGlyphTransfer  (gpu_font_context *FontContext);
 static void TransferGlyph         (rect_float Rect, render_handle HRenderer, gpu_font_context *FontContext);
+
+// ===================================================================================
+// NOTE: Whole API is kinda garbage right now. It's quite hard to follow.
+
+static byte_string GetDefaultVtxShader  (void);
+static byte_string GetDefaultPxlShader  (void);

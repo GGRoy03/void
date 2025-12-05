@@ -282,37 +282,7 @@ wWinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPWSTR CmdLine, int ShowCmd
         OSWin32InitializeDWriteFactory(&OSWin32State.DWriteFactory);
     }
 
-    // UI State
-    {
-        // internal Data
-        {
-            memory_arena_params Params = { 0 };
-            {
-                Params.AllocatedFromFile = __FILE__;
-                Params.AllocatedFromLine = __LINE__;
-                Params.ReserveSize       = VOID_MEGABYTE(1);
-                Params.CommitSize        = VOID_KILOBYTE(64);
-            }
-
-            UIState.StaticData       = AllocateArena(Params);
-            UIState.Pipelines.Values = PushArray(UIState.StaticData, ui_pipeline, UIPipeline_Count);
-            UIState.Pipelines.Size   = UIPipeline_Count;
-        }
-
-        // Resource Table
-        {
-            ui_resource_table_params  Params = { 0 };
-            void                     *Memory = 0;
-            {
-                Params.HashSlotCount = 512;
-                Params.EntryCount    = 2048;
-
-                uint64_t Footprint = GetResourceTableFootprint(Params);
-                Memory = PushArray(UIState.StaticData, uint8_t, Footprint);
-            }
-            UIState.ResourceTable = PlaceResourceTableInMemory(Params, Memory);
-        }
-    }
+    CreateVoidContext(); // NOTE: Perhaps lazily intialized?
 
     // Render State
     {
@@ -350,7 +320,6 @@ wWinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPWSTR CmdLine, int ShowCmd
             TimeBlock("UI Logic");
 
             UIBeginFrame(ClientSize);
-            ShowVoidDocumentationUI();
             UIEndFrame();
         }
 
@@ -372,13 +341,13 @@ wWinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPWSTR CmdLine, int ShowCmd
             PrintProfilingFrame = 0;
         }
     }
- 
+
     // NOTE:
     // This shouldn't be needed but the debug layer for D3D is triggering
     // an error and preventing the window from closing if the resources
     // related to fonts aren't released. So this is for convenience :P
 
-    ui_font_list *FontList = &UIState.Fonts;
+    ui_font_list *FontList = &(GetVoidContext().Fonts);
     IterateLinkedList(FontList, ui_font *, Font)
     {
         OSReleaseFontContext(&Font->OSContext);

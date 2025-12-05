@@ -13,16 +13,13 @@ enum VoidDocumentation_Style : uint32_t
     VoidDocumentation_SubWindow  = 2 ,
 };
 
-// NOTE:
-// I think I am stupid.
-
 static ui_cached_style StyleArray[] =
 {
     // Main Window
     {
         .Default =
         {
-            .Sizing          = {},
+            .Sizing          = {{Sizing::Fixed, {500.f}}, {Sizing::Fixed, {500.f}}}, // NOTE: Bad.
             .MinSize         = {400.f, 400.f},
             .MaxSize         = {600.f, 600.f},
             .LayoutDirection = LayoutDirection::Vertical,
@@ -32,15 +29,15 @@ static ui_cached_style StyleArray[] =
             .Padding         = {8, 8, 8, 8},
             .Spacing         = 4.f,
 
-            .Color        = ui_color{0.15f, 0.15f, 0.15f, 1.0f},
-            .BorderColor  = ui_color{0.30f, 0.30f, 0.30f, 1.0f},
-            .TextColor    = ui_color{1.0f , 1.0f , 1.0f , 1.0f},
+            .Color           = ui_color{0.15f, 0.15f, 0.15f, 1.0f},
+            .BorderColor     = ui_color{0.30f, 0.30f, 0.30f, 1.0f},
+            .TextColor       = ui_color{1.0f , 1.0f , 1.0f , 1.0f},
 
-            .BorderWidth  = 3.f,
-            .Softness     = 2.f,
-            .CornerRadius = {4.f, 4.f, 4.f, 4.f},
+            .BorderWidth     = 3.f,
+            .Softness        = 2.f,
+            .CornerRadius    = {4.f, 4.f, 4.f, 4.f},
 
-            .FontSize     = 14.f,
+            .FontSize        = 14.f,
         },
 
         .Hovered = {},
@@ -51,19 +48,22 @@ static ui_cached_style StyleArray[] =
     {
         .Default =
         {
-            .Sizing          = {},
+            .Sizing          = {{Sizing::Fixed, {200.f}}, {Sizing::Fixed, {300.f}}}, // NOTE: Bad.
             .LayoutDirection = LayoutDirection::Horizontal,
             .AlignmentM      = Alignment::Center,
             .AlignmentC      = Alignment::Center,
 
-            .Color        = ui_color{1.f, 0.15f, 0.15f, 1.0f},
-            .BorderColor  = ui_color{0.30f, 0.30f, 0.30f, 1.0f},
+            .Grow            = 1.f,
+            .Shrink          = 1.f,
 
-            .BorderWidth  = 3.f,
-            .Softness     = 2.f,
-            .CornerRadius = {4.f, 4.f, 4.f, 4.f},
+            .Color           = ui_color{1.f, 0.15f, 0.15f, 1.0f},
+            .BorderColor     = ui_color{0.30f, 0.30f, 0.30f, 1.0f},
 
-            .FontSize     = 14.f,
+            .BorderWidth     = 3.f,
+            .Softness        = 2.f,
+            .CornerRadius    = {4.f, 4.f, 4.f, 4.f},
+
+            .FontSize        = 14.f,
         },
 
         .Hovered = {},
