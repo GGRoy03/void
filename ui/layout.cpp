@@ -266,12 +266,23 @@ GetNodeContentRect(ui_layout_node *Node)
     return Result;
 }
 
+static ui_paint_properties *
+GetPaintProperties(uint32_t NodeIndex, ui_layout_tree *Tree)
+{
+    ui_paint_properties *Result = 0;
+
+    if(NodeIndex < Tree->NodeCapacity)
+    {
+        Result = Tree->PaintArray + NodeIndex;
+    }
+
+    return Result;
+}
+
 static void
 SetNodeProperties(uint32_t NodeIndex, uint32_t StyleIndex, const ui_cached_style &Cached, ui_layout_tree *Tree)
 {
-    // BUG: Not a safe read!
-
-    ui_paint_properties *Paint  = Tree->PaintArray + NodeIndex;
+    ui_paint_properties *Paint = GetPaintProperties(NodeIndex, Tree);
     if(Paint)
     {
         Paint->Color        = Cached.Default.Color;
@@ -300,16 +311,6 @@ SetNodeProperties(uint32_t NodeIndex, uint32_t StyleIndex, const ui_cached_style
         Node->Grow       = Cached.Default.Grow;
         Node->Shrink     = Cached.Default.Shrink;
     }
-}
-
-// BUG:
-// Unsafe.
-
-static ui_paint_properties *
-GetPaintProperties(uint32_t NodeIndex, ui_layout_tree *Tree)
-{
-    ui_paint_properties *Result = Tree->PaintArray + NodeIndex;
-    return Result;
 }
 
 static uint64_t
@@ -548,9 +549,7 @@ UpdateScrollNode(float ScrolledLines, ui_layout_node *Node, ui_layout_tree *Tree
     rect_float WindowContent = GetNodeOuterRect(Node);
     IterateLinkedList(Node, ui_layout_node *, Child)
     {
-        // BUG: Not a safe read! Or is it?
-
-        ui_paint_properties *Paint = Tree->PaintArray + Node->Index;
+        ui_paint_properties *Paint = GetPaintProperties(Node->Index, Tree);
         if(Paint)
         {
             Child->ScrollOffset = vec2_float(-ScrollDelta.X, -ScrollDelta.Y);
@@ -883,9 +882,7 @@ ProcessUIEvents(ui_event_list *Events, ui_layout_tree *Tree)
         {
             ui_resize_event Resize = Event->Resize;
 
-            // BUG: Not a safe read?
-
-            ui_paint_properties *Paint = Tree->PaintArray + Resize.Node->Index;
+            ui_paint_properties *Paint = GetPaintProperties(Resize.Node->Index, Tree);
             if(Paint)
             {
                 // TODO: Reimplement this.
