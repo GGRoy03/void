@@ -310,6 +310,7 @@ struct ui_pipeline
     // UI State
     ui_layout_tree      *Tree;
     ui_node_table       *NodeTable;
+    bool                 Bound;
 
     // User State
     ui_cached_style     *StyleArray;

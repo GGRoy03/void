@@ -219,7 +219,7 @@ PaintDebugInformation(ui_layout_node *Node, ui_corner_radius CornerRadii, float 
 // Painting Public API Implementation
 
 static void
-PaintLayoutTreeFromRoot(ui_layout_tree *Tree)
+PaintTree(ui_layout_tree *Tree)
 {
     void_context &Context = GetVoidContext();
 

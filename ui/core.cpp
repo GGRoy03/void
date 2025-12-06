@@ -974,9 +974,14 @@ UICreatePipeline(const ui_pipeline_params &Params)
 
     // Render State
     {
-        // NOTE: Could expose some shader utilities? Have to.
+        // NOTE:
+        // Unsure how/if I want this yet, but don't need it right now.
     }
 }
+
+// NOTE:
+// What about the layout tree? Its state should simply be correct??
+// Or do we need to check something?
 
 static ui_pipeline &
 UIBindPipeline(UIPipeline UserPipeline)
@@ -984,15 +989,30 @@ UIBindPipeline(UIPipeline UserPipeline)
     void_context &Context  = GetVoidContext();
     ui_pipeline  &Pipeline = Context.PipelineArray[static_cast<uint32_t>(UserPipeline)];
 
-    // TODO: Reset State?
+    if(!Pipeline.Bound)
+    {
+        PopArenaTo(Pipeline.Arena, Pipeline.FrameStart);
+
+        Pipeline.Bound = true;
+    }
 
     return Pipeline;
 }
 
 static void
-UIUnbindPipeline(UIPipeline Pipeline)
+UIUnbindPipeline(UIPipeline UserPipeline)
 {
-    // TODO: What should this do?
+    void_context &Context  = GetVoidContext();
+    ui_pipeline  &Pipeline = Context.PipelineArray[static_cast<uint32_t>(UserPipeline)];
+
+    if(Pipeline.Bound)
+    {
+        PreOrderMeasureTree   (Pipeline.Tree, Pipeline.Arena);
+        PostOrderMeasureTree  (0            , Pipeline.Tree);
+        PlaceLayoutTree       (Pipeline.Tree, Pipeline.Arena);
+
+        Pipeline.Bound = false;
+    }
 }
 
 static ui_pipeline_params

@@ -114,7 +114,7 @@ static void
 PopArenaTo(memory_arena *Arena, uint64_t Position)
 {
     memory_arena *Active    = Arena->Current;
-    uint64_t           PoppedPos = ClampBot(sizeof(memory_arena), Position);
+    uint64_t      PoppedPos = ClampBot(sizeof(memory_arena), Position);
 
     for(memory_arena *Prev = 0; Active->BasePosition >= PoppedPos; Active = Prev)
     {

@@ -320,6 +320,7 @@ wWinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPWSTR CmdLine, int ShowCmd
             TimeBlock("UI Logic");
 
             UIBeginFrame(ClientSize);
+            Inspector::ShowUI();
             UIEndFrame();
         }
 
@@ -358,14 +359,14 @@ wWinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPWSTR CmdLine, int ShowCmd
 
 // [Per-OS API Memory Implementation]
 
-static void * 
+static void *
 OSReserveMemory(uint64_t Size)
 {
     void *Result = VirtualAlloc(0, Size, MEM_RESERVE, PAGE_READWRITE);
     return Result;
 }
 
-static bool 
+static bool
 OSCommitMemory(void *Pointer, uint64_t Size)
 {
     bool Result = 0;

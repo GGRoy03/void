@@ -1,5 +1,11 @@
 #pragma once
 
+// ====================================================================================
+// @Public: Helper Macros
+
+#define UIFixedSizing(SizeInFloat) {.Type = Sizing::Fixed, .Fixed = SizeInFloat}
+#define UISize(Width, Height)      {Width, Height}
+
 // [CORE TYPES]
 
 enum class Alignment
@@ -33,12 +39,6 @@ struct ui_size
     float Height;
 };
 
-struct ui_sizing_bounds
-{
-    float Min;
-    float Max;
-};
-
 struct ui_sizing_axis
 {
     Sizing Type;
@@ -49,20 +49,15 @@ struct ui_sizing_axis
     };
 };
 
-struct ui_sizing
-{
-    ui_sizing_axis Horizontal;
-    ui_sizing_axis Vertical;
-};
-
 struct ui_style_properties
 {
-    ui_sizing        Sizing;
+    ui_sizing_axis   SizingX;
+    ui_sizing_axis   SizingY;
     ui_size          MinSize;
     ui_size          MaxSize;
-    LayoutDirection  LayoutDirection;
-    Alignment        AlignmentM;
-    Alignment        AlignmentC;
+    LayoutDirection  Direction;
+    Alignment        AlignX;
+    Alignment        AlignY;
 
     ui_padding       Padding;
     float            Spacing;
@@ -81,7 +76,6 @@ struct ui_style_properties
     ui_font         *Font;
     float            FontSize;
     float            CaretWidth;
-    Alignment        TextAlign[2];
 };
 
 struct ui_cached_style
@@ -108,13 +102,10 @@ struct ui_paint_properties
     uint32_t         CachedIndex;
 };
 
-static void
-SetNodeStyle(uint32_t NodeIndex, uint32_t StyleIndex, ui_pipeline &Pipeline);
-
 // ===================================================================================
 // @Internal: Small Helpers
 
 static bool     IsVisibleColor  (ui_color Color);
 static ui_color NormalizeColor  (ui_color Color);
 
-static void PaintLayoutTreeFromRoot  (ui_layout_tree *Tree);
+static void PaintTree  (ui_layout_tree *Tree);

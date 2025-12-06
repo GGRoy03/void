@@ -26,7 +26,7 @@ struct memory_arena
     uint64_t Position;
 
     const char *AllocatedFromFile;
-    uint32_t         AllocatedFromLine;
+    uint32_t    AllocatedFromLine;
 };
 
 typedef struct memory_region

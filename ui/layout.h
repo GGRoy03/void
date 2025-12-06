@@ -13,9 +13,6 @@ typedef enum UILayoutNode_Flag
     UILayoutNode_IsDraggable     = 1 << 4,
     UILayoutNode_IsResizable     = 1 << 5,
 
-    // Layout Info (Should not exist most likely)
-    UILayoutNode_IsParent        = 1 << 6,
-
     // Resources
     UILayoutNode_HasText         = 1 << 7,
     UILayoutNode_HasTextInput    = 1 << 8,
@@ -30,10 +27,12 @@ typedef enum UILayoutNode_Flag
 
 static uint64_t         GetLayoutTreeFootprint   (uint64_t NodeCount);
 static ui_layout_tree * PlaceLayoutTreeInMemory  (uint64_t NodeCount, void *Memory);
-static uint32_t         AllocateLayoutNode       (uint32_t Flags, void *Subtree);
-static void             UIEnd                    (void);
-
-static bool IsMouseInsideOuterBox  (vec2_float MousePosition, uint32_t NodeIndex, void *Subtree);
+static uint32_t         AllocateLayoutNode       (uint32_t Flags, ui_layout_tree *Tree);
+static bool             PushLayoutParent         (uint32_t Index, ui_layout_tree *Tree, memory_arena *Arena);
+static bool             PopLayoutParent          (uint32_t Index, ui_layout_tree *Tree);
+static void             PreOrderMeasureTree      (ui_layout_tree *Tree, memory_arena *Arena);
+static void             PostOrderMeasureTree     (uint32_t NodeIndex , ui_layout_tree *Tree);
+static void             PlaceLayoutTree          (ui_layout_tree *Tree, memory_arena *Arena);
 
 static void SetLayoutNodeFlags    (uint32_t NodeIndex, uint32_t Flags, ui_layout_tree *Tree);
 static void ClearLayoutNodeFlags  (uint32_t NodeIndex, uint32_t Flags, ui_layout_tree *Tree);
