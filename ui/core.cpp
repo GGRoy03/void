@@ -923,9 +923,6 @@ CreateVoidContext(void)
     }
 }
 
-// ==================================================================================
-// @Private : Pipeline Helpers
-
 static uint64_t
 GetPipelineStateFootprint(const ui_pipeline_params &Params)
 {
@@ -933,7 +930,7 @@ GetPipelineStateFootprint(const ui_pipeline_params &Params)
     uint64_t Result   = TreeSize;
 
     return Result;
-};
+}
 
 // ==================================================================================
 // @Public : Pipeline API
@@ -941,22 +938,21 @@ GetPipelineStateFootprint(const ui_pipeline_params &Params)
 static void
 UICreatePipeline(const ui_pipeline_params &Params)
 {
-    ui_pipeline Pipeline = {};
+    void_context &Context  = GetVoidContext();
+    ui_pipeline  &Pipeline = Context.PipelineArray[static_cast<uint32_t>(Params.Pipeline)];
 
     // Memory
     {
-        uint64_t StateFootprint = GetPipelineStateFootprint(Params);
+        Pipeline.StateArena = AllocateArena({.ReserveSize = GetPipelineStateFootprint(Params)});
+        Pipeline.FrameArena = AllocateArena({.ReserveSize = Params.FrameBudget});
 
-        Pipeline.Arena      = AllocateArena({.ReserveSize = StateFootprint});
-        Pipeline.FrameStart = StateFootprint;
-
-        VOID_ASSERT(Pipeline.Arena);
+        VOID_ASSERT(Pipeline.StateArena && Pipeline.FrameArena);
     }
 
     // UI State
     {
         uint64_t  TreeFootprint = GetLayoutTreeFootprint(Params.NodeCount);
-        void     *TreeMemory    = PushArena(Pipeline.Arena, TreeFootprint, 0);
+        void     *TreeMemory    = PushArena(Pipeline.StateArena, TreeFootprint, GetLayoutTreeAlignment());
 
         Pipeline.Tree = PlaceLayoutTreeInMemory(Params.NodeCount, TreeMemory);
 
@@ -969,7 +965,7 @@ UICreatePipeline(const ui_pipeline_params &Params)
         Pipeline.StyleIndexMin = Params.StyleIndexMin;
         Pipeline.StyleIndexMax = Params.StyleIndexMax;
 
-        VOID_ASSERT(Pipeline.StyleArray && Pipeline.StyleIndexMin < Pipeline.StyleIndexMax);
+        VOID_ASSERT(Pipeline.StyleArray && Pipeline.StyleIndexMin <= Pipeline.StyleIndexMax);
     }
 
     // Render State
@@ -991,7 +987,7 @@ UIBindPipeline(UIPipeline UserPipeline)
 
     if(!Pipeline.Bound)
     {
-        PopArenaTo(Pipeline.Arena, Pipeline.FrameStart);
+        PopArenaTo(Pipeline.FrameArena, 0);
 
         Pipeline.Bound = true;
     }
@@ -1007,9 +1003,10 @@ UIUnbindPipeline(UIPipeline UserPipeline)
 
     if(Pipeline.Bound)
     {
-        PreOrderMeasureTree   (Pipeline.Tree, Pipeline.Arena);
+        PreOrderMeasureTree   (Pipeline.Tree, Pipeline.FrameArena);
         PostOrderMeasureTree  (0            , Pipeline.Tree);
-        PlaceLayoutTree       (Pipeline.Tree, Pipeline.Arena);
+        PlaceLayoutTree       (Pipeline.Tree, Pipeline.FrameArena);
+        PaintTree             (Pipeline.Tree, Pipeline.FrameArena);
 
         Pipeline.Bound = false;
     }
@@ -1025,4 +1022,52 @@ UIGetDefaultPipelineParams(void)
     };
 
     return Params;
+}
+
+// ==================================================================================
+// @Internal: Event Handling
+
+enum class UIInputEvent
+{
+    None          = 0,
+    MouseClicked  = 1,
+    MouseReleased = 2,
+    MouseMoved    = 3,
+};
+
+struct input_frame_state
+{
+    bool LookingForHoverSource; // NOTE: Looking to hover 'something'
+    bool LookingForClickSource; // NOTE: Looking to click 'something'
+    bool LookingForClearSource; // NOTE: Looking to clear focus
+};
+
+static void
+ProcessInputEvents()
+{
+    void_context &Context = GetVoidContext();
+
+    // NOTE:
+    // We force left click? Obviously is wrong. We should check all buttons?
+    // Uhm. Or we change how we generate input events? Hard to say right now.
+
+    // NOTE:
+    // How do node release focus? If Node.HasFocus && MouseReleased -> Release.
+    // Means we need to check for each node. Sure. Setting focus to multiple
+    // nodes is trivial then. But then feeding input events look weird?
+    // Ah, also, it means that to release focus you have to scan every node in the
+    // tree. Which is weird. Uhm. It's trivial but it "feels" bad. I guess. Uhm.
+
+    // NOTE:
+    // Do we always scan bottom up? I think so, is there a trick to release focus
+    // efficiently? I don't think so. What if we implement a dump approach first.
+
+    vec2_f32 MouseDelta    = OSGetMouseDelta();
+    bool     MouseClicked  = OSIsMouseClicked(OSMouseButton_Left);
+    bool     MouseReleased = OSIsMouseReleased(OSMouseButton_Left);
+
+    for(uint32_t Idx = 0; Idx < VOID_ARRAYCOUNT(Context.PipelineZBuffer); ++Idx)
+    {
+        ui_pipeline &Pipeline = Context.PipelineZBuffer[Idx];
+    }
 }

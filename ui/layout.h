@@ -25,6 +25,7 @@ typedef enum UILayoutNode_Flag
     UILayoutNode_DebugContentBox = 1 << 13,
 } UILayoutNode_Flag;
 
+static uint64_t         GetLayoutTreeAlignment   (void);
 static uint64_t         GetLayoutTreeFootprint   (uint64_t NodeCount);
 static ui_layout_tree * PlaceLayoutTreeInMemory  (uint64_t NodeCount, void *Memory);
 static uint32_t         AllocateLayoutNode       (uint32_t Flags, ui_layout_tree *Tree);

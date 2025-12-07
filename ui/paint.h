@@ -108,4 +108,4 @@ struct ui_paint_properties
 static bool     IsVisibleColor  (ui_color Color);
 static ui_color NormalizeColor  (ui_color Color);
 
-static void PaintTree  (ui_layout_tree *Tree);
+static void PaintTree  (ui_layout_tree *Tree, memory_arena *Arena);

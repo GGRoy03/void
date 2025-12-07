@@ -86,14 +86,14 @@ PopPaintStack(paint_stack *Stack)
 // BUG: Need an arena in here.
 
 static render_batch_list *
-GetPaintBatchList(ui_layout_node *LayoutNode, ui_layout_tree *Tree, rect_float Clip)
+GetPaintBatchList(ui_layout_node *LayoutNode, ui_layout_tree *Tree, memory_arena *Arena, rect_float Clip)
 {
     VOID_ASSERT(LayoutNode);
     VOID_ASSERT(Tree);
 
     void_context &Context = GetVoidContext();
 
-    render_pass           *Pass     = GetRenderPass(0, RenderPass_UI);
+    render_pass           *Pass     = GetRenderPass(Arena, RenderPass_UI);
     render_pass_params_ui *UIParams = &Pass->Params.UI.Params;
     rect_group_node       *Node     = UIParams->Last;
 
@@ -133,7 +133,7 @@ GetPaintBatchList(ui_layout_node *LayoutNode, ui_layout_tree *Tree, rect_float C
 
     if(!Node || !CanMergeNodes)
     {
-        Node = PushStruct(0, rect_group_node);
+        Node = PushStruct(Arena, rect_group_node);
         Node->BatchList.BytesPerInstance = sizeof(ui_rect);
 
         AppendToLinkedList(UIParams, Node, UIParams->Count);
@@ -219,14 +219,11 @@ PaintDebugInformation(ui_layout_node *Node, ui_corner_radius CornerRadii, float 
 // Painting Public API Implementation
 
 static void
-PaintTree(ui_layout_tree *Tree)
+PaintTree(ui_layout_tree *Tree, memory_arena *Arena)
 {
-    void_context &Context = GetVoidContext();
-
-    memory_arena *Arena = 0;
-    paint_stack   Stack = BeginPaintStack(Tree->NodeCount, Arena);
-
-    ui_layout_node *Root = Tree->Nodes; // NOTE: Isn't there a helper?
+    void_context   &Context = GetVoidContext();
+    paint_stack     Stack   = BeginPaintStack(Tree->NodeCount, Arena);
+    ui_layout_node *Root    = Tree->Nodes; // NOTE: Isn't there a helper?
 
     if(IsValidPaintStack(&Stack))
     {
@@ -243,7 +240,7 @@ PaintTree(ui_layout_tree *Tree)
 
             // Painting
             {
-                render_batch_list   *BatchList = GetPaintBatchList(Node, Tree, ClipRect);
+                render_batch_list   *BatchList = GetPaintBatchList(Node, Tree, Arena, ClipRect);
                 ui_paint_properties *Paint     = GetPaintProperties(Node->Index, Tree);
 
                 ui_corner_radius CornerRadii = Paint->CornerRadius;

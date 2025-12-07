@@ -36,7 +36,7 @@ static vec2_float
 OSGetMousePosition(void)
 {
     os_inputs *Inputs = OSGetInputs();
-    vec2_float   Result = Inputs->MousePosition;
+    vec2_float Result = Inputs->MousePosition;
 
     return Result;
 }
@@ -45,7 +45,7 @@ static vec2_float
 OSGetMouseDelta(void)
 {
     os_inputs *Inputs = OSGetInputs();
-    vec2_float   Result = Inputs->MouseDelta;
+    vec2_float Result = Inputs->MouseDelta;
 
     return Result;
 }
@@ -54,7 +54,7 @@ static float
 OSGetScrollDelta(void)
 {
     os_inputs *Inputs = OSGetInputs();
-    float        Result = Inputs->ScrollDeltaInLines;
+    float      Result = Inputs->ScrollDeltaInLines;
 
     return Result;
 }
@@ -74,7 +74,7 @@ OSIsMouseHeld(OSMouseButton_Type Button)
 {
     os_inputs       *Inputs = OSGetInputs();
     os_button_state *State  = &Inputs->MouseButtons[Button];
-    bool              Result = (State->EndedDown && State->HalfTransitionCount == 0);
+    bool             Result = (State->EndedDown && State->HalfTransitionCount == 0);
 
     return Result;
 }
@@ -84,7 +84,7 @@ OSIsMouseReleased(OSMouseButton_Type Button)
 {
     os_inputs       *Inputs = OSGetInputs();
     os_button_state *State  = &Inputs->MouseButtons[Button];
-    bool              Result = (!State->EndedDown && State->HalfTransitionCount > 0);
+    bool             Result = (!State->EndedDown && State->HalfTransitionCount > 0);
 
     return Result;
 }

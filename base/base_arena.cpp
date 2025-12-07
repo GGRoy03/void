@@ -44,8 +44,8 @@ static void *
 PushArena(memory_arena *Arena, uint64_t Size, uint64_t Alignment)
 {
     memory_arena *Active       = Arena->Current;
-    uint64_t           PrePosition  = AlignPow2(Active->Position, Alignment);
-    uint64_t           PostPosition = PrePosition + Size;
+    uint64_t      PrePosition  = AlignPow2(Active->Position, Alignment);
+    uint64_t      PostPosition = PrePosition + Size;
 
     if(Active->Reserved < PostPosition)
     {

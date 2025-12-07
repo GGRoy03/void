@@ -1,5 +1,5 @@
 static ui_node
-UIWindow(uint32_t StyleIndex, const ui_pipeline &Pipeline)
+UIWindow(uint32_t StyleIndex, ui_pipeline &Pipeline)
 {
     ui_node Node = {};
 
@@ -8,10 +8,12 @@ UIWindow(uint32_t StyleIndex, const ui_pipeline &Pipeline)
 
     if(NodeIndex != InvalidLayoutNodeIndex)
     {
-        bool Pushed = PushLayoutParent(NodeIndex, Pipeline.Tree, Pipeline.Arena);
+        bool Pushed = PushLayoutParent(NodeIndex, Pipeline.Tree, Pipeline.FrameArena);
         if(Pushed)
         {
             Node = {.Index = NodeIndex};
+
+            Node.SetStyle(StyleIndex, Pipeline);
         }
     }
 
@@ -19,7 +21,7 @@ UIWindow(uint32_t StyleIndex, const ui_pipeline &Pipeline)
 }
 
 static void
-UIEndWindow(ui_node Node, const ui_pipeline &Pipeline)
+UIEndWindow(ui_node Node, ui_pipeline &Pipeline)
 {
     // NOTE: Should we check anything? I don't yet, but this pattern is nice.
     PopLayoutParent(Node.Index, Pipeline.Tree);

@@ -310,7 +310,6 @@ struct ui_pipeline
     // UI State
     ui_layout_tree      *Tree;
     ui_node_table       *NodeTable;
-    bool                 Bound;
 
     // User State
     ui_cached_style     *StyleArray;
@@ -318,12 +317,15 @@ struct ui_pipeline
     uint32_t             StyleIndexMax;
 
     // Memory
-    memory_arena        *Arena;
-    uint64_t             FrameStart;
+    memory_arena *StateArena;
+    memory_arena *FrameArena;
 
     // Misc
-    uint64_t             NodeCount;
+    uint32_t ZIndex;
+    bool     Bound;
+    uint64_t NodeCount;
 };
+
 
 static void               UICreatePipeline            (const ui_pipeline_params &Params);
 static ui_pipeline&       UIBindPipeline              (UIPipeline Pipeline);
@@ -361,7 +363,8 @@ struct void_context
 
     // State
     ui_resource_table *ResourceTable;
-    ui_pipeline       *PipelineArray;
+    ui_pipeline        PipelineArray[PipelineCount];
+    ui_pipeline       &PipelineZBuffer[PipelineCount];
 
     // Transient
     uint32_t    HoveredNodeIndex;

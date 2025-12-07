@@ -243,6 +243,13 @@ SetNodeProperties(uint32_t NodeIndex, uint32_t StyleIndex, const ui_cached_style
 }
 
 static uint64_t
+GetLayoutTreeAlignment(void)
+{
+    uint64_t Result = AlignOf(ui_layout_node);
+    return Result;
+}
+
+static uint64_t
 GetLayoutTreeFootprint(uint64_t NodeCount)
 {
     uint64_t ArraySize = NodeCount * sizeof(ui_layout_node);
@@ -259,7 +266,7 @@ PlaceLayoutTreeInMemory(uint64_t NodeCount, void *Memory)
 
     if (Memory)
     {
-        ui_layout_node      *Nodes      = static_cast<ui_layout_node      *>(Memory);
+        ui_layout_node      *Nodes      = static_cast<ui_layout_node*>(Memory);
         ui_paint_properties *PaintArray = reinterpret_cast<ui_paint_properties *>(Nodes + NodeCount);
 
         Result = reinterpret_cast<ui_layout_tree *>(PaintArray + NodeCount);
@@ -268,7 +275,7 @@ PlaceLayoutTreeInMemory(uint64_t NodeCount, void *Memory)
         Result->NodeCount    = 0;
         Result->NodeCapacity = NodeCount;
 
-        for (uint32_t Idx = 0; Idx < Result->NodeCapacity; Idx++)
+        for (uint64_t Idx = 0; Idx < Result->NodeCapacity; Idx++)
         {
             Result->Nodes[Idx].Index = InvalidLayoutNodeIndex;
         }
@@ -715,6 +722,9 @@ RecordUITextInputEvent(byte_string Text, ui_layout_node *Node, ui_event_list *Ev
     RecordUIEvent(Event, EventList, Arena);
 }
 
+// TODO:
+// Revert back to passing a node instead?
+
 static bool
 IsMouseInsideOuterBox(vec2_float MousePosition, uint32_t NodeIndex, ui_layout_tree *Tree)
 {
@@ -809,32 +819,64 @@ DetermineResizeIntent(vec2_float MousePosition, ui_layout_node *Node, ui_layout_
     return Result;
 }
 
-static void
-FindHoveredNode(vec2_float MousePosition, ui_layout_node *Node, ui_layout_tree *Tree)
-{
-    // TODO: Re-Implement
-}
+// NOTE:
+// Trying something new. It feels like this has to do input queries.
+// Let's use recursion for simplicity?
 
 static void
-AttemptNodeFocus(vec2_float MousePosition, ui_layout_node *Root, ui_layout_tree *Tree)
+SomeEventFunction(uint32_t NodeIndex, ui_layout_tree *Tree)
 {
-    // TODO: Re-Implement
+    ui_layout_node *Node = GetLayoutNode(NodeIndex, Tree);
+
+    IterateLinkedList(Node, ui_layout_node *, Child)
+    {
+        SomeEventFunction(Child->Index, Tree);
+    }
+
+    if(Node)
+    {
+        if(IsMouseInsideOuterBox(OSGetMousePosition(), NodeIndex, Tree))
+        {
+            if(OSIsMouseClicked(Node->ClickMouseButton))
+            {
+                Node->IsFocused = 1;
+            }
+            else
+            {
+                Node->IsHovered = 1;
+            }
+        }
+
+        if(Node->IsFocused && OSIsMouseReleased(Node->FocusMouseButton))
+        {
+            Node->IsFocused = 0;
+        }
+
+        if(Node->IsFocused)
+        {
+            // NOTE: Do whatever.
+        }
+
+        if(Node->IsHovered)
+        {
+            // NOTE: Do whatever.
+        }
+    }
+
+    // BUG:
+    // The logic is:
+    // One 'thing' can be the hover source (can propagate)
+    // One 'thing' can be the click source (can propagate)
+    // Thus, when we have found it we do not need to check for it anymore.
+    // I'm thinking we have some sort of parameters:
+    // LookingForHoverSource = 1 if no focus                  else 0
+    // LookingForClickSource = 1 if no focus && mouse clicked else 0
+    // LookingForRelease     = ??
+    // And we mutate/return the new state here.
 }
 
-static void
-GenerateFocusedNodeEvents(ui_event_list *Events, memory_arena *Arena)
-{
-    // TODO: Re-Implement
-}
-
-// WARN:
-// This code is quite garbage.
-
-static void
-GenerateUIEvents(vec2_float MousePosition, ui_layout_node *Root, ui_layout_tree *Tree)
-{
-    // TODO: Re-Implement
-}
+// NOTE:
+// Will change to a central processer probably?
 
 static void
 ProcessUIEvents(ui_event_list *Events, ui_layout_tree *Tree)

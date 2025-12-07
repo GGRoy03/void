@@ -6,8 +6,22 @@ enum class InspectorStyle
     Window = 0,
 };
 
-constexpr ui_color Black = ui_color(0.f, 0.f, 0.f, 1.f);
-constexpr ui_color White = ui_color(1.f, 1.f, 1.f, 1.f);
+constexpr ui_color MainOrange        = ui_color(0.9765f, 0.4510f, 0.0863f, 1.0f);
+constexpr ui_color WhiteOrange       = ui_color(1.0000f, 0.9686f, 0.9294f, 1.0f);
+constexpr ui_color SurfaceOrange     = ui_color(0.9961f, 0.8431f, 0.6667f, 1.0f);
+constexpr ui_color HoverOrange       = ui_color(0.9176f, 0.3451f, 0.0471f, 1.0f);
+constexpr ui_color SubtleOrange      = ui_color(0.1686f, 0.1020f, 0.0627f, 1.0f);
+
+constexpr ui_color Background        = ui_color(0.0588f, 0.0588f, 0.0627f, 1.0f);
+constexpr ui_color SurfaceBackground = ui_color(0.1020f, 0.1098f, 0.1176f, 1.0f);
+constexpr ui_color BorderOrDivider   = ui_color(0.1804f, 0.1961f, 0.2118f, 1.0f);
+
+constexpr ui_color TextPrimary       = ui_color(0.9765f, 0.9804f, 0.9843f, 1.0f);
+constexpr ui_color TextSecondary     = ui_color(0.6118f, 0.6392f, 0.6863f, 1.0f);
+
+constexpr ui_color Success           = ui_color(0.1333f, 0.7725f, 0.3686f, 1.0f);
+constexpr ui_color Error             = ui_color(0.9373f, 0.2667f, 0.2667f, 1.0f);
+constexpr ui_color Warning           = ui_color(0.9608f, 0.6196f, 0.0431f, 1.0f);
 
 static ui_cached_style InspectorStyleArray[] =
 {
@@ -29,14 +43,12 @@ static ui_cached_style InspectorStyleArray[] =
             .Grow    = 0.f,
             .Shrink  = 0.f,
 
-            .Color       = White,
-            .BorderColor = ui_color(0.f, 0.f, 0.f, 0.f),
-            .TextColor   = ui_color(0.f, 0.f, 0.f, 0.f),
-            .CaretColor  = ui_color(0.f, 0.f, 0.f, 0.f),
+            .Color       = Background,
+            .BorderColor = BorderOrDivider,
 
-            .BorderWidth  = 0.f,
-            .Softness     = 0.f,
-            .CornerRadius = ui_corner_radius(0.f, 0.f, 0.f, 0.f),
+            .BorderWidth  = 2.f,
+            .Softness     = 2.f,
+            .CornerRadius = ui_corner_radius(4.f, 4.f, 4.f, 4.f),
 
             .Font       = nullptr,
             .FontSize   = 0.f,
@@ -45,6 +57,7 @@ static ui_cached_style InspectorStyleArray[] =
 
         .Hovered =
         {
+            .Color = HoverOrange,
         },
 
         .Focused =
@@ -68,11 +81,11 @@ InitializeInspector(inspector_ui &Inspector)
     {
         ui_pipeline_params Params = UIGetDefaultPipelineParams();
         Params.NodeCount     = 64;
-        Params.FrameBudget   = VOID_KILOBYTE(10);
         Params.Pipeline      = UIPipeline::Default;
         Params.StyleArray    = InspectorStyleArray;
         Params.StyleIndexMin = static_cast<uint32_t>(InspectorStyle::Window);
         Params.StyleIndexMax = static_cast<uint32_t>(InspectorStyle::Window);
+        Params.FrameBudget   = VOID_KILOBYTE(50);
 
         UICreatePipeline(Params);
     }
@@ -108,6 +121,9 @@ ShowUI(void)
 
     if(Inspector.IsInitialized)
     {
+        UIBindPipeline(UIPipeline::Default);
+
+        UIUnbindPipeline(UIPipeline::Default);
     }
 }
 
