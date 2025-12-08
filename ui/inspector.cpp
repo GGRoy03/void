@@ -39,9 +39,6 @@ static ui_cached_style InspectorStyleArray[] =
             .AlignY    = Alignment::Center,
 
             .Padding = ui_padding(0.f, 0.f, 0.f, 0.f),
-            .Spacing = 0.f,
-            .Grow    = 0.f,
-            .Shrink  = 0.f,
 
             .Color       = Background,
             .BorderColor = BorderOrDivider,
@@ -49,10 +46,6 @@ static ui_cached_style InspectorStyleArray[] =
             .BorderWidth  = 2.f,
             .Softness     = 2.f,
             .CornerRadius = ui_corner_radius(4.f, 4.f, 4.f, 4.f),
-
-            .Font       = nullptr,
-            .FontSize   = 0.f,
-            .CaretWidth = 0.f,
         },
 
         .Hovered =

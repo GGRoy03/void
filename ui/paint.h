@@ -49,7 +49,7 @@ struct ui_sizing_axis
     };
 };
 
-struct ui_style_properties
+struct ui_default_properties
 {
     ui_sizing_axis   SizingX;
     ui_sizing_axis   SizingY;
@@ -67,7 +67,6 @@ struct ui_style_properties
     ui_color         Color;
     ui_color         BorderColor;
     ui_color         TextColor;
-    ui_color         CaretColor;
 
     float            BorderWidth;
     float            Softness;
@@ -75,31 +74,52 @@ struct ui_style_properties
 
     ui_font         *Font;
     float            FontSize;
-    float            CaretWidth;
+};
+
+struct ui_hovered_properties
+{
+    ui_color Color;
+    ui_color BorderColor;
+};
+
+struct ui_focused_properties
+{
+    ui_color Color;
+    ui_color BorderColor;
+    ui_color TextColor;
+    ui_color CaretColor;
+    float    CaretWidth;
 };
 
 struct ui_cached_style
 {
-    ui_style_properties Default;
-    ui_style_properties Hovered;
-    ui_style_properties Focused;
+    ui_default_properties Default;
+    ui_hovered_properties Hovered;
+    ui_focused_properties Focused;
 };
 
-struct ui_paint_properties
+// TODO: Can we be smarter about what a command really is?
+// Right now it's mostly tied to a node in the tree so we need some fat struct.
+
+struct ui_paint_command
 {
+    rect_float       Rectangle;
+    rect_float       RectangleClip;
+
+    ui_resource_key  TextKey;
+    ui_resource_key  ImageKey;
+
     ui_color         Color;
     ui_color         BorderColor;
-    ui_color         TextColor;
-    ui_color         CaretColor;
-
+    ui_corner_radius CornerRadius;
     float            Softness;
     float            BorderWidth;
-    float            CaretWidth;
-    ui_corner_radius CornerRadius;
+};
 
-    ui_font         *Font;
-
-    uint32_t         CachedIndex;
+struct ui_paint_buffer
+{
+    ui_paint_command *Commands;
+    uint32_t          Size;
 };
 
 // ===================================================================================
@@ -108,4 +128,4 @@ struct ui_paint_properties
 static bool     IsVisibleColor  (ui_color Color);
 static ui_color NormalizeColor  (ui_color Color);
 
-static void PaintPipeline  (ui_pipeline &Pipeline);
+static void ExecutePaintCommands(ui_paint_buffer Buffer, memory_arena *Arena);

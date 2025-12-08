@@ -224,7 +224,7 @@ typedef struct ui_resource_table_params
 
 typedef struct ui_resource_state
 {
-    uint32_t             Id;
+    uint32_t        Id;
     UIResource_Type ResourceType;
     void           *Resource;
 } ui_resource_state;
@@ -234,9 +234,10 @@ static ui_resource_table * PlaceResourceTableInMemory  (ui_resource_table_params
 
 // Keys:
 //   Opaque handles to resources. Use a resource table to retrieve the associated data
-//   MakeResourceKey is used for node-based resources (Text, Scroll Region, Images)
-//   MakeGlobalResourceKey is used for node-less resources (Image Group, ...)
+//   MakeNodeResourceKey   is used for node-based resources
+//   MakeGlobalResourceKey is used for node-less  resources
 
+static bool            IsValidResourceKey    (ui_resource_key Key);
 static ui_resource_key MakeNodeResourceKey   (UIResource_Type Type, uint32_t NodeIndex, ui_layout_tree *Tree);
 static ui_resource_key MakeGlobalResourceKey (UIResource_Type Type, byte_string Name);
 
@@ -258,24 +259,10 @@ static void * QueryGlobalResource  (byte_string Name, UIResource_Type Type, ui_r
 
 // -----------------------------------------------------------------------------------
 
-// NOTE:
-// Are these even used?
-
 static void UIBeginFrame  (vec2_int WindowSize);
 static void UIEndFrame    (void);
 
 // -----------------------------------------------------------------------------------
-
-struct ui_event_node;
-struct ui_paint_properties;
-struct ui_cached_style_list;
-
-struct ui_event_list
-{
-    ui_event_node *First;
-    ui_event_node *Last;
-    uint32_t       Count;
-};
 
 struct ui_cached_style;
 
@@ -289,11 +276,11 @@ constexpr uint32_t PipelineCount = static_cast<uint32_t>(UIPipeline::Count);
 
 struct ui_pipeline_params
 {
-    byte_string VtxShaderByteCode;
-    byte_string PxlShaderByteCode;
+    byte_string      VtxShaderByteCode;
+    byte_string      PxlShaderByteCode;
 
-    uint64_t   NodeCount;
-    uint64_t   FrameBudget;
+    uint64_t         NodeCount;
+    uint64_t         FrameBudget;
 
     UIPipeline       Pipeline;
     ui_cached_style *StyleArray;
@@ -356,7 +343,7 @@ struct void_context
     ui_pipeline        PipelineArray[PipelineCount];
     uint32_t           PipelineCount;
 
-    ui_font_list     Fonts; // TODO: Font a solution such that this is a global resource.
+    ui_font_list     Fonts; // TODO: Find a solution such that this is a global resource.
 
     // State
     vec2_int   WindowSize;

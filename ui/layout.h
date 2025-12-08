@@ -36,6 +36,7 @@ static void             PreOrderMeasureTree      (ui_layout_tree *Tree, memory_a
 static void             PostOrderMeasureTree     (uint32_t NodeIndex , ui_layout_tree *Tree);
 static void             PlaceLayoutTree          (ui_layout_tree *Tree, memory_arena *Arena);
 static void             ConsumePointerEvents     (uint32_t NodeIndex, ui_layout_tree *Tree, pointer_event_list *EventList);
+static ui_paint_buffer  GeneratePaintBuffer      (ui_layout_tree *Tree, ui_cached_style *Cached, memory_arena *Arena);
 
 // TODO: Need to find a solution to remove these.
 static void SetLayoutNodeFlags    (uint32_t NodeIndex, uint32_t Flags, ui_layout_tree *Tree);

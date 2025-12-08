@@ -42,6 +42,18 @@ struct ui_size_bounds
     float Max;
 };
 
+enum class LayoutNodeFlag
+{
+    None                 = 0,
+    UseHoveredStyle = 1 << 0,
+    UseFocusedStyle = 1 << 1,
+};
+
+inline LayoutNodeFlag operator|(LayoutNodeFlag a, LayoutNodeFlag b)   {return static_cast<LayoutNodeFlag>(static_cast<int>(a) | static_cast<int>(b));}
+inline LayoutNodeFlag operator&(LayoutNodeFlag a, LayoutNodeFlag b)   {return static_cast<LayoutNodeFlag>(static_cast<int>(a) & static_cast<int>(b));}
+inline LayoutNodeFlag operator|=(LayoutNodeFlag& A, LayoutNodeFlag B) {return A = A | B;}
+inline LayoutNodeFlag operator&=(LayoutNodeFlag& A, LayoutNodeFlag B) {return A = A & B;}
+
 struct ui_layout_node
 {
     // Hierarchy
@@ -78,10 +90,10 @@ struct ui_layout_node
     float           Shrink;
 
     // Extra Info
-    uint32_t SubIndex;
     uint32_t Index;
+    uint32_t StyleIndex;
     uint32_t ChildCount;
-    uint32_t Flags;
+    uint32_t LegacyFlags;
 };
 
 struct ui_parent_node
@@ -99,16 +111,12 @@ struct ui_parent_list
 
 typedef struct ui_layout_tree
 {
-    // Nodes
-    uint64_t        NodeCapacity;
-    uint64_t        NodeCount;
-    ui_layout_node *Nodes;
+    uint64_t          NodeCapacity;
+    uint64_t          NodeCount;
+    ui_layout_node   *Nodes;
 
-    // Paint
-    ui_paint_properties *PaintArray;
-
-    // Depth
-    ui_parent_list ParentList;
+    ui_paint_command *PaintBuffer;
+    ui_parent_list    ParentList;
 } ui_layout_tree;
 
 static bool
@@ -190,37 +198,9 @@ GetNodeContentRect(ui_layout_node *Node)
     return Result;
 }
 
-static ui_paint_properties *
-GetPaintProperties(uint32_t NodeIndex, ui_layout_tree *Tree)
-{
-    ui_paint_properties *Result = 0;
-
-    if(NodeIndex < Tree->NodeCapacity)
-    {
-        Result = Tree->PaintArray + NodeIndex;
-    }
-
-    return Result;
-}
-
 static void
 SetNodeProperties(uint32_t NodeIndex, uint32_t StyleIndex, const ui_cached_style &Cached, ui_layout_tree *Tree)
 {
-    ui_paint_properties *Paint = GetPaintProperties(NodeIndex, Tree);
-    if(Paint)
-    {
-        Paint->Color        = Cached.Default.Color;
-        Paint->BorderColor  = Cached.Default.BorderColor;
-        Paint->TextColor    = Cached.Default.TextColor;
-        Paint->CaretColor   = Cached.Default.CaretColor;
-        Paint->Softness     = Cached.Default.Softness;
-        Paint->BorderWidth  = Cached.Default.BorderWidth;
-        Paint->CaretWidth   = Cached.Default.CaretWidth;
-        Paint->CornerRadius = Cached.Default.CornerRadius;
-        Paint->Font         = Cached.Default.Font;
-        Paint->CachedIndex  = StyleIndex;
-    }
-
     ui_layout_node *Node = GetLayoutNode(NodeIndex, Tree);
     if(Node)
     {
@@ -239,6 +219,8 @@ SetNodeProperties(uint32_t NodeIndex, uint32_t StyleIndex, const ui_cached_style
         Node->Direction   = Cached.Default.Direction;
         Node->Grow        = Cached.Default.Grow;
         Node->Shrink      = Cached.Default.Shrink;
+
+        Node->StyleIndex = StyleIndex;
     }
 }
 
@@ -253,7 +235,7 @@ static uint64_t
 GetLayoutTreeFootprint(uint64_t NodeCount)
 {
     uint64_t ArraySize = NodeCount * sizeof(ui_layout_node);
-    uint64_t PaintSize = NodeCount * sizeof(ui_paint_properties);
+    uint64_t PaintSize = NodeCount * sizeof(ui_paint_command);
     uint64_t Result    = sizeof(ui_layout_tree) + ArraySize + PaintSize;
 
     return Result;
@@ -266,12 +248,12 @@ PlaceLayoutTreeInMemory(uint64_t NodeCount, void *Memory)
 
     if (Memory)
     {
-        ui_layout_node      *Nodes      = static_cast<ui_layout_node*>(Memory);
-        ui_paint_properties *PaintArray = reinterpret_cast<ui_paint_properties *>(Nodes + NodeCount);
+        ui_layout_node   *Nodes      = static_cast<ui_layout_node*>(Memory);
+        ui_paint_command *PaintBuffer = reinterpret_cast<ui_paint_command *>(Nodes + NodeCount);
 
-        Result = reinterpret_cast<ui_layout_tree *>(PaintArray + NodeCount);
+        Result = reinterpret_cast<ui_layout_tree *>(PaintBuffer + NodeCount);
         Result->Nodes        = Nodes;
-        Result->PaintArray   = PaintArray;
+        Result->PaintBuffer  = PaintBuffer;
         Result->NodeCount    = 0;
         Result->NodeCapacity = NodeCount;
 
@@ -294,10 +276,10 @@ AllocateLayoutNode(uint32_t Flags, ui_layout_tree *Tree)
     ui_layout_node *Node = GetFreeLayoutNode(Tree);
     if(Node)
     {
-        Node->Flags = Flags;
-        Node->Last  = 0;
-        Node->Next  = 0;
-        Node->First = 0;
+        Node->LegacyFlags = Flags;
+        Node->Last        = 0;
+        Node->Next        = 0;
+        Node->First       = 0;
 
         if(Tree->ParentList.Last)
         {
@@ -385,7 +367,7 @@ UITreeReserve(uint32_t NodeIndex, uint32_t Amount, ui_layout_tree *Tree)
 // We surely do not want to expose this... I still don't know. That's not really
 // how flags work honestly, an external system shouldn't even know about these flags
 // imo. Sooo. How do fix this. They are only used when setting resources, perhaps
-// we change how queries work?
+// we change how queries work? Yeah something seems to be wrong.
 
 static void
 SetLayoutNodeFlags(uint32_t NodeIndex, uint32_t Flags, ui_layout_tree *Tree)
@@ -395,7 +377,7 @@ SetLayoutNodeFlags(uint32_t NodeIndex, uint32_t Flags, ui_layout_tree *Tree)
     ui_layout_node *Node = GetLayoutNode(NodeIndex, Tree);
     if(Node)
     {
-        Node->Flags |= Flags;
+        Node->LegacyFlags |= Flags;
     }
 }
 
@@ -407,7 +389,7 @@ ClearLayoutNodeFlags(uint32_t NodeIndex, uint32_t Flags, ui_layout_tree *Tree)
     ui_layout_node *Node = GetLayoutNode(NodeIndex, Tree);
     if(Node)
     {
-        Node->Flags &= ~Flags;
+        Node->LegacyFlags &= ~Flags;
     }
 }
 
@@ -541,24 +523,20 @@ UpdateScrollNode(float ScrolledLines, ui_layout_node *Node, ui_layout_tree *Tree
     rect_float WindowContent = GetNodeOuterRect(Node);
     IterateLinkedList(Node, ui_layout_node *, Child)
     {
-        ui_paint_properties *Paint = GetPaintProperties(Node->Index, Tree);
-        if(Paint)
+        Child->ScrollOffset = vec2_float(-ScrollDelta.X, -ScrollDelta.Y);
+
+        vec2_float FixedContentSize = vec2_float(Child->ResultWidth, Child->ResultHeight);
+        rect_float ChildContent     = GetNodeOuterRect(Child);
+
+        if (FixedContentSize.X > 0.0f && FixedContentSize.Y > 0.0f) 
         {
-            Child->ScrollOffset = vec2_float(-ScrollDelta.X, -ScrollDelta.Y);
-
-            vec2_float FixedContentSize = vec2_float(Child->ResultWidth, Child->ResultHeight);
-            rect_float ChildContent     = GetNodeOuterRect(Child);
-
-            if (FixedContentSize.X > 0.0f && FixedContentSize.Y > 0.0f) 
+            if (WindowContent.IsIntersecting(ChildContent))
             {
-                if (WindowContent.IsIntersecting(ChildContent))
-                {
-                    Child->Flags &= ~UILayoutNode_DoNotPaint;
-                }
-                else
-                {
-                    Child->Flags |= UILayoutNode_DoNotPaint;
-                }
+                Child->LegacyFlags &= ~UILayoutNode_DoNotPaint;
+            }
+            else
+            {
+                Child->LegacyFlags |= UILayoutNode_DoNotPaint;
             }
         }
     }
@@ -630,7 +608,9 @@ ConsumePointerEvents(uint32_t NodeIndex, ui_layout_tree *Tree, pointer_event_lis
 
                 if(IsMouseInsideOuterBox(Event.Position, Node))
                 {
-                    VOID_ASSERT(!"WE HAVE FOUND A HOVER TARGET");
+                    // NOTE:
+                    // Now that we have fixed how we draw, we simply have to set _some_ flag and the paint command generator will
+                    // figure out what to pass.
                 }
 
             } break;
@@ -766,7 +746,7 @@ PreOrderMeasureTree(ui_layout_tree *Tree, memory_arena *Arena)
 
         UIAxis_Type UnboundedAxis = UIAxis_None;
 
-        if(Parent->Flags & UILayoutNode_HasScrollRegion)
+        if(Parent->LegacyFlags & UILayoutNode_HasScrollRegion)
         {
             VOID_ASSERT(!"Implement");
             auto *Region = static_cast<ui_scroll_region *>(QueryNodeResource(Parent->Index, 0, UIResource_ScrollRegion, Context.ResourceTable));
@@ -958,4 +938,48 @@ PlaceLayoutTree(ui_layout_tree *Tree, memory_arena *Arena)
             }
         }
     }
+}
+
+// TODO: For some reasons, I really dislike how this is implemented.
+
+static ui_paint_buffer
+GeneratePaintBuffer(ui_layout_tree *Tree, ui_cached_style *Cached, memory_arena *Arena)
+{
+    ui_layout_node **IterativeBuffer = PushArray(Arena, ui_layout_node *, Tree->NodeCount);
+    uint32_t         IterativeIndex  = 0;
+    uint32_t         CommandCount    = 0;
+
+    IterativeBuffer[IterativeIndex] = GetLayoutRoot(Tree);
+
+    if(IterativeBuffer)
+    {
+        ui_layout_node *Node = IterativeBuffer[IterativeIndex++];
+
+        if(Node)
+        {
+            // WARN: We do not do/use bounds checking anymore for this read.
+            //       Should we just pass it in?
+
+            ui_cached_style  &Style   = Cached[Node->StyleIndex];
+            ui_paint_command &Command = Tree->PaintBuffer[CommandCount++];
+
+            Command.Rectangle     = GetNodeOuterRect(Node);
+            Command.RectangleClip = {};
+            Command.TextKey       = {};
+            Command.ImageKey      = {};
+            Command.Color         = Style.Default.Color;
+            Command.BorderColor   = Style.Default.BorderColor;
+            Command.CornerRadius  = Style.Default.CornerRadius;
+            Command.Softness      = Style.Default.Softness;
+            Command.BorderWidth   = Style.Default.BorderWidth;
+
+            IterateLinkedList(Node, ui_layout_node *, Child)
+            {
+                IterativeBuffer[IterativeIndex++] = Child;
+            }
+        }
+    }
+
+    ui_paint_buffer Result = {.Commands = Tree->PaintBuffer, .Size = CommandCount};
+    return Result;
 }

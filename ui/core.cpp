@@ -469,6 +469,12 @@ MakeGlobalResourceKey(UIResource_Type Type, byte_string Name)
     return Key;
 }
 
+static bool
+IsValidResourceKey(ui_resource_key Key)
+{
+    return true;
+}
+
 static ui_resource_state
 FindResourceByKey(ui_resource_key Key, ui_resource_table *Table)
 {
@@ -741,16 +747,7 @@ void ui_node::SetText(byte_string Text, ui_pipeline &Pipeline)
         uint64_t  Size   = GetUITextFootprint(Text.Size);
         void     *Memory = AllocateUIResource(Size, &Table->Allocator);
 
-        // BUG:  Should not be 0. How do we query this?
-        ui_paint_properties *Paint = 0;
-        if(Paint)
-        {
-            ui_text *UIText = PlaceUITextInMemory(Text, Text.Size, Paint->Font, Memory);
-            VOID_ASSERT(UIText);
-
-            UpdateResourceTable(State.Id, Key, UIText, Table);
-            SetLayoutNodeFlags(Index, UILayoutNode_HasText, Pipeline.Tree);
-        }
+        // TODO: RE-IMPLEMENT
     }
     else
     {
@@ -899,20 +896,20 @@ struct pointer_event_list
 };
 
 static void
-EnqueuePointerEvent(PointerEvent Type, uint32_t PointerId, vec2_float Position, uint32_t ButtonMask, pointer_event_list *List)
+EnqueuePointerEvent(PointerEvent Type, uint32_t PointerId, vec2_float Position, uint32_t ButtonMask, pointer_event_list &List)
 {
-    VOID_ASSERT(List);                        // Internal Corruption
     VOID_ASSERT(Type != PointerEvent::None);  // Internal Corruption
 
     pointer_event_node *Node = static_cast<pointer_event_node *>(malloc(sizeof(pointer_event_node))); // TODO: Arena.
     if(Node)
     {
+        Node->Next             = 0;
         Node->Value.Type       = Type;
         Node->Value.PointerId  = PointerId;
         Node->Value.Position   = Position;
         Node->Value.ButtonMask = ButtonMask;
 
-        AppendToLinkedList(List, Node, List->Count);
+        AppendToLinkedList((&List), Node, List.Count);
     }
 }
 
@@ -920,30 +917,29 @@ static void
 UIBeginFrame(vec2_int WindowSize)
 {
     void_context &Context = GetVoidContext();
-
-    static input_pointer      Pointers[4];
+    os_inputs    *Inputs  = OSGetInputs();
 
     pointer_event_list EventList = {};
 
-    for(uint32_t Idx = 0; Idx < 4; ++Idx)
+    for(uint32_t Idx = 0; Idx < 1; ++Idx)
     {
-        input_pointer &Pointer = Pointers[Idx];
+        input_pointer &Pointer = Inputs->Pointers[Idx];
 
         uint32_t PressedButtonMask = Pointer.ButtonMask & ~Pointer.LastButtonMask;
         if(PressedButtonMask)
         {
-            EnqueuePointerEvent(PointerEvent::Click, Pointer.Id, Pointer.Position, PressedButtonMask, &EventList);
+            EnqueuePointerEvent(PointerEvent::Click, Pointer.Id, Pointer.Position, PressedButtonMask, EventList);
         }
 
         uint32_t ReleasedButtonMask = Pointer.LastButtonMask & ~Pointer.ButtonMask;
         if(ReleasedButtonMask)
         {
-            EnqueuePointerEvent(PointerEvent::Release, Pointer.Id, Pointer.Position, ReleasedButtonMask, &EventList);
+            EnqueuePointerEvent(PointerEvent::Release, Pointer.Id, Pointer.Position, ReleasedButtonMask, EventList);
         }
 
         if(Pointer.ButtonMask == BUTTON_NONE)
         {
-            EnqueuePointerEvent(PointerEvent::Hover, Pointer.Id, Pointer.Position, ReleasedButtonMask, &EventList);
+            EnqueuePointerEvent(PointerEvent::Hover, Pointer.Id, Pointer.Position, ReleasedButtonMask, EventList);
         }
 
         // NOTE: Do we really just do this here?
@@ -1086,9 +1082,16 @@ UIUnbindPipeline(UIPipeline UserPipeline)
     if(Pipeline.Bound)
     {
         PreOrderMeasureTree   (Pipeline.Tree, Pipeline.FrameArena);
-        PostOrderMeasureTree  (0            , Pipeline.Tree);
+        PostOrderMeasureTree  (0            , Pipeline.Tree);          // WARN: Passing 0 is not always correct.
         PlaceLayoutTree       (Pipeline.Tree, Pipeline.FrameArena);
-        PaintPipeline         (Pipeline);
+
+        // NOTE: Not a fan of this flow. But it does seem to be better than what we had.
+
+        ui_paint_buffer Buffer = GeneratePaintBuffer(Pipeline.Tree, Pipeline.StyleArray, Pipeline.FrameArena);
+        if(Buffer.Commands && Buffer.Size)
+        {
+            ExecutePaintCommands(Buffer, Pipeline.FrameArena);
+        }
 
         Pipeline.Bound = false;
     }
