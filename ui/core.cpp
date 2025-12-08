@@ -863,15 +863,99 @@ void ui_node::SetId(byte_string Id, ui_pipeline &Pipeline)
 }
 
 // ----------------------------------------------------------------------------------
-// Context Public API Implementation NOTE: Looks garbage!
+// Context Public API Implementation
+
+// NOTE:
+// Do we expose these types? I don't know.
+
+enum class PointerEvent
+{
+    None    = 0,
+    Move    = 1,
+    Click   = 2,
+    Release = 3,
+    Hover   = 4,
+};
+
+struct pointer_event
+{
+    PointerEvent Type;
+    uint32_t     PointerId;
+    vec2_float   Position;
+    uint32_t     ButtonMask;
+};
+
+struct pointer_event_node
+{
+    pointer_event_node *Next;
+    pointer_event       Value;
+};
+
+struct pointer_event_list
+{
+    pointer_event_node *First;
+    pointer_event_node *Last;
+    uint32_t            Count;
+};
+
+static void
+EnqueuePointerEvent(PointerEvent Type, uint32_t PointerId, vec2_float Position, uint32_t ButtonMask, pointer_event_list *List)
+{
+    VOID_ASSERT(List);                        // Internal Corruption
+    VOID_ASSERT(Type != PointerEvent::None);  // Internal Corruption
+
+    pointer_event_node *Node = static_cast<pointer_event_node *>(malloc(sizeof(pointer_event_node))); // TODO: Arena.
+    if(Node)
+    {
+        Node->Value.Type       = Type;
+        Node->Value.PointerId  = PointerId;
+        Node->Value.Position   = Position;
+        Node->Value.ButtonMask = ButtonMask;
+
+        AppendToLinkedList(List, Node, List->Count);
+    }
+}
 
 static void
 UIBeginFrame(vec2_int WindowSize)
 {
     void_context &Context = GetVoidContext();
 
-    // TODO:
-    // Reimplement this I guess?
+    static input_pointer      Pointers[4];
+
+    pointer_event_list EventList = {};
+
+    for(uint32_t Idx = 0; Idx < 4; ++Idx)
+    {
+        input_pointer &Pointer = Pointers[Idx];
+
+        uint32_t PressedButtonMask = Pointer.ButtonMask & ~Pointer.LastButtonMask;
+        if(PressedButtonMask)
+        {
+            EnqueuePointerEvent(PointerEvent::Click, Pointer.Id, Pointer.Position, PressedButtonMask, &EventList);
+        }
+
+        uint32_t ReleasedButtonMask = Pointer.LastButtonMask & ~Pointer.ButtonMask;
+        if(ReleasedButtonMask)
+        {
+            EnqueuePointerEvent(PointerEvent::Release, Pointer.Id, Pointer.Position, ReleasedButtonMask, &EventList);
+        }
+
+        if(Pointer.ButtonMask == BUTTON_NONE)
+        {
+            EnqueuePointerEvent(PointerEvent::Hover, Pointer.Id, Pointer.Position, ReleasedButtonMask, &EventList);
+        }
+
+        // NOTE: Do we really just do this here?
+        Pointer.LastButtonMask = Pointer.ButtonMask;
+    }
+
+    for(uint32_t Idx = 0; Idx < Context.PipelineCount; ++Idx)
+    {
+        ui_pipeline &Pipeline = Context.PipelineArray[Idx];
+
+        ConsumePointerEvents(0, Pipeline.Tree, &EventList);
+    }
 
     Context.WindowSize = WindowSize;
 }
@@ -973,11 +1057,9 @@ UICreatePipeline(const ui_pipeline_params &Params)
         // NOTE:
         // Unsure how/if I want this yet, but don't need it right now.
     }
-}
 
-// NOTE:
-// What about the layout tree? Its state should simply be correct??
-// Or do we need to check something?
+    ++Context.PipelineCount;
+}
 
 static ui_pipeline &
 UIBindPipeline(UIPipeline UserPipeline)
@@ -1006,7 +1088,7 @@ UIUnbindPipeline(UIPipeline UserPipeline)
         PreOrderMeasureTree   (Pipeline.Tree, Pipeline.FrameArena);
         PostOrderMeasureTree  (0            , Pipeline.Tree);
         PlaceLayoutTree       (Pipeline.Tree, Pipeline.FrameArena);
-        PaintTree             (Pipeline.Tree, Pipeline.FrameArena);
+        PaintPipeline         (Pipeline);
 
         Pipeline.Bound = false;
     }
@@ -1022,52 +1104,4 @@ UIGetDefaultPipelineParams(void)
     };
 
     return Params;
-}
-
-// ==================================================================================
-// @Internal: Event Handling
-
-enum class UIInputEvent
-{
-    None          = 0,
-    MouseClicked  = 1,
-    MouseReleased = 2,
-    MouseMoved    = 3,
-};
-
-struct input_frame_state
-{
-    bool LookingForHoverSource; // NOTE: Looking to hover 'something'
-    bool LookingForClickSource; // NOTE: Looking to click 'something'
-    bool LookingForClearSource; // NOTE: Looking to clear focus
-};
-
-static void
-ProcessInputEvents()
-{
-    void_context &Context = GetVoidContext();
-
-    // NOTE:
-    // We force left click? Obviously is wrong. We should check all buttons?
-    // Uhm. Or we change how we generate input events? Hard to say right now.
-
-    // NOTE:
-    // How do node release focus? If Node.HasFocus && MouseReleased -> Release.
-    // Means we need to check for each node. Sure. Setting focus to multiple
-    // nodes is trivial then. But then feeding input events look weird?
-    // Ah, also, it means that to release focus you have to scan every node in the
-    // tree. Which is weird. Uhm. It's trivial but it "feels" bad. I guess. Uhm.
-
-    // NOTE:
-    // Do we always scan bottom up? I think so, is there a trick to release focus
-    // efficiently? I don't think so. What if we implement a dump approach first.
-
-    vec2_f32 MouseDelta    = OSGetMouseDelta();
-    bool     MouseClicked  = OSIsMouseClicked(OSMouseButton_Left);
-    bool     MouseReleased = OSIsMouseReleased(OSMouseButton_Left);
-
-    for(uint32_t Idx = 0; Idx < VOID_ARRAYCOUNT(Context.PipelineZBuffer); ++Idx)
-    {
-        ui_pipeline &Pipeline = Context.PipelineZBuffer[Idx];
-    }
 }

@@ -32,24 +32,6 @@ ProcessInputMessage(os_button_state *NewState, bool IsDown)
     }
 }
 
-static vec2_float
-OSGetMousePosition(void)
-{
-    os_inputs *Inputs = OSGetInputs();
-    vec2_float Result = Inputs->MousePosition;
-
-    return Result;
-}
-
-static vec2_float
-OSGetMouseDelta(void)
-{
-    os_inputs *Inputs = OSGetInputs();
-    vec2_float Result = Inputs->MouseDelta;
-
-    return Result;
-}
-
 static float
 OSGetScrollDelta(void)
 {
@@ -59,54 +41,17 @@ OSGetScrollDelta(void)
     return Result;
 }
 
-static bool
-OSIsMouseClicked(OSMouseButton_Type Button)
-{
-    os_inputs       *Inputs = OSGetInputs();
-    os_button_state *State  = &Inputs->MouseButtons[Button];
-    bool              Result = (State->EndedDown && State->HalfTransitionCount > 0);
-
-    return Result;
-}
-
-static bool
-OSIsMouseHeld(OSMouseButton_Type Button)
-{
-    os_inputs       *Inputs = OSGetInputs();
-    os_button_state *State  = &Inputs->MouseButtons[Button];
-    bool             Result = (State->EndedDown && State->HalfTransitionCount == 0);
-
-    return Result;
-}
-
-static bool 
-OSIsMouseReleased(OSMouseButton_Type Button)
-{
-    os_inputs       *Inputs = OSGetInputs();
-    os_button_state *State  = &Inputs->MouseButtons[Button];
-    bool             Result = (!State->EndedDown && State->HalfTransitionCount > 0);
-
-    return Result;
-}
-
 static void
 OSClearInputs(os_inputs *Inputs)
 {
     Inputs->ScrollDeltaInLines = 0.f;
-    Inputs->MouseDelta         = vec2_float(0.f, 0.f);
 
     for (uint32_t Idx = 0; Idx < OS_KeyboardButtonCount; Idx++)
     {
         Inputs->KeyboardButtons[Idx].HalfTransitionCount = 0;
     }
 
-    for (uint32_t Idx = 0; Idx < OS_MouseButtonCount; Idx++)
-    {
-        Inputs->MouseButtons[Idx].HalfTransitionCount = 0;
-    }
-
-    Inputs->ButtonBuffer.Count = 0;
-    Inputs->UTF8Buffer.Count   = 0;
+    // TODO: Pointer clear?
 }
 
 // [Agnostic File API]

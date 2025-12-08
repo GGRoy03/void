@@ -80,14 +80,11 @@ OSWin32WindowProc(HWND Handle, UINT Message, WPARAM WParam, LPARAM LParam)
 
     case WM_MOUSEMOVE:
     {
-        int MouseX = GET_X_LPARAM(LParam);
-        int MouseY = GET_Y_LPARAM(LParam);
+        vec2_float MousePosition = vec2_float(float(GET_X_LPARAM(LParam)), float(GET_Y_LPARAM(LParam)));
 
-        Inputs->MouseDelta.X += (float)(MouseX - Inputs->MousePosition.X);
-        Inputs->MouseDelta.Y += (float)(MouseY - Inputs->MousePosition.Y);
-
-        Inputs->MousePosition.X = (float)MouseX;
-        Inputs->MousePosition.Y = (float)MouseY;
+        input_pointer &Pointer = Inputs->Pointers[0];
+        Pointer.Delta   += MousePosition - Pointer.Position;
+        Pointer.Position = MousePosition;
     } break;
 
     case WM_MOUSEWHEEL:
@@ -115,58 +112,30 @@ OSWin32WindowProc(HWND Handle, UINT Message, WPARAM WParam, LPARAM LParam)
         {
             ProcessInputMessage(&Inputs->KeyboardButtons[KeyIndex], IsDown);
         }
-
-        os_button_action Action =
-        {
-            .IsPressed = ((!WasDown) && IsDown),
-            .Keycode   = KeyIndex,
-        };
-
-        if(Inputs->ButtonBuffer.Count < Inputs->ButtonBuffer.Size)
-        {
-            Inputs->ButtonBuffer.Actions[Inputs->ButtonBuffer.Count++] = Action;
-        }
-    } break;
-
-    case WM_CHAR:
-    {
-        WCHAR       WideChar = (WCHAR)WParam;
-        wide_string String   = WideString((uint16_t *)&WideChar, 1);
-
-        memory_region Local = EnterMemoryRegion(OSWin32State.Arena);
-
-        byte_string New = WideStringToByteString(String, Local.Arena);
-
-        uint8_t *Start = Inputs->UTF8Buffer.UTF8 + Inputs->UTF8Buffer.Count;
-        uint8_t *End   = Inputs->UTF8Buffer.UTF8 + Inputs->UTF8Buffer.Size;
-
-        if(IsValidByteString(New) && (Start + New.Size < End))
-        {
-            MemoryCopy(Start, New.String, New.Size);
-            Inputs->UTF8Buffer.Count += New.Size;
-        }
-
-        LeaveMemoryRegion(Local);
     } break;
 
     case WM_LBUTTONDOWN:
     {
-        ProcessInputMessage(&Inputs->MouseButtons[OSMouseButton_Left], 1);
+        input_pointer &Pointer = Inputs->Pointers[0];
+        Pointer.ButtonMask |= BUTTON_PRIMARY;
     } break;
 
     case WM_LBUTTONUP:
     {
-        ProcessInputMessage(&Inputs->MouseButtons[OSMouseButton_Left], 0);
+        input_pointer &Pointer = Inputs->Pointers[0];
+        Pointer.ButtonMask &= ~BUTTON_PRIMARY;
     } break;
 
     case WM_RBUTTONDOWN:
     {
-        ProcessInputMessage(&Inputs->MouseButtons[OSMouseButton_Right], 1);
+        input_pointer &Pointer = Inputs->Pointers[0];
+        Pointer.ButtonMask |= BUTTON_SECONDARY;
     } break;
 
     case WM_RBUTTONUP:
     {
-        ProcessInputMessage(&Inputs->MouseButtons[OSMouseButton_Right], 0);
+        input_pointer &Pointer = Inputs->Pointers[0];
+        Pointer.ButtonMask &= ~BUTTON_SECONDARY;
     } break;
 
     case WM_CLOSE:
@@ -275,9 +244,6 @@ wWinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPWSTR CmdLine, int ShowCmd
         OSWin32State.HWindow    = OSWin32InitializeWindow(vec2_int(1920,1080), ShowCmd);
         OSWin32State.SystemInfo = OSWin32QuerySystemInfo();
         OSWin32State.Arena      = AllocateArena(ArenaParams);
-
-        OSWin32State.Inputs.ButtonBuffer.Size = 128;
-        OSWin32State.Inputs.UTF8Buffer.Size   = VOID_KILOBYTE(1);
 
         OSWin32InitializeDWriteFactory(&OSWin32State.DWriteFactory);
     }
@@ -477,34 +443,6 @@ OSReleaseFile(os_handle Handle)
 
 // [Windowing]
 
-static void
-OSSetCursor(OSCursor_Type Type)
-{
-    VOID_ASSERT(Type >= OSCursor_Default && Type <= OSCursor_GrabHand);
-
-    HCURSOR Cursor = 0;
-
-    switch (Type)
-    {
-    case OSCursor_None:                      Cursor = LoadCursor(0, IDC_ARROW);    break;
-    case OSCursor_Default:                   Cursor = LoadCursor(0, IDC_ARROW);    break;
-    case OSCursor_EditText:                  Cursor = LoadCursor(0, IDC_IBEAM);    break;
-    case OSCursor_Waiting:                   Cursor = LoadCursor(0, IDC_WAIT);     break;
-    case OSCursor_Loading:                   Cursor = LoadCursor(0, IDC_WAIT);     break;
-    case OSCursor_ResizeVertical:            Cursor = LoadCursor(0, IDC_SIZENS);   break;
-    case OSCursor_ResizeHorizontal:          Cursor = LoadCursor(0, IDC_SIZEWE);   break;
-    case OSCursor_ResizeDiagonalLeftToRight: Cursor = LoadCursor(0, IDC_SIZENWSE); break;
-    case OSCursor_ResizeDiagonalRightToLeft: Cursor = LoadCursor(0, IDC_SIZENESW); break;
-    case OSCursor_GrabHand:                  Cursor = LoadCursor(0, IDC_HAND);     break;
-    }
-
-    if (Cursor)
-    {
-        SetCursor(Cursor);
-    }
-}
-
-// [Agnostic Queries]
 
 static os_system_info *
 OSGetSystemInfo(void)
@@ -517,22 +455,6 @@ static os_inputs *
 OSGetInputs(void)
 {
     os_inputs *Result = &OSWin32State.Inputs;
-    return Result;
-}
-
-static os_button_playback *
-OSGetButtonPlayback(void)
-{
-    os_inputs          *Inputs = &OSWin32State.Inputs;
-    os_button_playback *Result = &Inputs->ButtonBuffer;
-    return Result;
-}
-
-static os_utf8_playback *
-OSGetTextPlayback(void)
-{
-    os_inputs        *Inputs = &OSWin32State.Inputs;
-    os_utf8_playback *Result = &Inputs->UTF8Buffer;
     return Result;
 }
 

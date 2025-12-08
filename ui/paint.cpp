@@ -219,8 +219,11 @@ PaintDebugInformation(ui_layout_node *Node, ui_corner_radius CornerRadii, float 
 // Painting Public API Implementation
 
 static void
-PaintTree(ui_layout_tree *Tree, memory_arena *Arena)
+PaintPipeline(ui_pipeline &Pipeline)
 {
+    memory_arena   *Arena = Pipeline.FrameArena;
+    ui_layout_tree *Tree  = Pipeline.Tree;
+
     void_context   &Context = GetVoidContext();
     paint_stack     Stack   = BeginPaintStack(Tree->NodeCount, Arena);
     ui_layout_node *Root    = Tree->Nodes; // NOTE: Isn't there a helper?
@@ -233,14 +236,15 @@ PaintTree(ui_layout_tree *Tree, memory_arena *Arena)
         {
             paint_stack_frame Frame = PopPaintStack(&Stack);
 
-            rect_float     ClipRect  = Frame.Clip;
-            ui_layout_node *Node      = Frame.Node;
+            rect_float      ClipRect = Frame.Clip;
+            ui_layout_node *Node     = Frame.Node;
 
             rect_float FinalRect = GetNodeOuterRect(Node);
 
             // Painting
             {
-                render_batch_list   *BatchList = GetPaintBatchList(Node, Tree, Arena, ClipRect);
+                render_batch_list *BatchList = GetPaintBatchList(Node, Tree, Arena, ClipRect);
+
                 ui_paint_properties *Paint     = GetPaintProperties(Node->Index, Tree);
 
                 ui_corner_radius CornerRadii = Paint->CornerRadius;

@@ -346,16 +346,6 @@ typedef struct ui_font_list
     uint32_t Count;
 } ui_font_list;
 
-enum class FocusIntent
-{
-    None          = 0,
-    Drag          = 1,
-    ResizeX       = 2,
-    ResizeY       = 3,
-    ResizeXY      = 4,
-    EditTextInput = 5,
-};
-
 struct void_context
 {
     // Memory
@@ -364,17 +354,9 @@ struct void_context
     // State
     ui_resource_table *ResourceTable;
     ui_pipeline        PipelineArray[PipelineCount];
-    ui_pipeline       &PipelineZBuffer[PipelineCount];
+    uint32_t           PipelineCount;
 
-    // Transient
-    uint32_t    HoveredNodeIndex;
-    uint32_t    FocusedNodeIndex;
-    FocusIntent FocusIntent;
-
-    // NOTE: What about this? Still need it? Could be global resources though.
-    // Ah, I see, still this weird D3D11 issue.
-
-    ui_font_list     Fonts;
+    ui_font_list     Fonts; // TODO: Font a solution such that this is a global resource.
 
     // State
     vec2_int   WindowSize;

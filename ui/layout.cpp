@@ -564,190 +564,22 @@ UpdateScrollNode(float ScrolledLines, ui_layout_node *Node, ui_layout_tree *Tree
     }
 }
 
-// -----------------------------------------------------------
-// UI Event internal Implementation
-
-typedef enum UIEvent_Type
-{
-    UIEvent_Hover     = 1 << 0,
-    UIEvent_Click     = 1 << 1,
-    UIEvent_Resize    = 1 << 2,
-    UIEvent_Drag      = 1 << 3,
-    UIEvent_Scroll    = 1 << 4,
-    UIEvent_TextInput = 1 << 5,
-    UIEvent_Key       = 1 << 6,
-} UIEvent_Type;
-
-typedef struct ui_hover_event
-{
-    ui_layout_node *Node;
-} ui_hover_event;
-
-typedef struct ui_click_event
-{
-    ui_layout_node *Node;
-} ui_click_event;
-
-typedef struct ui_resize_event
-{
-    ui_layout_node *Node;
-    vec2_float      Delta;
-} ui_resize_event;
-
-typedef struct ui_drag_event
-{
-    ui_layout_node *Node;
-    vec2_float        Delta;
-} ui_drag_event;
-
-typedef struct ui_scroll_event
-{
-    ui_layout_node *Node;
-    float           Delta;
-} ui_scroll_event;
-
-typedef struct ui_text_input_event
-{
-    byte_string     Text;
-    ui_layout_node *Node;
-} ui_text_input_event;
-
-typedef struct ui_key_event
-{
-    uint32_t        Keycode;
-    ui_layout_node *Node;
-} ui_key_event;
-
-typedef struct ui_event
-{
-    UIEvent_Type Type;
-    union
-    {
-        ui_hover_event      Hover;
-        ui_click_event      Click;
-        ui_resize_event     Resize;
-        ui_drag_event       Drag;
-        ui_scroll_event     Scroll;
-        ui_text_input_event TextInput;
-        ui_key_event        Key;
-    };
-} ui_event;
-
-typedef struct ui_event_node ui_event_node;
-struct ui_event_node
-{
-    ui_event_node *Next;
-    ui_event       Value;
-};
-
-static void 
-RecordUIEvent(ui_event Event, ui_event_list *EventList, memory_arena *Arena)
-{
-    VOID_ASSERT(EventList);
-
-    ui_event_node *Node = PushStruct(Arena, ui_event_node);
-    if(Node)
-    {
-        Node->Value = Event;
-        AppendToLinkedList(EventList, Node, EventList->Count);
-    }
-}
-
-static void
-RecordUIHoverEvent(ui_layout_node *Node, ui_event_list *EventList, memory_arena *Arena)
-{
-    ui_event Event = {};
-    Event.Type       = UIEvent_Hover;
-    Event.Hover.Node = Node;
-
-    RecordUIEvent(Event, EventList, Arena);
-}
-
-static void
-RecordUIClickEvent(ui_layout_node *Node, ui_event_list *EventList, memory_arena *Arena)
-{
-    ui_event Event = {};
-    Event.Type       = UIEvent_Click;
-    Event.Click.Node = Node;
-    RecordUIEvent(Event, EventList, Arena);
-}
-
-static void
-RecordUIScrollEvent(ui_layout_node *Node, float Delta, ui_event_list *EventList, memory_arena *Arena)
-{
-    ui_event Event = {};
-    Event.Type         = UIEvent_Scroll;
-    Event.Scroll.Node  = Node;
-    Event.Scroll.Delta = Delta;
-    RecordUIEvent(Event, EventList, Arena);
-}
-
-static void
-RecordUIResizeEvent(ui_layout_node *Node, vec2_float Delta, ui_event_list *EventList, memory_arena *Arena)
-{
-    ui_event Event = {};
-    Event.Type         = UIEvent_Resize;
-    Event.Resize.Node  = Node;
-    Event.Resize.Delta = Delta;
-    RecordUIEvent(Event, EventList, Arena);
-}
-
-static void
-RecordUIDragEvent(ui_layout_node *Node, vec2_float Delta, ui_event_list *EventList, memory_arena *Arena)
-{
-    ui_event Event = {};
-    Event.Type       = UIEvent_Drag;
-    Event.Drag.Node  = Node;
-    Event.Drag.Delta = Delta;
-    RecordUIEvent(Event, EventList, Arena);
-}
-
-static void
-RecordUIKeyEvent(uint32_t Keycode, ui_layout_node *Node, ui_event_list *EventList, memory_arena *Arena)
-{
-    ui_event Event = {};
-    Event.Type        = UIEvent_Key;
-    Event.Key.Node    = Node;
-    Event.Key.Keycode = Keycode;
-    RecordUIEvent(Event, EventList, Arena);
-}
-
-static void
-RecordUITextInputEvent(byte_string Text, ui_layout_node *Node, ui_event_list *EventList, memory_arena *Arena)
-{
-    ui_event Event = {};
-    Event.Type           = UIEvent_TextInput;
-    Event.TextInput.Node = Node;
-    Event.TextInput.Text = Text;
-    RecordUIEvent(Event, EventList, Arena);
-}
-
-// TODO:
-// Revert back to passing a node instead?
-
 static bool
-IsMouseInsideOuterBox(vec2_float MousePosition, uint32_t NodeIndex, ui_layout_tree *Tree)
+IsMouseInsideOuterBox(vec2_float MousePosition, ui_layout_node *Node)
 {
-    VOID_ASSERT(Tree); // Internal Corruption
+    VOID_ASSERT(Node); // Internal Corruption
 
-    float Distance = 1.f;
+    vec2_float OuterSize  = vec2_float(Node->ResultWidth, Node->ResultHeight);
+    vec2_float OuterPos   = vec2_float(Node->ResultX    , Node->ResultY     ) + Node->ScrollOffset;
+    vec2_float OuterHalf  = vec2_float(OuterSize.X * 0.5f, OuterSize.Y * 0.5f);
+    vec2_float Center     = OuterPos + OuterHalf;
+    vec2_float LocalMouse = MousePosition - Center;
 
-    ui_layout_node *Node = GetLayoutNode(NodeIndex, Tree);
-    if(Node)
-    {
-        vec2_float OuterSize  = vec2_float(Node->ResultWidth, Node->ResultHeight);
-        vec2_float OuterPos   = vec2_float(Node->ResultX    , Node->ResultY     ) + Node->ScrollOffset;
-        vec2_float OuterHalf  = vec2_float(OuterSize.X * 0.5f, OuterSize.Y * 0.5f);
-        vec2_float Center     = OuterPos + OuterHalf;
-        vec2_float LocalMouse = MousePosition - Center;
+    rect_sdf_params Params = {0};
+    Params.HalfSize      = OuterHalf;
+    Params.PointPosition = LocalMouse;
 
-        rect_sdf_params Params = {0};
-        Params.HalfSize      = OuterHalf;
-        Params.PointPosition = LocalMouse;
-
-        Distance = RoundedRectSDF(Params);
-    }
-
+    float Distance = RoundedRectSDF(Params);
     return Distance <= 0.f;
 }
 
@@ -772,237 +604,42 @@ IsMouseInsideBorder(vec2_float MousePosition, ui_layout_node *Node)
 }
 
 static void
-ClearUIEvents(ui_event_list *EventList)
-{
-    VOID_ASSERT(EventList);
-
-    EventList->First = 0;
-    EventList->Last  = 0;
-    EventList->Count = 0;
-}
-
-static FocusIntent
-DetermineResizeIntent(vec2_float MousePosition, ui_layout_node *Node, ui_layout_tree *Tree)
-{
-    vec2_float InnerSize   = vec2_float(Node->ResultWidth, Node->ResultHeight) - vec2_float(0.f, 0.f);
-    vec2_float InnerPos    = vec2_float(Node->ResultX    , Node->ResultY     ) - vec2_float(0.f, 0.f) + Node->ScrollOffset;
-
-    float Left        = InnerPos.X;
-    float Top         = InnerPos.Y;
-    float Width       = InnerSize.X;
-    float Height      = InnerSize.Y;
-    float BorderWidth = GetPaintProperties(Node->Index, Tree)->BorderWidth; // WARN: Not safe.
-
-    float CornerTolerance = 5.f;
-    float CornerX         = Left + Width;
-    float CornerY         = Top  + Height;
-
-    rect_float RightEdge  = rect_float::FromXYWH(Left + Width, Top, BorderWidth, Height);
-    rect_float BottomEdge = rect_float::FromXYWH(Left, Top + Height, Width, BorderWidth);
-    rect_float Corner     = rect_float::FromXYWH(CornerX, CornerY, CornerTolerance, CornerTolerance);
-
-    FocusIntent Result = FocusIntent::None;
-
-    if(Corner.IsPointInside(MousePosition))
-    {
-        Result = FocusIntent::ResizeXY;
-    } else
-    if(RightEdge.IsPointInside(MousePosition))
-    {
-        Result = FocusIntent::ResizeX;
-    } else
-    if(BottomEdge.IsPointInside(MousePosition))
-    {
-        Result = FocusIntent::ResizeY;
-    }
-
-    return Result;
-}
-
-// NOTE:
-// Trying something new. It feels like this has to do input queries.
-// Let's use recursion for simplicity?
-
-static void
-SomeEventFunction(uint32_t NodeIndex, ui_layout_tree *Tree)
+ConsumePointerEvents(uint32_t NodeIndex, ui_layout_tree *Tree, pointer_event_list *EventList)
 {
     ui_layout_node *Node = GetLayoutNode(NodeIndex, Tree);
 
-    IterateLinkedList(Node, ui_layout_node *, Child)
-    {
-        SomeEventFunction(Child->Index, Tree);
-    }
-
     if(Node)
     {
-        if(IsMouseInsideOuterBox(OSGetMousePosition(), NodeIndex, Tree))
+        IterateLinkedList(Node, ui_layout_node *, Child)
         {
-            if(OSIsMouseClicked(Node->ClickMouseButton))
-            {
-                Node->IsFocused = 1;
-            }
-            else
-            {
-                Node->IsHovered = 1;
-            }
+            ConsumePointerEvents(Child->Index, Tree, EventList);
         }
 
-        if(Node->IsFocused && OSIsMouseReleased(Node->FocusMouseButton))
+        IterateLinkedList(EventList, pointer_event_node *, EventNode)
         {
-            Node->IsFocused = 0;
-        }
+            pointer_event &Event = EventNode->Value;
 
-        if(Node->IsFocused)
-        {
-            // NOTE: Do whatever.
-        }
-
-        if(Node->IsHovered)
-        {
-            // NOTE: Do whatever.
-        }
-    }
-
-    // BUG:
-    // The logic is:
-    // One 'thing' can be the hover source (can propagate)
-    // One 'thing' can be the click source (can propagate)
-    // Thus, when we have found it we do not need to check for it anymore.
-    // I'm thinking we have some sort of parameters:
-    // LookingForHoverSource = 1 if no focus                  else 0
-    // LookingForClickSource = 1 if no focus && mouse clicked else 0
-    // LookingForRelease     = ??
-    // And we mutate/return the new state here.
-}
-
-// NOTE:
-// Will change to a central processer probably?
-
-static void
-ProcessUIEvents(ui_event_list *Events, ui_layout_tree *Tree)
-{
-    VOID_ASSERT(Events);
-
-    void_context &Context = GetVoidContext();
-
-    IterateLinkedList(Events, ui_event_node *, Node)
-    {
-        ui_event *Event = &Node->Value;
-
-        switch(Event->Type)
-        {
-
-        case UIEvent_Hover:
-        {
-            ui_hover_event Hover = Event->Hover;
-            VOID_ASSERT(Hover.Node);
-
-            // TODO: Modify the paint properties.
-            // SetNodeStyleState(StyleState_Hovered, Hover.Node->Index, Tree);
-        } break;
-
-        case UIEvent_Click:
-        {
-        } break;
-
-        case UIEvent_Resize:
-        {
-            ui_resize_event Resize = Event->Resize;
-
-            ui_paint_properties *Paint = GetPaintProperties(Resize.Node->Index, Tree);
-            if(Paint)
+            switch(Event.Type)
             {
-                // TODO: Reimplement this.
-            }
-        } break;
 
-        // NOTE:
-        // Perhaps these are animations? I do not have an animation system right now.
-
-        case UIEvent_Drag:
-        {
-            ui_drag_event Drag = Event->Drag;
-
-            ui_layout_node *Node = Drag.Node;
-            VOID_ASSERT(Node);
-
-            Node->ResultX += Drag.Delta.X;
-            Node->ResultY += Drag.Delta.Y;
-        } break;
-
-        case UIEvent_Scroll:
-        {
-            ui_scroll_event Scroll = Event->Scroll;
-            VOID_ASSERT(Scroll.Node);
-            VOID_ASSERT(Scroll.Delta);
-
-            ui_scroll_region *Region = (ui_scroll_region *)QueryNodeResource(Scroll.Node->Index, Tree, UIResource_ScrollRegion, Context.ResourceTable);
-            VOID_ASSERT(Region);
-
-            UpdateScrollNode(Scroll.Delta, Scroll.Node, Tree, Region);
-        } break;
-
-        case UIEvent_Key:
-        {
-            ui_key_event Key = Event->Key;
-            VOID_ASSERT(Key.Node);
-
-            ui_layout_node    *Node  = Key.Node;
-            ui_resource_table *Table = Context.ResourceTable;
-
-            if((Node->Flags & UILayoutNode_HasTextInput))
+            case PointerEvent::Hover:
             {
-                ui_text_input *Input = (ui_text_input *)QueryNodeResource(Node->Index, Tree, UIResource_TextInput, Table);
-                VOID_ASSERT(Input);
+                // TODO: Either we eat by removing the link or we mark it as
+                // complete. Unsure. In any case, here we would do whatever
+                // we need to do for hovers. So this should work.
 
-                if(Input->OnKey)
+                if(IsMouseInsideOuterBox(Event.Position, Node))
                 {
-                    Input->OnKey((OSInputKey_Type)Key.Keycode, Input->OnKeyUserData);
+                    VOID_ASSERT(!"WE HAVE FOUND A HOVER TARGET");
                 }
-            }
-        } break;
 
-        case UIEvent_TextInput:
-        {
-            ui_text_input_event TextInput = Event->TextInput;
-            VOID_ASSERT(TextInput.Node);
+            } break;
 
-            ui_layout_node    *Node  = TextInput.Node;
-            ui_resource_table *Table = Context.ResourceTable;
-
-            ui_text       *Text  = (ui_text *)      QueryNodeResource(Node->Index, Tree, UIResource_Text     , Table);
-            ui_text_input *Input = (ui_text_input *)QueryNodeResource(Node->Index, Tree, UIResource_TextInput, Table);
-
-            VOID_ASSERT(Text);
-            VOID_ASSERT(Input);
-
-            if(IsValidByteString(TextInput.Text))
+            default:
             {
-                ui_paint_properties *Paint = GetPaintProperties(Node->Index, Tree);
-                if(Paint)
-                {
-                    uint32_t CountBeforeAppend = Text->ShapedCount;
-                    UITextAppend_(TextInput.Text, Paint->Font, Text);
-                    uint32_t CountAfterAppend = Text->ShapedCount;
+            } break;
 
-                    UITextInputMoveCaret_(Text, Input, CountAfterAppend - CountBeforeAppend);
-
-                    // NOTE: BAD! IDK WHAT TO DO!
-                    ByteStringAppendTo(Input->UserBuffer, TextInput.Text, Input->internalCount);
-                    Input->internalCount += TextInput.Text.Size;
-                }
             }
-
-            if(Text->ShapedCount > 0)
-            {
-                Node->Flags |= UILayoutNode_HasText;
-            }
-            else
-            {
-                Node->Flags &= ~UILayoutNode_HasText;
-            }
-        } break;
-
         }
     }
 }

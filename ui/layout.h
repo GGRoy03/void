@@ -1,7 +1,8 @@
 #define InvalidLayoutNodeIndex 0xFFFFFFFF
 
-// NOTE:
-// Should not be exposed in the header?
+struct pointer_event_list;
+
+// TODO: Remove some of these flags or separate them into two categories.
 
 typedef enum UILayoutNode_Flag
 {
@@ -34,24 +35,21 @@ static bool             PopLayoutParent          (uint32_t Index, ui_layout_tree
 static void             PreOrderMeasureTree      (ui_layout_tree *Tree, memory_arena *Arena);
 static void             PostOrderMeasureTree     (uint32_t NodeIndex , ui_layout_tree *Tree);
 static void             PlaceLayoutTree          (ui_layout_tree *Tree, memory_arena *Arena);
+static void             ConsumePointerEvents     (uint32_t NodeIndex, ui_layout_tree *Tree, pointer_event_list *EventList);
 
+// TODO: Need to find a solution to remove these.
 static void SetLayoutNodeFlags    (uint32_t NodeIndex, uint32_t Flags, ui_layout_tree *Tree);
 static void ClearLayoutNodeFlags  (uint32_t NodeIndex, uint32_t Flags, ui_layout_tree *Tree);
 
 // -----------------------------------------------------------------------------------
 // @internal: Node Queries
 
-static rect_float
-GetNodeOuterRect(ui_layout_node *Node);
+// NOTE: Should we ask for a layout node?
 
-static rect_float
-GetNodeInnerRect(ui_layout_node *Node);
-
-static rect_float
-GetNodeContentRect(ui_layout_node *Node);
-
-static void
-SetNodeProperties(uint32_t NodeIndex, uint32_t StyleIndex, const ui_cached_style &Cached, ui_layout_tree *Tree);
+static rect_float GetNodeOuterRect    (ui_layout_node *Node);
+static rect_float GetNodeInnerRect    (ui_layout_node *Node);
+static rect_float GetNodeContentRect  (ui_layout_node *Node);
+static void       SetNodeProperties   (uint32_t NodeIndex, uint32_t StyleIndex, const ui_cached_style &Cached, ui_layout_tree *Tree);
 
 // ------------------------------------------------------------------------------------
 // @internal: Tree Queries

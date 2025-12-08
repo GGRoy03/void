@@ -57,82 +57,74 @@ typedef struct ui_style_registry ui_style_registry;
 
 // [Core Types]
 
-typedef struct os_system_info
+struct os_system_info
 {
     uint32_t PageSize;
     uint32_t ProcessorCount;
-} os_system_info;
+};
 
-typedef struct os_button_state
+struct os_button_state
 {
-    bool EndedDown;
+    bool     EndedDown;
     uint32_t HalfTransitionCount;
-} os_button_state;
+};
 
-typedef struct os_button_action
+enum class PointerSource
 {
-    bool IsPressed;
-    uint32_t Keycode;
-} os_button_action;
+    None       = 0,
+    Mouse      = 1,
+    Touch      = 2,
+    Pen        = 3,
+    Controller = 4,
+};
 
-typedef struct os_button_playback
-{
-    os_button_action Actions[256];
-    uint32_t              Count;
-    uint32_t              Size;
-} os_button_playback;
+constexpr uint32_t BUTTON_NONE      = 0;
+constexpr uint32_t BUTTON_PRIMARY   = 1u << 0;
+constexpr uint32_t BUTTON_SECONDARY = 1u << 1;
 
-typedef struct os_utf8_playback
+struct input_pointer
 {
-    uint8_t  UTF8[1024];
-    uint32_t Count;
-    uint32_t Size;
-} os_utf8_playback;
+    uint32_t      Id;
+    PointerSource Source;
+    vec2_float    Position;
+    vec2_float    Delta;
+    bool          IsCaptured;
+    uint32_t      ButtonMask;
+    uint32_t      LastButtonMask;
+};
 
-typedef struct os_inputs
+// NOTE:
+// We force the pointer array to size 1 for now. We simply want to test with the mouse
+
+struct os_inputs
 {
-    bool             IsActiveFrame;
     os_button_state KeyboardButtons[OS_KeyboardButtonCount];
-    vec2_float        MousePosition;
-    vec2_float        MouseDelta;
-    os_button_state MouseButtons[OS_MouseButtonCount];
-
-    // Keyboard
-    os_button_playback ButtonBuffer;
-    os_utf8_playback   UTF8Buffer;
+    input_pointer   Pointers[1];
 
     // Mouse
     float ScrollDeltaInLines;
-    int WheelScrollLine;
-} os_inputs;
+    int   WheelScrollLine;
+};
 
 typedef struct os_read_file
 {
     byte_string Content;
-    uint64_t         At;
-    bool         FullyRead;
+    uint64_t    At;
+    bool        FullyRead;
 } os_read_file;
 
 typedef struct os_glyph_info
 {
-    vec2_int Size;
+    vec2_int   Size;
     vec2_float Offset;
     float      AdvanceX;
 } os_glyph_info;
 
 // [Inputs]
 
-static void      ProcessInputMessage  (os_button_state *NewState, bool IsDown);
-static vec2_float  OSGetMousePosition   (void);
-static vec2_float  OSGetMouseDelta      (void);
-static float       OSGetScrollDelta     (void);
-static bool       OSIsMouseClicked     (OSMouseButton_Type Button);
-static bool       OSIsMouseHeld        (OSMouseButton_Type Button);
-static bool       OSIsMouseReleased    (OSMouseButton_Type Button);
-static void      OSClearInputs        (os_inputs *Inputs);
-
-static os_button_playback * OSGetButtonPlayback  (void);
-static os_utf8_playback   * OSGetTextPlayback    (void);
+static void       ProcessInputMessage  (os_button_state *NewState, bool IsDown);
+static float      OSGetScrollDelta     (void);
+static void       OSClearInputs        (os_inputs *Inputs);
 
 // [Files]
 
@@ -241,7 +233,7 @@ static bool IsKeyClicked  (OSInputKey_Type Key);
 typedef struct os_font_context os_font_context;
 typedef struct gpu_font_context gpu_font_context;
 
-bool  OSAcquireFontContext  (byte_string FontName, float FontSize, gpu_font_context *GPUContext, os_font_context *OSContext);
+bool OSAcquireFontContext  (byte_string FontName, float FontSize, gpu_font_context *GPUContext, os_font_context *OSContext);
 void OSReleaseFontContext  (os_font_context *Context);
 
 // OSGetGlyphInfo:
