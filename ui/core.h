@@ -259,6 +259,10 @@ static void * QueryGlobalResource  (byte_string Name, UIResource_Type Type, ui_r
 
 // -----------------------------------------------------------------------------------
 
+struct pointer_event_node;
+struct pointer_event_list;
+static void ConsumePointerEvent  (pointer_event_node *Node, pointer_event_list *List);
+
 static void UIBeginFrame  (vec2_int WindowSize);
 static void UIEndFrame    (void);
 

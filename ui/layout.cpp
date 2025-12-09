@@ -408,11 +408,11 @@ PushLayoutParent(uint32_t Index, ui_layout_tree *Tree, memory_arena *Arena)
             List.First = Node;
         }
 
-        List.Last   = Node;
-        List.Count += 1;
-
         Node->Index = Index;
         Node->Prev  = List.Last;
+
+        List.Last   = Node;
+        List.Count += 1;
     }
 
     bool Result = Node != 0;
@@ -604,15 +604,15 @@ ConsumePointerEvents(uint32_t NodeIndex, ui_layout_tree *Tree, pointer_event_lis
 
             case PointerEvent::Hover:
             {
-                // TODO: Either we eat by removing the link or we mark it as
-                // complete. Unsure. In any case, here we would do whatever
-                // we need to do for hovers. So this should work.
-
                 if(IsMouseInsideOuterBox(Event.Position, Node))
                 {
                     Node->Flags |= LayoutNodeFlag::UseHoveredStyle;
-                }
 
+                    // WARN: Direct mutation over what we are iterating. Perhaps we want to prune after the iteration?
+                    // Is it even dangerous here since there is no re-allocations?
+
+                    ConsumePointerEvent(EventNode, EventList);
+                }
             } break;
 
             default:
@@ -667,6 +667,8 @@ GetConstrainedSize(float ParentSize, float MinSize, float MaxSize, ui_sizing_axi
 // ----------------------------------------------------------------------------------
 // @Public: Layout Pass
 
+// BUG: Seems like shrink is not correctly implemented. The most simple case simply bleeds out.
+
 static void
 PreOrderMeasureTree(ui_layout_tree *Tree, memory_arena *Arena)
 {
@@ -676,13 +678,7 @@ PreOrderMeasureTree(ui_layout_tree *Tree, memory_arena *Arena)
     void_context &Context = GetVoidContext();
 
     ui_layout_node **LayoutBuffer = PushArray(Arena, ui_layout_node *, Tree->NodeCount);
-
-    ui_layout_node *Root = GetLayoutRoot(Tree);
-
-    // BUG:
-    // I'm not sure how we treat fixed node sizes. Currently roots are shrinked to min-size since Root->ResultWidth will be 0 at first iteration
-    // and then Root->ResultWidth depends on the constrained size, thus unless manually resized it has no effect. So I guess we need to figure out
-    // what exactly we consider to be "fixed" size.
+    ui_layout_node  *Root         = GetLayoutRoot(Tree);
 
     if(Root->MajorSizing.Type != Sizing::Percent)
     {
@@ -777,6 +773,10 @@ PreOrderMeasureTree(ui_layout_tree *Tree, memory_arena *Arena)
                     }
                 }
 
+                // BUG:
+                // We also need to remove some of shrink weight.
+                // To compute the shrink weight we'd need the base size which we overwrite in this loop.
+
                 while(ToShrink > Epsilon && ShrinkableCount > 0 && TotalShrinkWeight > 0.f)
                 {
                     float IterationShrink = ToShrink;
@@ -802,9 +802,9 @@ PreOrderMeasureTree(ui_layout_tree *Tree, memory_arena *Arena)
                         }
                         else
                         {
-                            ToShrink         -= ShrinkAmount;
-                            Child->MajorSize -= ShrinkAmount;
-                            Child->Constraint = Constraint::AtMost;
+                            ToShrink          -= ShrinkAmount;
+                            Child->MajorSize  -= ShrinkAmount;
+                            Child->Constraint  = Constraint::AtMost;
                         }
                     }
                 }
@@ -941,19 +941,21 @@ PlaceLayoutTree(ui_layout_tree *Tree, memory_arena *Arena)
 }
 
 // TODO: For some reasons, I really dislike how this is implemented.
+// TODO: These small helper buffers are quite common!
 
 static ui_paint_buffer
 GeneratePaintBuffer(ui_layout_tree *Tree, ui_cached_style *Cached, memory_arena *Arena)
 {
-    ui_layout_node **IterativeBuffer = PushArray(Arena, ui_layout_node *, Tree->NodeCount);
-    uint32_t         IterativeIndex  = 0;
-    uint32_t         CommandCount    = 0;
+    ui_layout_node **NodeBuffer   = PushArray(Arena, ui_layout_node *, Tree->NodeCount);
+    uint32_t         WriteIndex   = 0;
+    uint32_t         ReadIndex    = 0;
+    uint32_t         CommandCount = 0;
 
-    IterativeBuffer[IterativeIndex] = GetLayoutRoot(Tree);
+    NodeBuffer[WriteIndex++] = GetLayoutRoot(Tree);
 
-    if(IterativeBuffer)
+    while (NodeBuffer && ReadIndex < WriteIndex)
     {
-        ui_layout_node *Node = IterativeBuffer[IterativeIndex++];
+        ui_layout_node *Node = NodeBuffer[ReadIndex++];
 
         if(Node)
         {
@@ -993,7 +995,7 @@ GeneratePaintBuffer(ui_layout_tree *Tree, ui_cached_style *Cached, memory_arena 
 
             IterateLinkedList(Node, ui_layout_node *, Child)
             {
-                IterativeBuffer[IterativeIndex++] = Child;
+                NodeBuffer[WriteIndex++] = Child;
             }
         }
     }

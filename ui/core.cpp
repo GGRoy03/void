@@ -744,8 +744,8 @@ void ui_node::SetText(byte_string Text, ui_pipeline &Pipeline)
 
     if(!State.Resource)
     {
-        uint64_t  Size   = GetUITextFootprint(Text.Size);
-        void     *Memory = AllocateUIResource(Size, &Table->Allocator);
+        // uint64_t  Size   = GetUITextFootprint(Text.Size);
+        // void     *Memory = AllocateUIResource(Size, &Table->Allocator);
 
         // TODO: RE-IMPLEMENT
     }
@@ -884,6 +884,7 @@ struct pointer_event
 
 struct pointer_event_node
 {
+    pointer_event_node *Prev;
     pointer_event_node *Next;
     pointer_event       Value;
 };
@@ -894,6 +895,10 @@ struct pointer_event_list
     pointer_event_node *Last;
     uint32_t            Count;
 };
+
+// NOTE:
+// Possible prune events after a pipeline has consume them and simply store as a linked list?
+// If list is empty after pruning then we do not continue simply.
 
 static void
 EnqueuePointerEvent(PointerEvent Type, uint32_t PointerId, vec2_float Position, uint32_t ButtonMask, pointer_event_list &List)
@@ -909,8 +914,44 @@ EnqueuePointerEvent(PointerEvent Type, uint32_t PointerId, vec2_float Position, 
         Node->Value.Position   = Position;
         Node->Value.ButtonMask = ButtonMask;
 
-        AppendToLinkedList((&List), Node, List.Count);
+        AppendToDoublyLinkedList((&List), Node, List.Count);
     }
+}
+
+static void
+ConsumePointerEvent(pointer_event_node *Node, pointer_event_list *List)
+{
+    VOID_ASSERT(Node);            // Internal Corruption
+    VOID_ASSERT(List);            // Internal Corruption
+    VOID_ASSERT(List->Count > 0); // Internal Corruption
+
+    pointer_event_node *Prev = Node->Prev;
+    pointer_event_node *Next = Node->Next;
+
+    if(Prev)
+    {
+        Prev->Next = Next;
+    }
+
+    if(Next)
+    {
+        Next->Prev = Prev;
+    }
+
+    if(Node == List->First)
+    {
+        List->First = Next;
+    }
+
+    if(Node == List->Last)
+    {
+        List->Last = Prev;
+    }
+
+    --List->Count;
+
+    Node->Prev = 0;
+    Node->Next = 0;
 }
 
 static void
