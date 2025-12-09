@@ -1,9 +1,8 @@
 #pragma once
 
-// ====================================================================================
+// ===================================================================================
 // @Public: Helper Macros
 
-#define UIFixedSizing(SizeInFloat) {.Type = Sizing::Fixed, .Fixed = SizeInFloat}
 #define UISize(Width, Height)      {Width, Height}
 
 // [CORE TYPES]
@@ -49,55 +48,6 @@ struct ui_sizing_axis
     };
 };
 
-struct ui_default_properties
-{
-    ui_sizing_axis   SizingX;
-    ui_sizing_axis   SizingY;
-    ui_size          MinSize;
-    ui_size          MaxSize;
-    LayoutDirection  Direction;
-    Alignment        AlignX;
-    Alignment        AlignY;
-
-    ui_padding       Padding;
-    float            Spacing;
-    float            Grow;
-    float            Shrink;
-
-    ui_color         Color;
-    ui_color         BorderColor;
-    ui_color         TextColor;
-
-    float            BorderWidth;
-    float            Softness;
-    ui_corner_radius CornerRadius;
-
-    ui_font         *Font;
-    float            FontSize;
-};
-
-struct ui_hovered_properties
-{
-    ui_color Color;
-    ui_color BorderColor;
-};
-
-struct ui_focused_properties
-{
-    ui_color Color;
-    ui_color BorderColor;
-    ui_color TextColor;
-    ui_color CaretColor;
-    float    CaretWidth;
-};
-
-struct ui_cached_style
-{
-    ui_default_properties Default;
-    ui_hovered_properties Hovered;
-    ui_focused_properties Focused;
-};
-
 // TODO: Can we be smarter about what a command really is?
 // Right now it's mostly tied to a node in the tree so we need some fat struct.
 
@@ -120,6 +70,134 @@ struct ui_paint_buffer
 {
     ui_paint_command *Commands;
     uint32_t          Size;
+};
+
+template<typename T>
+struct ui_property
+{
+    T    Value;
+    bool IsSet;
+
+    ui_property() = default;
+    constexpr ui_property(const T& Value_)              : Value(Value_), IsSet(true) {}
+    constexpr ui_property(const T& Value_, bool IsSet_) : Value(Value_), IsSet(IsSet_) {}
+
+    ui_property& operator=(const T& Value_) { Value = Value_; IsSet = true; return *this; }
+};
+
+constexpr ui_property<ui_sizing_axis> ui_fixed_sizing(float Size)
+{
+    return ui_property<ui_sizing_axis>{ ui_sizing_axis{Sizing::Fixed, {Size}}, true};
+}
+
+struct ui_paint_properties
+{
+    ui_property<ui_color>         Color;
+    ui_property<ui_color>         BorderColor;
+    ui_property<ui_color>         TextColor;
+    ui_property<ui_color>         CaretColor;
+
+    ui_property<float>            BorderWidth;
+    ui_property<float>            Softness;
+    ui_property<ui_corner_radius> CornerRadius;
+
+    ui_property<float>            CaretWidth;
+};
+
+struct ui_default_properties
+{
+    ui_property<ui_sizing_axis>   SizingX;
+    ui_property<ui_sizing_axis>   SizingY;
+    ui_property<ui_size>          MinSize;
+    ui_property<ui_size>          MaxSize;
+    ui_property<LayoutDirection>  Direction;
+    ui_property<Alignment>        AlignX;
+    ui_property<Alignment>        AlignY;
+
+    ui_property<ui_padding>       Padding;
+    ui_property<float>            Spacing;
+    ui_property<float>            Grow;
+    ui_property<float>            Shrink;
+
+    ui_property<ui_color>         Color;
+    ui_property<ui_color>         BorderColor;
+    ui_property<ui_color>         TextColor;
+
+    ui_property<float>            BorderWidth;
+    ui_property<float>            Softness;
+    ui_property<ui_corner_radius> CornerRadius;
+
+    ui_property<ui_font>         *Font;
+    ui_property<float>            FontSize;
+
+    ui_paint_properties MakePaintProperties(void)
+    {
+        ui_paint_properties Result = {};
+
+        // Defaults
+        Result.Color        = Color;
+        Result.BorderColor  = BorderColor;
+        Result.TextColor    = TextColor;
+        Result.BorderWidth  = BorderWidth;
+        Result.Softness     = Softness;
+        Result.CornerRadius = CornerRadius;
+
+        return Result;
+    }
+};
+
+struct ui_hovered_properties
+{
+    ui_property<ui_color>         Color;
+    ui_property<ui_color>         BorderColor;
+    ui_property<float>            Softness;
+    ui_property<ui_corner_radius> CornerRadius;
+
+    ui_paint_properties InheritPaintProperties(const ui_paint_properties &Default)
+    {
+        ui_paint_properties Result = Default;
+
+        if (Color.IsSet)        Result.Color        = Color;        else Result.Color = Default.Color;
+        if (BorderColor.IsSet)  Result.BorderColor  = BorderColor;  else Result.Color = Default.Color;
+        if (Softness.IsSet)     Result.Softness     = Softness;     else Result.Color = Default.Color;
+        if (CornerRadius.IsSet) Result.CornerRadius = CornerRadius; else Result.Color = Default.Color;
+
+        return Result;
+    }
+};
+
+struct ui_focused_properties
+{
+    ui_property<ui_color>         Color;
+    ui_property<ui_color>         BorderColor;
+    ui_property<ui_color>         TextColor;
+    ui_property<ui_color>         CaretColor;
+    ui_property<float>            CaretWidth;
+    ui_property<float>            Softness;
+    ui_property<ui_corner_radius> CornerRadius;
+
+    ui_paint_properties InheritPaintProperties(const ui_paint_properties &Default)
+    {
+        ui_paint_properties Result = Default;
+
+        // Inherit
+        if (Color.IsSet)        Result.Color        = Color;        else Result.Color = Default.Color;
+        if (BorderColor.IsSet)  Result.BorderColor  = BorderColor;  else Result.Color = Default.Color;
+        if (TextColor.IsSet)    Result.TextColor    = TextColor;    else Result.Color = Default.Color;
+        if (CaretColor.IsSet)   Result.CaretColor   = CaretColor;   else Result.Color = Default.Color;
+        if (CaretWidth.IsSet)   Result.CaretWidth   = CaretWidth;   else Result.Color = Default.Color;
+        if (Softness.IsSet)     Result.Softness     = Softness;     else Result.Color = Default.Color;
+        if (CornerRadius.IsSet) Result.CornerRadius = CornerRadius; else Result.Color = Default.Color;
+
+        return Result;
+    }
+};
+
+struct ui_cached_style
+{
+    ui_default_properties Default;
+    ui_hovered_properties Hovered;
+    ui_focused_properties Focused;
 };
 
 // ===================================================================================

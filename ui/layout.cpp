@@ -212,23 +212,27 @@ SetNodeProperties(uint32_t NodeIndex, uint32_t StyleIndex, const ui_cached_style
     ui_layout_node *Node = GetLayoutNode(NodeIndex, Tree);
     if(Node)
     {
-        bool           IsXMajor = (Cached.Default.Direction == LayoutDirection::Horizontal);
-        ui_size_bounds BoundsX  = {Cached.Default.MinSize.Width , Cached.Default.MaxSize.Width};
-        ui_size_bounds BoundsY  = {Cached.Default.MinSize.Height, Cached.Default.MaxSize.Height};
+        bool           IsXMajor = (Cached.Default.Direction.Value == LayoutDirection::Horizontal);
+        ui_size_bounds BoundsX  = {Cached.Default.MinSize.Value.Width , Cached.Default.MaxSize.Value.Width};
+        ui_size_bounds BoundsY  = {Cached.Default.MinSize.Value.Height, Cached.Default.MaxSize.Value.Height};
 
-        Node->MinorSizing = IsXMajor ? Cached.Default.SizingY : Cached.Default.SizingX;
-        Node->MajorSizing = IsXMajor ? Cached.Default.SizingX : Cached.Default.SizingY;
-        Node->MinorAlign  = IsXMajor ? Cached.Default.AlignY  : Cached.Default.AlignX;
-        Node->MajorAlign  = IsXMajor ? Cached.Default.AlignX  : Cached.Default.AlignY;
-        Node->MinorBounds = IsXMajor ? BoundsY                : BoundsX;
-        Node->MajorBounds = IsXMajor ? BoundsX                : BoundsY;
-        Node->Padding     = Cached.Default.Padding;
-        Node->Spacing     = Cached.Default.Spacing;
-        Node->Direction   = Cached.Default.Direction;
-        Node->Grow        = Cached.Default.Grow;
-        Node->Shrink      = Cached.Default.Shrink;
+        Node->MinorSizing = IsXMajor ? Cached.Default.SizingY.Value : Cached.Default.SizingX.Value;
+        Node->MajorSizing = IsXMajor ? Cached.Default.SizingX.Value : Cached.Default.SizingY.Value;
 
-        Node->StyleIndex = StyleIndex;
+        Node->MinorAlign  = IsXMajor ? Cached.Default.AlignY.Value  : Cached.Default.AlignX.Value;
+        Node->MajorAlign  = IsXMajor ? Cached.Default.AlignX.Value  : Cached.Default.AlignY.Value;
+
+        Node->MinorBounds = IsXMajor ? BoundsY                     : BoundsX;
+        Node->MajorBounds = IsXMajor ? BoundsX                     : BoundsY;
+
+        Node->Padding     = Cached.Default.Padding.Value;
+        Node->Spacing     = Cached.Default.Spacing.Value;
+
+        Node->Direction   = Cached.Default.Direction.Value;
+        Node->Grow        = Cached.Default.Grow.Value;
+        Node->Shrink      = Cached.Default.Shrink.Value;
+
+        Node->StyleIndex  = StyleIndex;
     }
 }
 
@@ -588,6 +592,10 @@ IsMouseInsideBorder(vec2_float MousePosition, ui_layout_node *Node)
     float Distance = RoundedRectSDF(Params);
     return Distance >= 0.f;
 }
+
+// BUG:
+// Seems like there is a problem when relaeasing and moving the mouse at the
+// same time. Is modifying what we are iterating the problem?
 
 static void
 ConsumePointerEvents(uint32_t NodeIndex, ui_layout_tree *Tree, pointer_event_list *EventList)
@@ -1012,34 +1020,31 @@ GeneratePaintBuffer(ui_layout_tree *Tree, ui_cached_style *Cached, memory_arena 
             // WARN: We do not do/use bounds checking anymore for this read.
             //       Should we just pass it in?
 
-            ui_cached_style  &Style   = Cached[Node->StyleIndex];
-            ui_paint_command &Command = Tree->PaintBuffer[CommandCount++];
+            ui_paint_command   &Command = Tree->PaintBuffer[CommandCount++];
+            ui_paint_properties Paint   = Cached->Default.MakePaintProperties();
+
+            if ((Node->Flags & LayoutNodeFlag::UseFocusedStyle) != LayoutNodeFlag::None)
+            {
+                Paint = Cached->Hovered.InheritPaintProperties(Paint);
+            } else
+            if ((Node->Flags & LayoutNodeFlag::UseHoveredStyle) != LayoutNodeFlag::None)
+            {
+                Paint = Cached->Focused.InheritPaintProperties(Paint);
+
+                Node->Flags &= ~LayoutNodeFlag::UseHoveredStyle;
+            }
 
             Command.Rectangle     = GetNodeOuterRect(Node);
             Command.RectangleClip = {};
             Command.TextKey       = {};
             Command.ImageKey      = {};
-            Command.CornerRadius  = Style.Default.CornerRadius;
-            Command.Softness      = Style.Default.Softness;
-            Command.BorderWidth   = Style.Default.BorderWidth;
 
-            if ((Node->Flags & LayoutNodeFlag::UseFocusedStyle) != LayoutNodeFlag::None)
-            {
-                Command.Color       = Style.Focused.Color;
-                Command.BorderColor = Style.Focused.BorderColor;
-            } else
-            if ((Node->Flags & LayoutNodeFlag::UseHoveredStyle) != LayoutNodeFlag::None)
-            {
-                Command.Color       = Style.Hovered.Color;
-                Command.BorderColor = Style.Hovered.BorderColor;
-
-                Node->Flags &= ~(LayoutNodeFlag::UseHoveredStyle);
-            }
-            else
-            {
-                Command.Color       = Style.Default.Color;
-                Command.BorderColor = Style.Default.BorderColor;
-            }
+            // Set Paint Properties
+            Command.CornerRadius  = Paint.CornerRadius.Value;
+            Command.Softness      = Paint.Softness.Value;
+            Command.BorderWidth   = Paint.BorderWidth.Value;
+            Command.Color         = Paint.Color.Value;
+            Command.BorderColor   = Paint.BorderColor.Value;
 
             IterateLinkedList(Node, ui_layout_node *, Child)
             {
