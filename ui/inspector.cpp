@@ -59,7 +59,7 @@ static ui_cached_style InspectorStyleArray[] =
 
         .Focused =
         {
-            .Color       = Background,
+            .Color       = Success,
             .BorderColor = BorderOrDivider,
         },
     },

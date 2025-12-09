@@ -298,12 +298,10 @@ wWinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPWSTR CmdLine, int ShowCmd
             DispatchMessage(&Message);
         }
 
-        // NOTE:
-        // This works. Unsure what we want to do. What if the pointer is captured?
-        // Do we really want to produce that event then? I do not know.
-        // Yeah this is shit, because it bleeds to other events. I then need to
-        // check if the button mask is 0. This works really well. And it is super
-        // easy for the UI to do something. Just need some cleanups.
+        // WARN:
+        // This is the only part I dislike. One part of the problem is that this knows
+        // too much about what its trying to solve. The other part is that
+        // it feels like a dirty trick. Uhm.
 
         if(OSWin32State.Inputs.Pointers[0].ButtonMask == BUTTON_NONE)
         {

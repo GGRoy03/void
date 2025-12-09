@@ -80,6 +80,10 @@ struct ui_layout_node
     float      MinorSize;
     Constraint Constraint;
 
+    // State
+    uint32_t        CaptureButtonMask;
+    LayoutNodeFlag  Flags;
+
     // Static Properties
     ui_sizing_axis  MinorSizing;
     ui_sizing_axis  MajorSizing;
@@ -94,11 +98,10 @@ struct ui_layout_node
     float           Shrink;
 
     // Extra Info
-    uint32_t       Index;
-    uint32_t       StyleIndex;
-    uint32_t       ChildCount;
-    LayoutNodeFlag Flags;
-    uint32_t       LegacyFlags;
+    uint32_t        Index;
+    uint32_t        StyleIndex;
+    uint32_t        ChildCount;
+    uint32_t        LegacyFlags;
 };
 
 struct ui_parent_node
@@ -607,67 +610,63 @@ ConsumePointerEvents(uint32_t NodeIndex, ui_layout_tree *Tree, pointer_event_lis
             switch(Event.Type)
             {
 
-            // TODO:
-            // I do not know how to generate this event. It seems trivial.
-            // I don't know if iterating the pointers to check their
-            // button mask is the correct approach.
-
             case PointerEvent::Hover:
             {
                 if(MouseInsideBox)
                 {
                     Node->Flags |= LayoutNodeFlag::UseHoveredStyle;
 
-                    // WARN:
-                    // Direct mutation over what we are iterating. Perhaps we want to prune after the iteration?
-                    // Is it even dangerous here since there is no re-allocations? This might be meaningless if we just use a
-                    // buffer with swap back.
-
                     ConsumePointerEvent(EventNode, EventList);
                 }
             } break;
+
+            // NOTE:
+            // Need to figure out click policy.
 
             case PointerEvent::Click:
             {
                 if(MouseInsideBox)
                 {
-                    Node->Flags |= LayoutNodeFlag::HasCapturedPointer;
-
-                    // WARN:
-                    // Direct mutation over what we are iterating. Perhaps we want to prune after the iteration?
-                    // Is it even dangerous here since there is no re-allocations? This might be meaningless if we just use a
-                    // buffer with swap back.
+                    Node->Flags             |= (LayoutNodeFlag::HasCapturedPointer | LayoutNodeFlag::UseFocusedStyle);
+                    Node->CaptureButtonMask |= Event.ButtonMask;
 
                     ConsumePointerEvent(EventNode, EventList);
                 }
             } break;
 
-            // NOTE: Since we need the pointer ID to do this, it doesn't need to
-            // be a flag.
-
             case PointerEvent::Move:
             {
-                if(((Node->Flags       & LayoutNodeFlag::HasCapturedPointer) != LayoutNodeFlag::None) &&
-                     Node->LegacyFlags & UILayoutNode_IsDraggable)
+                if(((Node->Flags & LayoutNodeFlag::HasCapturedPointer) != LayoutNodeFlag::None) && Node->LegacyFlags & UILayoutNode_IsDraggable)
                 {
                     Node->ResultX += Event.Delta.X;
                     Node->ResultY += Event.Delta.Y;
 
-                    Node->Flags |= LayoutNodeFlag::UseFocusedStyle;
+                    ConsumePointerEvent(EventNode, EventList);
                 }
             } break;
 
-            // BUG:
-            // This needs to check against which pointer captured our node.
-            // Such that we only release when _that_ pointer is released.
+            // TODO:
+            // What is the correct logic here. Does it matter if we are inside
+            // the box or not? I am confused. How do we consume the event.
+            // I guess, one part that is not implemented here is that we must capture
+            // the pointer and provide relative deltas.
 
             case PointerEvent::Release:
             {
-               Node->Flags &= ~(LayoutNodeFlag::HasCapturedPointer);
+                if (MouseInsideBox)
+                {
+                    if (Event.ButtonMask & Node->CaptureButtonMask)
+                    {
+                        Node->CaptureButtonMask &= ~Event.ButtonMask;
+                    }
+                }
+
+                Node->Flags &= ~(LayoutNodeFlag::HasCapturedPointer | LayoutNodeFlag::UseFocusedStyle);
             } break;
 
             default:
             {
+                VOID_ASSERT(!"??");
             } break;
 
             }
@@ -1033,14 +1032,14 @@ GeneratePaintBuffer(ui_layout_tree *Tree, ui_cached_style *Cached, memory_arena 
             {
                 Command.Color       = Style.Hovered.Color;
                 Command.BorderColor = Style.Hovered.BorderColor;
+
+                Node->Flags &= ~(LayoutNodeFlag::UseHoveredStyle);
             }
             else
             {
                 Command.Color       = Style.Default.Color;
                 Command.BorderColor = Style.Default.BorderColor;
             }
-
-            Node->Flags &= ~((LayoutNodeFlag::UseHoveredStyle | LayoutNodeFlag::UseFocusedStyle));
 
             IterateLinkedList(Node, ui_layout_node *, Child)
             {
