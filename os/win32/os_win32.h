@@ -9,13 +9,9 @@
 #include <imm.h>
 
 #pragma comment(lib, "user32")
-#pragma comment(lib, "dwrite")
 #pragma comment(lib, "d2d1")
 #pragma comment(lib, "shlwapi.lib")
 #pragma comment(lib, "GDI32.lib")
-
-typedef struct IDWriteFactory IDWriteFactory;
-typedef struct os_text_input os_text_input;
 
 typedef struct os_win32_state
 {
@@ -27,7 +23,6 @@ typedef struct os_win32_state
     os_inputs      Inputs;
 
     // internal (Queried by win32 specific code)
-    IDWriteFactory *DWriteFactory;
     HWND            HWindow;
 } os_win32_state;
 

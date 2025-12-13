@@ -264,8 +264,6 @@ wWinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPWSTR CmdLine, int ShowCmd
         OSWin32State.HWindow    = OSWin32InitializeWindow(vec2_int(1920,1080), ShowCmd);
         OSWin32State.SystemInfo = OSWin32QuerySystemInfo();
         OSWin32State.Arena      = AllocateArena(ArenaParams);
-
-        OSWin32InitializeDWriteFactory(&OSWin32State.DWriteFactory);
     }
 
     CreateVoidContext(); // NOTE: Perhaps lazily intialized?
@@ -327,17 +325,6 @@ wWinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPWSTR CmdLine, int ShowCmd
             EndAndPrintProfile();
             PrintProfilingFrame = 0;
         }
-    }
-
-    // NOTE:
-    // This shouldn't be needed but the debug layer for D3D is triggering
-    // an error and preventing the window from closing if the resources
-    // related to fonts aren't released. So this is for convenience :P
-
-    ui_font_list *FontList = &(GetVoidContext().Fonts);
-    IterateLinkedList(FontList, ui_font *, Font)
-    {
-        OSReleaseFontContext(&Font->OSContext);
     }
 
     return 0;
