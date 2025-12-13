@@ -148,8 +148,9 @@ struct vector2_generic
     }
 };
 
-using vec2_float = vector2_generic<float>;
-using vec2_int   = vector2_generic<int>;
+using vec2_float  = vector2_generic<float>;
+using vec2_int    = vector2_generic<int>;
+using vec2_uint16 = vector2_generic<uint16_t>;
 
 template <typename T>
 struct rectangle_generic

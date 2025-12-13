@@ -433,7 +433,7 @@ SubmitRenderCommands(render_handle HRenderer, vec2_int Resolution, render_pass_l
                     Uniform.Transform[1]        = Vec4float(NodeParams.Transform.c1r0, NodeParams.Transform.c1r1, NodeParams.Transform.c1r2, 0);
                     Uniform.Transform[2]        = Vec4float(NodeParams.Transform.c2r0, NodeParams.Transform.c2r1, NodeParams.Transform.c2r2, 0);
                     Uniform.ViewportSizeInPixel = vec2_float((float)Resolution.X, (float)Resolution.Y);
-                    Uniform.AtlasSizeInPixel    = NodeParams.TextureSize;
+                    Uniform.AtlasSizeInPixel    = vec2_float((float)NodeParams.TextureSize.X, (float)NodeParams.TextureSize.Y);
 
                     D3D11_MAPPED_SUBRESOURCE Resource = {};
                     DeviceContext->Map((ID3D11Resource *)UniformBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Resource);

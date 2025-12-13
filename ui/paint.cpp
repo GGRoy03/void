@@ -54,24 +54,21 @@ GetPaintBatchList(ui_resource_key TextKey, ui_resource_key ImageKey, memory_aren
             {
                 auto *Text = static_cast<ui_text *>(TextResource.Resource);
 
-                Params.Texture     = Text->Atlas;
-                Params.TextureSize = Text->AtlasSize;
+                ui_resource_state FontState = FindResourceByKey(Text->FontKey, Context.ResourceTable);
+                if(FontState.Resource)
+                {
+                    ui_font *Font = static_cast<ui_font *>(FontState.Resource);
+
+                    Params.Texture     = Font->TextureView;
+                    Params.TextureSize = Font->TextureSize;
+
+                }
             }
         }
 
         if(IsValidResourceKey(ImageKey))
         {
-            ui_resource_state ImageResource = FindResourceByKey(ImageKey, Context.ResourceTable);
-            if(ImageResource.ResourceType == UIResource_Image && ImageResource.Resource)
-            {
-                auto *Image = static_cast<ui_image *>(ImageResource.Resource);
-                auto *Group = (ui_image_group *)QueryGlobalResource(Image->GroupName, UIResource_ImageGroup, Context.ResourceTable);
-                if(Group)
-                {
-                    Params.Texture     = Group->RenderTexture.View;
-                    Params.TextureSize = Group->Size;
-                }
-            }
+            // TODO: Reimplement.
         }
     }
 

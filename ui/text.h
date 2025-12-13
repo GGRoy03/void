@@ -1,135 +1,38 @@
-// NOTE:
-// This file needs cleanups. I don't really know which types I want to expose in the header.
-// Also: Consider adding a name space.
+// =================================================================
+// @Internal: Fonts Implementation
 
-// [CORE TYPES]
-
-typedef struct glyph_hash
-{
-    uint64_t Value;
-} glyph_hash;
-
-typedef struct glyph_table_params
-{
-    uint32_t EntryCount;
-    uint32_t HashCount;
-} glyph_table_params;
-
-typedef struct glyph_table_stats
-{
-    uint64_t HitCount;
-    uint64_t MissCount;
-} glyph_table_stats;
-
-typedef struct glyph_entry
-{
-    glyph_hash HashValue;
-
-    uint32_t NextWithSameHash;
-    uint32_t NextLRU;
-    uint32_t PrevLRU;
-
-    bool      IsRasterized;
-    rect_float Source;
-    rect_float Position;
-    vec2_float Offset;
-    vec2_int Size;
-    float      AdvanceX;
-} glyph_entry;
-
-typedef struct glyph_table
-{
-    glyph_table_stats Stats;
-
-    uint32_t HashMask;
-    uint32_t HashCount;
-    uint32_t EntryCount;
-
-    uint32_t         *HashTable;
-    glyph_entry *Entries;
-} glyph_table;
-
-typedef struct glyph_state
-{
-    uint32_t      Id;
-    bool      IsRasterized;
-    rect_float Source;
-    rect_float Position;
-    vec2_float Offset;
-    vec2_int Size;
-    float      AdvanceX;
-} glyph_state;
-
-typedef struct ui_font ui_font;
 struct ui_font
 {
-    ui_font *Next;
-
-    // Backend
-    gpu_font_context GPUContext;
-    os_font_context  OSContext;
-
-    // Info
-    vec2_float    TextureSize;
-    float         LineHeight;
-    float         Size;
-    byte_string Name;
-
-    // 2D Allocator
-    stbrp_context AtlasContext;
-    stbrp_node   *AtlasNodes;
-
-    // Tables
-    glyph_table *Cache;        // Handles any codepoint
-    glyph_state  Direct[0x7F]; // Handles ASCII
+    render_handle          Texture;
+    render_handle          TextureView;
+    vec2_uint16            TextureSize;
+    ntext::glyph_generator Generator;
+    uint16_t               Size;
+    byte_string            Name;
 };
 
-typedef struct ui_shaped_glyph
-{
-    rect_float Position;
-    rect_float Source;
-    vec2_float Offset;
-    vec2_int Size;
-    float      AdvanceX;
-} ui_shaped_glyph;
+static ui_resource_key UILoadSystemFont  (byte_string Name, float Size, uint16_t CacheSizeX, uint16_t CacheSizeY);
 
-typedef struct ui_text
+// =================================================================
+// @Internal: Static Text Implementation
+
+struct ui_shaped_glyph
 {
-    render_handle    Atlas;
-    vec2_float         AtlasSize;
-    float              LineHeight; // NOTE: Weird..
+    float      OffsetX;
+    float      OffsetY;
+    float      Advance;
+    rect_float Source;    // Currently have no way of getting this from ntext.
+};
+
+// Do we need to store Texture/TextureSize, since we can always get them from the font?
+// And it would also clear up the problem of who owns what (the font owns the texture)
+
+struct ui_text
+{
+    ui_resource_key  FontKey;
     ui_shaped_glyph *Shaped;
-    uint32_t              ShapedCount;
-    uint32_t              ShapedLimit;
-    float              TotalHeight;
+    uint32_t         ShapedCount;
+};
 
-} ui_text;
-
-typedef struct ui_text_input
-{
-    byte_string UserBuffer;
-    uint64_t         internalCount;
-
-    int CaretAnchor;
-    float CaretTimer;
-
-    // User Callbacks
-    ui_text_input_onchar OnChar;
-    ui_text_input_onkey  OnKey;
-    void                *OnKeyUserData;
-} ui_text_input;
-
-static uint64_t       GetUITextFootprint   (uint64_t TextSize);
-static ui_text * PlaceUITextInMemory  (byte_string Text, uint64_t BufferSize, ui_font *Font, void *Memory);
-
-static void UITextAppend_  (byte_string UTF8, ui_font *Font, ui_text *Text);
-static void UITextClear_   (ui_text *Text);
-
-
-static void UITextInputMoveCaret_  (ui_text *Text, ui_text_input *Input, int Offset);
-static void UITextInputClear_      (ui_text_input *TextInput);
-
-// [Fonts]
-
-static ui_font * UILoadFont   (byte_string Name, float Size);
-static ui_font * UIQueryFont  (byte_string Name, float Size);
+static uint64_t  GetTextFootprint   (uint64_t Size);
+static ui_text * PlaceTextInMemory  (byte_string String, void *Memory);

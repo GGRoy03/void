@@ -13,18 +13,18 @@ typedef struct ui_node_id_hash
 typedef struct ui_node_id_entry
 {
     ui_node_id_hash Hash;
-    uint32_t             NodeIndex;
+    uint32_t        NodeIndex;
 } ui_node_id_entry;
 
 typedef struct ui_node_table
 {
-    uint8_t               *MetaData;
+    uint8_t          *MetaData;
     ui_node_id_entry *Buckets;
 
-    uint64_t GroupSize;
-    uint64_t GroupCount;
+    uint64_t          GroupSize;
+    uint64_t          GroupCount;
 
-    uint64_t HashMask;
+    uint64_t          HashMask;
 } ui_node_table;
 
 static bool
@@ -289,11 +289,11 @@ typedef struct ui_resource_entry
 {
     ui_resource_key Key;
 
-    uint32_t NextWithSameHashSlot;
-    uint32_t NextLRU;
-    uint32_t PrevLRU;
+    uint32_t        NextWithSameHashSlot;
+    uint32_t        NextLRU;
+    uint32_t        PrevLRU;
 
-    UIResource_Type ResourceType; // NOTE: VOID_UNUSED?
+    UIResource_Type ResourceType;
     void           *Memory;
 } ui_resource_entry;
 
@@ -302,12 +302,12 @@ typedef struct ui_resource_table
     ui_resource_stats     Stats;
     ui_resource_allocator Allocator;
 
-    uint32_t HashMask;
-    uint32_t HashSlotCount;
-    uint32_t EntryCount;
+    uint32_t              HashMask;
+    uint32_t              HashSlotCount;
+    uint32_t              EntryCount;
 
-    uint32_t               *HashTable;
-    ui_resource_entry *Entries;
+    uint32_t             *HashTable;
+    ui_resource_entry    *Entries;
 } ui_resource_table;
 
 static ui_resource_entry *
@@ -377,6 +377,8 @@ GetResourceTypeFromKey(ui_resource_key Key)
     UIResource_Type Type = (UIResource_Type)(High >> 32);
     return Type;
 }
+
+// TODO: Make a better resource allocator.
 
 static void *
 AllocateUIResource(uint64_t Size, ui_resource_allocator *Allocator)
@@ -458,6 +460,23 @@ MakeNodeResourceKey(UIResource_Type Type, uint32_t NodeIndex, ui_layout_tree *Tr
     ui_resource_key Key = {.Value = _mm_set_epi64x(High, Low)};
     return Key;
 }
+
+// This might be wrong, because I am unsure how string literals are stored when you do something like:
+// str8_lit("Consolas") 
+// str8_lit("Consolas") 
+// Do they get stored in the same place in memory? Does it depend?
+
+static ui_resource_key
+MakeFontResourceKey(byte_string Name, float Size)
+{
+    uint64_t Low  = reinterpret_cast<uint64_t>(Name.String);
+    uint64_t High = (static_cast<uint64_t>(UIResource_Font) << 32) | static_cast<uint32_t>(Size);
+
+    ui_resource_key Key = {.Value = _mm_set_epi64x(High, Low)};
+    return Key;
+}
+
+// Perhaps this is a bad idea.
 
 static ui_resource_key
 MakeGlobalResourceKey(UIResource_Type Type, byte_string Name)
@@ -550,8 +569,6 @@ FindResourceByKey(ui_resource_key Key, ui_resource_table *Table)
     return Result;
 }
 
-// NOTE:
-// The type can always be inferred from the key.
 
 static void
 UpdateResourceTable(uint32_t Id, ui_resource_key Key, void *Memory, ui_resource_table *Table)
@@ -559,6 +576,7 @@ UpdateResourceTable(uint32_t Id, ui_resource_key Key, void *Memory, ui_resource_
     ui_resource_entry *Entry = GetResourceEntry(Id, Table);
     VOID_ASSERT(Entry);
 
+    // This is weird. Kind of.
     if(Entry->Memory && Entry->Memory != Memory)
     {
         OSRelease(Entry->Memory);
@@ -567,7 +585,10 @@ UpdateResourceTable(uint32_t Id, ui_resource_key Key, void *Memory, ui_resource_
     Entry->Key          = Key;
     Entry->Memory       = Memory;
     Entry->ResourceType = GetResourceTypeFromKey(Key);
+
+    VOID_ASSERT(Entry->ResourceType != UIResource_None);
 }
+
 
 static void *
 QueryNodeResource(uint32_t NodeIndex, ui_layout_tree *Tree, UIResource_Type Type, ui_resource_table *Table)
@@ -581,6 +602,7 @@ QueryNodeResource(uint32_t NodeIndex, ui_layout_tree *Tree, UIResource_Type Type
     return Result;
 }
 
+
 static void *
 QueryGlobalResource(byte_string Name, UIResource_Type Type, ui_resource_table *Table)
 {
@@ -593,118 +615,23 @@ QueryGlobalResource(byte_string Name, UIResource_Type Type, ui_resource_table *T
     return Result;
 }
 
-// ------------------------------------------------------------
-// UI Image Processing internal Implementation
-
-typedef struct ui_image
-{
-    rect_float    Source;
-    byte_string GroupName;
-} ui_image;
-
-typedef struct ui_loaded_image
-{
-    rect_float Source;
-    bool      IsLoaded;
-} ui_loaded_image;
-
-typedef struct ui_image_group
-{
-    vec2_float       Size;
-    render_texture RenderTexture;
-    stbrp_context  Allocator;
-    stbrp_node    *AllocatorNodes;
-} ui_image_group;
-
-static uint64_t
-GetImageGroupFootprint(float Width)
-{
-    uint64_t NodeSize = Width * sizeof(stbrp_node);
-    uint64_t Result   = NodeSize + sizeof(ui_image_group);
-    return Result;
-}
 
 // ------------------------------------------------------------
-// UI Image Processing Public Implementation
+// @Internal: Image Processing Helpers
+
+// ------------------------------------------------------------
+// @Public: Image Processing API
 
 static void
 UICreateImageGroup(byte_string Name, int Width, int Height)
 {
-    VOID_ASSERT(Width  > 0);
-    VOID_ASSERT(Height > 0);
-
-    void_context &Context = GetVoidContext();
-
-    ui_resource_key   Key   = MakeGlobalResourceKey(UIResource_ImageGroup, Name);
-    ui_resource_state State = FindResourceByKey(Key, Context.ResourceTable);
-
-    VOID_ASSERT(!State.Resource);
-
-    uint64_t   Size   = GetImageGroupFootprint(Width);
-    void *Memory = AllocateUIResource(Size, &Context.ResourceTable->Allocator);
-
-    if(Memory)
-    {
-        render_texture_params Texture =
-        {
-            .Type   = RenderTexture_RGBA,
-            .Width  = Width,
-            .Height = Height,
-        };
-
-        stbrp_node *AllocatorNodes = (stbrp_node *)Memory;
-
-        ui_image_group *Group = (ui_image_group *)(AllocatorNodes + Width);
-        Group->Size           = vec2_float(Width, Height);
-        Group->RenderTexture  = CreateRenderTexture(Texture);
-        Group->AllocatorNodes = AllocatorNodes;
-
-        stbrp_init_target(&Group->Allocator, Width, Height, Group->AllocatorNodes, Width);
-
-        UpdateResourceTable(State.Id, Key, Group, Context.ResourceTable);
-    }
+    // TODO: Reimplement.
 }
 
-static ui_loaded_image
+static void
 LoadImageInGroup(byte_string GroupName, byte_string Path)
 {
-    void_context   &Context = GetVoidContext();
-    ui_loaded_image Result  = {};
-
-    ui_image_group *Group = (ui_image_group *)QueryGlobalResource(GroupName, UIResource_ImageGroup, Context.ResourceTable);
-    VOID_ASSERT(Group);
-
-    int Width, Height, Channels;
-    uint8_t *Pixels = stbi_load((char *)Path.String, &Width, &Height, &Channels, 4);
-
-    if(Pixels)
-    {
-        stbrp_rect Rect = {};
-        Rect.w = (uint16_t)(Width);
-        Rect.h = (uint16_t)(Height);
-
-        VOID_ASSERT(Rect.w == Width);
-        VOID_ASSERT(Rect.h == Height);
-        stbrp_pack_rects(&Group->Allocator, &Rect, 1);
-
-        if(Rect.was_packed)
-        {
-            Result.Source   = rect_float::FromXYWH(Rect.x, Rect.y, Rect.w, Rect.h);
-            Result.IsLoaded = 1;
-
-            CopyIntoRenderTexture(Group->RenderTexture, Result.Source, Pixels, Width * Channels);
-
-            stbi_image_free(Pixels);
-        }
-        else
-        {
-        }
-    }
-    else
-    {
-    }
-
-    return Result;
+    // TODO: Reimplement.
 }
 
 // -------------------------------------------------------------
@@ -734,53 +661,35 @@ void ui_node::Reserve(uint32_t Amount, ui_pipeline &Pipeline)
     UITreeReserve(Index, Amount, Pipeline.Tree);
 }
 
-void ui_node::SetText(byte_string Text, ui_pipeline &Pipeline)
+// I mean the only problem with this is the amount of allocations this has to do.
+// 2/font 1/text. If we had a proper resource allocator then it wouldn't be a problem.
+
+void ui_node::SetText(byte_string Text, ui_resource_key FontKey, ui_pipeline &Pipeline)
 {
     void_context &Context  = GetVoidContext();
 
-    ui_resource_table *Table = Context.ResourceTable;
-    ui_resource_key    Key   = MakeNodeResourceKey(UIResource_Text, Index, Pipeline.Tree);
-    ui_resource_state  State = FindResourceByKey(Key, Table);
+    ui_resource_key   TextKey   = MakeNodeResourceKey(UIResource_Text, Index, Pipeline.Tree);
+    ui_resource_state TextState = FindResourceByKey(TextKey, Context.ResourceTable);
 
-    if(!State.Resource)
+    if(!TextState.Resource)
     {
-        // uint64_t  Size   = GetUITextFootprint(Text.Size);
-        // void     *Memory = AllocateUIResource(Size, &Table->Allocator);
-
-        // TODO: RE-IMPLEMENT
+        ui_resource_state FontState = FindResourceByKey(FontKey, Context.ResourceTable);
+        if(FontState.Resource)
+        {
+            // TODO: Create the text resource.
+        }
     }
     else
     {
-        VOID_ASSERT(!"Not Implemented");
+        VOID_ASSERT(!"Unsure");
     }
 }
 
 void ui_node::SetTextInput(uint8_t *Buffer, uint64_t BufferSize, ui_pipeline &Pipeline)
 {
-    void_context &Context  = GetVoidContext();
-
-    ui_resource_key   Key   = MakeNodeResourceKey(UIResource_TextInput, Index, Pipeline.Tree);
-    ui_resource_state State = FindResourceByKey(Key, Context.ResourceTable);
-
-    uint64_t Size    = sizeof(ui_text_input);
-    void     *Memory = AllocateUIResource(Size, &Context.ResourceTable->Allocator);
-
-    ui_text_input *TextInput = (ui_text_input *)Memory;
-    TextInput->UserBuffer    = ByteString(Buffer, BufferSize);
-    TextInput->internalCount = strlen((char *)Buffer);
-
-    UpdateResourceTable(State.Id, Key, TextInput, Context.ResourceTable);
-
-    // NOTE:
-    // I mean... Maybe this is fine. But at least centralize it when we update
-    // the resource table perhaps? And then we kinda have the index from the key.
-    // Just need to make global keys recognizable.
-
-    SetLayoutNodeFlags(Index, UILayoutNode_HasTextInput, Pipeline.Tree);
-
-    // pass Pipeline through to SetText
-    SetText(ByteString(Buffer, BufferSize), Pipeline);
 }
+
+// This is badly implemented.
 
 void ui_node::SetScroll(float ScrollSpeed, UIAxis_Type Axis, ui_pipeline &Pipeline)
 {
@@ -812,30 +721,7 @@ void ui_node::SetScroll(float ScrollSpeed, UIAxis_Type Axis, ui_pipeline &Pipeli
 
 void ui_node::SetImage(byte_string Path, byte_string Group, ui_pipeline &Pipeline)
 {
-    void_context &Context = GetVoidContext();
-
-    ui_loaded_image Image = LoadImageInGroup(Group, Path);
-    if(Image.IsLoaded)
-    {
-        uint64_t  Size   = sizeof(ui_image);
-        void     *Memory = AllocateUIResource(Size, &Context.ResourceTable->Allocator);
-
-        if(Memory)
-        {
-            ui_image *ImageResource = (ui_image *)Memory;
-            ImageResource->Source    = Image.Source;
-            ImageResource->GroupName = Group;
-
-            ui_resource_key   Key   = MakeNodeResourceKey(UIResource_Image, Index, Pipeline.Tree);
-            ui_resource_state State = FindResourceByKey(Key, Context.ResourceTable);
-
-            UpdateResourceTable(State.Id, Key, ImageResource, Context.ResourceTable);
-            SetLayoutNodeFlags(Index, UILayoutNode_HasImage, Pipeline.Tree);
-        }
-        else
-        {
-        }
-    }
+    // TODO: Reimplement.
 }
 
 void ui_node::DebugBox(uint32_t Flag, bool Draw, ui_pipeline &Pipeline)
@@ -1133,8 +1019,8 @@ UIGetDefaultPipelineParams(void)
 {
     ui_pipeline_params Params =
     {
-        .VtxShaderByteCode = GetDefaultVtxShader(),
-        .PxlShaderByteCode = GetDefaultPxlShader(),
+        .VtxShaderByteCode = byte_string(0, 0),
+        .PxlShaderByteCode = byte_string(0, 0),
     };
 
     return Params;

@@ -119,35 +119,7 @@ typedef enum UIEvent_State
 typedef UIEvent_State (*ui_text_input_onchar)  (uint8_t Char, void *UserData);
 typedef UIEvent_State (*ui_text_input_onkey)   (OSInputKey_Type Key, void *UserData);
 
-// ui_node:
-//  Main representation of a node in the UI (Button, Window, ...)
-//  A node can be anything you want. Nodes are only valid for a single frame, do
-//  not keep them in memory.
 
-struct ui_node
-{
-    uint32_t Index;
-
-    // Style
-    void     SetStyle         (uint32_t Style, ui_pipeline &Pipeline);
-
-    // Layout
-    ui_node  Find             (uint32_t Index , ui_pipeline &Pipeline);
-    void     Append           (ui_node  Child , ui_pipeline &Pipeline);
-    void     Reserve          (uint32_t Amount, ui_pipeline &Pipeline);
-
-    // Resource
-    void     SetText          (byte_string Text, ui_pipeline &Pipeline);
-    void     SetTextInput     (uint8_t *Buffer, uint64_t BufferSize, ui_pipeline &Pipeline);
-    void     SetScroll        (float ScrollSpeed, UIAxis_Type Axis, ui_pipeline &Pipeline);
-    void     SetImage         (byte_string Path, byte_string Group, ui_pipeline &Pipeline);
-
-    // Debug
-    void     DebugBox         (uint32_t Flag, bool Draw, ui_pipeline &Pipeline);
-
-    // Misc
-    void     SetId            (byte_string Id, ui_pipeline &Pipeline);
-};
 
 // -----------------------------------------------------------------------------------
 // Image API
@@ -174,7 +146,7 @@ static void UICreateImageGroup  (byte_string Name, int Width, int Height);
 //   to the placed ui_node_table. Does NOT allocate memory. If Memory == NULL the function
 //   returns NULL, thus caller must only check that the returned memory is non-null.
 //   Caller owns the memory and is responsible for managing it.
-// -------------------------------------------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------------------------------------------
 
 typedef enum NodeIdTable_Size
 {
@@ -186,12 +158,6 @@ typedef struct ui_node_table_params
     NodeIdTable_Size GroupSize;
     uint64_t         GroupCount;
 } ui_node_table_params;
-
-// NOTE: I believe most of this code can be hidden. Is it not meant to be used by the user.
-
-static uint64_t        UIGetNodeTableFootprint   (ui_node_table_params Params);
-static ui_node_table * UIPlaceNodeTableInMemory  (ui_node_table_params Params, void *Memory);
-static ui_node         UIFindNodeById            (byte_string Id, ui_node_table *Table);
 
 #include <immintrin.h>
 
@@ -206,6 +172,7 @@ typedef enum UIResource_Type
     UIResource_ScrollRegion = 3,
     UIResource_Image        = 4,
     UIResource_ImageGroup   = 5,
+    UIResource_Font         = 6,
 } UIResource_Type;
 
 typedef struct ui_resource_key
@@ -242,6 +209,7 @@ static ui_resource_table * PlaceResourceTableInMemory  (ui_resource_table_params
 
 static bool            IsValidResourceKey    (ui_resource_key Key);
 static ui_resource_key MakeNodeResourceKey   (UIResource_Type Type, uint32_t NodeIndex, ui_layout_tree *Tree);
+static ui_resource_key MakeFontResourceKey   (byte_string Name, float Size);
 static ui_resource_key MakeGlobalResourceKey (UIResource_Type Type, byte_string Name);
 
 // Resources:
@@ -259,6 +227,36 @@ static void              UpdateResourceTable   (uint32_t Id, ui_resource_key Key
 
 static void * QueryNodeResource    (uint32_t NodeIndex, ui_layout_tree *Tree, UIResource_Type Type, ui_resource_table *Table);
 static void * QueryGlobalResource  (byte_string Name, UIResource_Type Type, ui_resource_table *Table);
+
+// ui_node:
+//  Main representation of a node in the UI (Button, Window, ...)
+//  A node can be anything you want. Nodes are only valid for a single frame, do
+//  not keep them in memory.
+
+struct ui_node
+{
+    uint32_t Index;
+
+    // Style
+    void     SetStyle         (uint32_t Style, ui_pipeline &Pipeline);
+
+    // Layout
+    ui_node  Find             (uint32_t Index , ui_pipeline &Pipeline);
+    void     Append           (ui_node  Child , ui_pipeline &Pipeline);
+    void     Reserve          (uint32_t Amount, ui_pipeline &Pipeline);
+
+    // Resource
+    void     SetText          (byte_string Text, ui_resource_key FontKey, ui_pipeline &Pipeline);
+    void     SetTextInput     (uint8_t *Buffer, uint64_t BufferSize, ui_pipeline &Pipeline);
+    void     SetScroll        (float ScrollSpeed, UIAxis_Type Axis, ui_pipeline &Pipeline);
+    void     SetImage         (byte_string Path, byte_string Group, ui_pipeline &Pipeline);
+
+    // Debug
+    void     DebugBox         (uint32_t Flag, bool Draw, ui_pipeline &Pipeline);
+
+    // Misc
+    void     SetId            (byte_string Id, ui_pipeline &Pipeline);
+};
 
 // -----------------------------------------------------------------------------------
 

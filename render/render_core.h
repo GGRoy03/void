@@ -52,7 +52,7 @@ typedef struct render_batch_list
 
 typedef struct rect_group_params
 {
-    vec2_float    TextureSize;
+    vec2_uint16   TextureSize;
     render_handle Texture;
     matrix_3x3    Transform;
     rect_float    Clip;

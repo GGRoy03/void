@@ -127,9 +127,6 @@ struct ui_default_properties
     ui_property<float>            Softness;
     ui_property<ui_corner_radius> CornerRadius;
 
-    ui_property<ui_font>         *Font;
-    ui_property<float>            FontSize;
-
     ui_paint_properties MakePaintProperties(void)
     {
         ui_paint_properties Result = {};

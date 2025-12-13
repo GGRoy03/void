@@ -90,6 +90,9 @@ static ui_cached_style InspectorStyleArray[] =
 struct inspector_ui
 {
     bool IsInitialized;
+
+    // UI Resources
+    ui_resource_key Font;
 };
 
 // ------------------------------------------------------------------------------------
@@ -111,6 +114,11 @@ InitializeInspector(inspector_ui &Inspector)
         UICreatePipeline(Params);
     }
 
+    // UI Resource
+    {
+        Inspector.Font = UILoadSystemFont(str8_lit("Consolas"), 16.f, 1024, 1024);
+    }
+
     // Base Layout
     {
         ui_pipeline &Pipeline = UIBindPipeline(UIPipeline::Default);
@@ -124,6 +132,8 @@ InitializeInspector(inspector_ui &Inspector)
 
             ui_node Dummy1 = UIDummy(static_cast<uint32_t>(InspectorStyle::Something), Pipeline);
             {
+                Dummy1.SetText(str8_lit("Hello, World!"), Inspector.Font, Pipeline);
+
                 UIEndDummy(Dummy1, Pipeline);
             }
 

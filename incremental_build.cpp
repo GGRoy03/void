@@ -12,6 +12,7 @@
 #include "third_party/xxhash.h"
 
 #include "third_party/nxi_log.h"
+#include "third_party/ntext.h"
 
 // [Headers]
 

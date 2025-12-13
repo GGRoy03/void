@@ -3,7 +3,7 @@
 static render_handle
 RenderHandle(uint64_t Handle)
 {
-    render_handle Result = { .Value = Handle };
+    render_handle Result = {.Value = {Handle}};
     return Result;
 }
 
